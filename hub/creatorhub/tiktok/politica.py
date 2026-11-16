@@ -5,7 +5,7 @@ El cuerpo trae `code` y el HTTP casi siempre es 200. `Politica.decidir(http, cod
 | Código | Decisión | Reintentos | Notas |
 |---|---|---|---|
 | 0 | — | — | éxito |
-| 105002, 105001 | refrescar_token | 1 refresh + 1 reintento | 105002 tras un refresh exitoso → token_rechazado; 105001 → reautorizar |
+| 105002, 105001, 36009005 | refrescar_token | 1 refresh + 1 reintento | 105002 tras un refresh exitoso → token_rechazado; 105001/36009005 → reautorizar |
 | 105005, 16501011 | omitir_paso | 0 | falta un permiso |
 | 101000 | reautorizar | 0 | token de otra identidad |
 | 16015006, 16015007, 16504002, 18001405 | abortar | 0 | auth_estado = cuenta_sin_region |
@@ -50,6 +50,7 @@ SIN_REGION = (16015006, 16015007, 16504002, 18001405)
 POLITICA: dict[int, Regla] = {
     105002: Regla('refrescar_token', 1),
     105001: Regla('refrescar_token', 1),
+    36009005: Regla('refrescar_token', 1),  # access_token rechazado aunque su fecha aún sea futura
     105005: Regla('omitir_paso', 0),
     16501011: Regla('omitir_paso', 0),
     101000: Regla('reautorizar', 0),

@@ -519,7 +519,16 @@ class ClienteTikTokReal:
             if regla.decision == 'refrescar_token':
                 if not refrescado:
                     refrescado = True
-                    self._refrescar_desde_llamada(b.get('access_token'), path)
+                    try:
+                        self._refrescar_desde_llamada(b.get('access_token'), path)
+                    except ErrorApi as error_refresh:
+                        # A revoked credential remains unusable even when a
+                        # recent successful refresh prevents another rotation.
+                        if codigo == 36009005 and error_refresh.codigo == 'token_rechazado':
+                            e = ErrorApi(codigo, mensaje, 'reautorizar', http, request_id, path)
+                            self._marcar_reautorizar(e)
+                            raise e from None
+                        raise
                     continue
                 if codigo == 105002:      # recién renovado y TikTok lo da por vencido: no insistir ni pedir reconectar
                     e = ErrorApi('token_rechazado', mensaje, 'abortar', http, request_id, path)
