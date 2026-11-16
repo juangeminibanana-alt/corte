@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Corte</string>
+    <string name="canal_recordatorios">Recordatorios</string>
+    <string name="canal_recordatorios_desc">Avisos de tu plan de videos y de tus muestras.</string>
+</resources>

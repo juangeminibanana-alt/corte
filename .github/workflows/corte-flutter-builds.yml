@@ -1,0 +1,117 @@
+name: Corte Flutter - reviewed builds
+
+on:
+  # The new workflow is not yet on main. Build only Windows on this review branch.
+  push:
+    branches: [codex/tiktok-shop-firebase-cloud]
+    paths: ['client_flutter/**', '.github/workflows/corte-flutter-builds.yml']
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Build target (standard public runners only)
+        type: choice
+        required: true
+        default: windows
+        options: [windows, android, web, all]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: corte-flutter-${{ github.ref }}-${{ inputs.target }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+env:
+  FLUTTER_SUPPRESS_ANALYTICS: 'true'
+  CI: 'true'
+
+defaults:
+  run:
+    working-directory: client_flutter
+
+jobs:
+  checks:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 tool/bootstrap_flutter.py --destination "$RUNNER_TEMP/flutter" --github-actions
+      - run: flutter --no-version-check --disable-analytics
+      - run: flutter --no-version-check pub get --enforce-lockfile
+      - run: flutter --no-version-check analyze --no-fatal-infos
+      - run: flutter --no-version-check test
+
+  windows:
+    needs: checks
+    if: github.event.repository.private == false && (github.event_name == 'push' || inputs.target == 'windows' || inputs.target == 'all')
+    runs-on: windows-2025
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python tool/bootstrap_flutter.py --destination "$env:RUNNER_TEMP\flutter" --github-actions
+      - run: flutter --no-version-check --disable-analytics
+      - run: flutter --no-version-check pub get --enforce-lockfile
+      - run: flutter --no-version-check doctor -v
+      - run: ./tool/package_windows.ps1 -NoPub
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Corte-Flutter-Windows-x64
+          path: client_flutter/build/artifacts/*
+          if-no-files-found: error
+          retention-days: 1
+
+  android:
+    needs: checks
+    if: github.event.repository.private == false && (inputs.target == 'android' || inputs.target == 'all')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17.0.19+10'
+      - run: python3 tool/bootstrap_flutter.py --destination "$RUNNER_TEMP/flutter" --github-actions
+      - run: flutter --no-version-check --disable-analytics
+      - run: flutter --no-version-check pub get --enforce-lockfile
+      # CI has no historical release key. Its .dev APK cannot replace the installed production app.
+      - run: flutter --no-version-check build apk --debug --no-pub
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Corte-Flutter-Android-development-CI
+          path: client_flutter/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 1
+
+  web:
+    needs: checks
+    if: github.event.repository.private == false && (inputs.target == 'web' || inputs.target == 'all')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.22.3'
+          package-manager-cache: false
+      - run: npm ci --prefix ../ui
+      - run: python3 tool/bootstrap_flutter.py --destination "$RUNNER_TEMP/flutter" --github-actions
+      - run: flutter --no-version-check --disable-analytics
+      - run: flutter --no-version-check pub get --enforce-lockfile
+      - run: flutter --no-version-check build web --release --no-pub --base-href=/flutter/ --no-web-resources-cdn --csp
+      - run: node tool/bundle_web.mjs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Corte-Flutter-Web
+          path: client_flutter/build/web/
+          if-no-files-found: error
+          retention-days: 1

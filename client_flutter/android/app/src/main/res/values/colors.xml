@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Marca Corte aprobada: negro, coral y cian. -->
+    <color name="fondo">#08090B</color>
+    <color name="acento">#FE2C55</color>
+    <color name="marca_cian">#25F4EE</color>
+    <color name="icono_fondo">#08090B</color>
+</resources>
