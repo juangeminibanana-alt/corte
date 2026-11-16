@@ -4,6 +4,7 @@ import '../app.dart';
 import '../data/corte_repository.dart';
 import 'format.dart';
 import 'theme.dart';
+import 'desktop.dart';
 
 class InlineNotice extends StatelessWidget {
   const InlineNotice({
@@ -70,7 +71,7 @@ class PageTitle extends StatelessWidget {
           ],
           Text(
             title,
-            style: limits.maxWidth > 650
+            style: useDesktopWorkspace(context) || limits.maxWidth > 650
                 ? Theme.of(context).textTheme.headlineLarge
                 : Theme.of(
                     context,
@@ -114,7 +115,10 @@ class SectionHeading extends StatelessWidget {
   final String? subtitle;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 26, bottom: 16),
+    padding: EdgeInsets.only(
+      top: useDesktopWorkspace(context) ? 18 : 26,
+      bottom: useDesktopWorkspace(context) ? 10 : 16,
+    ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -352,9 +356,11 @@ class MetricStrip extends StatelessWidget {
                   const SizedBox(height: 7),
                   Text(
                     m.$2,
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
+                    style: TextStyle(
+                      fontSize: useDesktopWorkspace(context) ? 24 : 26,
+                      fontWeight: useDesktopWorkspace(context)
+                          ? FontWeight.w600
+                          : FontWeight.w800,
                       letterSpacing: -.8,
                     ),
                   ),

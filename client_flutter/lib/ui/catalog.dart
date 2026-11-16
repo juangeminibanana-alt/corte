@@ -5,6 +5,7 @@ import 'editors.dart';
 import 'format.dart';
 import 'theme.dart';
 import 'widgets.dart';
+import 'desktop.dart';
 import 'work.dart';
 
 Future<void> openPublicLink(BuildContext context, String? value) async {
@@ -270,14 +271,20 @@ class ProductRow extends StatelessWidget {
         '/productos/${Uri.encodeComponent(textOf(product['product_id']))}',
       ),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 17),
+        padding: EdgeInsets.symmetric(
+          vertical: useDesktopWorkspace(context) ? 12 : 17,
+        ),
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: context.corte.line)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            CortePhoto(textOf(product['imagen']), width: 76, height: 82),
+            CortePhoto(
+              textOf(product['imagen']),
+              width: useDesktopWorkspace(context) ? 56 : 76,
+              height: useDesktopWorkspace(context) ? 64 : 82,
+            ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -287,9 +294,11 @@ class ProductRow extends StatelessWidget {
                     productName(product),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
+                    style: TextStyle(
+                      fontWeight: useDesktopWorkspace(context)
+                          ? FontWeight.w600
+                          : FontWeight.w700,
+                      fontSize: useDesktopWorkspace(context) ? 14 : 15,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -363,9 +372,11 @@ class ProductDetailPage extends StatelessWidget {
             const SizedBox(height: 15),
             Text(
               salePrice(p),
-              style: const TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.w800,
+              style: TextStyle(
+                fontSize: useDesktopWorkspace(context) ? 26 : 30,
+                fontWeight: useDesktopWorkspace(context)
+                    ? FontWeight.w700
+                    : FontWeight.w800,
                 letterSpacing: -.7,
               ),
             ),
@@ -782,7 +793,9 @@ class VideoRow extends StatelessWidget {
       context,
     ).go('/videos/${Uri.encodeComponent(textOf(video['content_id']))}'),
     child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 17),
+      padding: EdgeInsets.symmetric(
+        vertical: useDesktopWorkspace(context) ? 12 : 17,
+      ),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: context.corte.line)),
       ),
@@ -790,8 +803,8 @@ class VideoRow extends StatelessWidget {
         children: [
           CortePhoto(
             videoCover(video),
-            width: 70,
-            height: 96,
+            width: useDesktopWorkspace(context) ? 56 : 70,
+            height: useDesktopWorkspace(context) ? 76 : 96,
             video: true,
             label: 'Portada de ${videoTitle(video)}',
           ),

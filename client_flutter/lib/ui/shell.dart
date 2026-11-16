@@ -6,6 +6,8 @@ import 'work.dart';
 import 'catalog.dart';
 import 'settings.dart';
 import 'planner.dart';
+import 'desktop.dart';
+import 'desktop_shell.dart';
 
 const _destinations = <(String, String, IconData)>[
   ('/inicio', 'Inicio', Icons.home_outlined),
@@ -125,6 +127,14 @@ class _CorteShellState extends State<CorteShell> {
     final active = mobile && {'videos', 'productos', 'ordenes'}.contains(root)
         ? 'ventas'
         : root;
+    if (useDesktopWorkspace(context)) {
+      return DesktopShell(
+        body: KeyedSubtree(key: ValueKey(ui.location), child: _screen(uri)),
+        onSearch: _search,
+        onSync: _sync,
+        syncing: _syncing,
+      );
+    }
     return Scaffold(
       body: Row(
         children: [

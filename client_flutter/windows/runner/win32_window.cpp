@@ -3,6 +3,8 @@
 #include <dwmapi.h>
 #include <flutter_windows.h>
 
+#include <algorithm>
+
 #include "resource.h"
 
 namespace {
@@ -35,6 +37,38 @@ using EnableNonClientDpiScaling = BOOL __stdcall(HWND hwnd);
 // scale factor
 int Scale(int source, double scale_factor) {
   return static_cast<int>(source * scale_factor);
+}
+
+// Return usable physical bounds, respecting taskbars and monitors that start
+// at a negative virtual-screen coordinate. No process/system DPI setting is
+// changed: the existing runner converts DIP values exactly once.
+bool WorkspaceBounds(HMONITOR monitor, double scale_factor, RECT* bounds) {
+  MONITORINFO information{};
+  information.cbSize = static_cast<DWORD>(sizeof(information));
+  RECT work{};
+  if (GetMonitorInfo(monitor, &information)) {
+    work = information.rcWork;
+  } else if (!SystemParametersInfo(SPI_GETWORKAREA, 0, &work, 0)) {
+    return false;
+  }
+
+  const int width = static_cast<int>(work.right - work.left);
+  const int height = static_cast<int>(work.bottom - work.top);
+  if (width <= 0 || height <= 0) {
+    return false;
+  }
+  const int margin = Scale(24, scale_factor);
+  const int horizontal_margin = (std::min)(margin, (width - 1) / 2);
+  const int vertical_margin = (std::min)(margin, (height - 1) / 2);
+  *bounds = RECT{work.left + horizontal_margin, work.top + vertical_margin,
+                 work.right - horizontal_margin,
+                 work.bottom - vertical_margin};
+  return true;
+}
+
+double MonitorScale(HMONITOR monitor) {
+  const UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
+  return static_cast<double>(dpi == 0 ? 96 : dpi) / 96.0;
 }
 
 // Dynamically loads the |EnableNonClientDpiScaling| from the User32 module.
@@ -131,13 +165,23 @@ bool Win32Window::Create(const std::wstring& title,
   const POINT target_point = {static_cast<LONG>(origin.x),
                               static_cast<LONG>(origin.y)};
   HMONITOR monitor = MonitorFromPoint(target_point, MONITOR_DEFAULTTONEAREST);
-  UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
-  double scale_factor = dpi / 96.0;
+  const double scale_factor = MonitorScale(monitor);
+  int width = Scale(static_cast<int>(size.width), scale_factor);
+  int height = Scale(static_cast<int>(size.height), scale_factor);
+  int left = Scale(static_cast<int>(origin.x), scale_factor);
+  int top = Scale(static_cast<int>(origin.y), scale_factor);
+  RECT bounds{};
+  if (WorkspaceBounds(monitor, scale_factor, &bounds)) {
+    const int available_width = static_cast<int>(bounds.right - bounds.left);
+    const int available_height = static_cast<int>(bounds.bottom - bounds.top);
+    width = (std::min)(width, available_width);
+    height = (std::min)(height, available_height);
+    left = static_cast<int>(bounds.left) + (available_width - width) / 2;
+    top = static_cast<int>(bounds.top) + (available_height - height) / 2;
+  }
 
   HWND window = CreateWindow(
-      window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
-      Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
-      Scale(size.width, scale_factor), Scale(size.height, scale_factor),
+      window_class, title.c_str(), WS_OVERLAPPEDWINDOW, left, top, width, height,
       nullptr, nullptr, GetModuleHandle(nullptr), this);
 
   if (!window) {
@@ -179,6 +223,25 @@ Win32Window::MessageHandler(HWND hwnd,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
   switch (message) {
+    case WM_GETMINMAXINFO: {
+      auto limits = reinterpret_cast<MINMAXINFO*>(lparam);
+      HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+      const double scale_factor = MonitorScale(monitor);
+      RECT bounds{};
+      if (limits != nullptr && WorkspaceBounds(monitor, scale_factor, &bounds)) {
+        const int available_width = static_cast<int>(bounds.right - bounds.left);
+        const int available_height = static_cast<int>(bounds.bottom - bounds.top);
+        limits->ptMinTrackSize.x =
+            (std::min)(Scale(960, scale_factor), available_width);
+        limits->ptMinTrackSize.y =
+            (std::min)(Scale(620, scale_factor), available_height);
+        // Leave maximized position/size and maximum tracking bounds to Windows
+        // so maximize, Snap and cross-monitor movement keep their OS behavior.
+        return 0;
+      }
+      break;
+    }
+
     case WM_DESTROY:
       window_handle_ = nullptr;
       Destroy();

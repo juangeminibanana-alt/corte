@@ -5,13 +5,17 @@ import 'format.dart';
 import 'theme.dart';
 import 'widgets.dart';
 import 'catalog.dart';
+import 'desktop.dart';
+import 'desktop_home.dart';
 
-EdgeInsets pagePadding(BuildContext context) => EdgeInsets.fromLTRB(
-  MediaQuery.sizeOf(context).width < 700 ? 20 : 32,
-  24,
-  MediaQuery.sizeOf(context).width < 700 ? 20 : 32,
-  40,
-);
+EdgeInsets pagePadding(BuildContext context) => useDesktopWorkspace(context)
+    ? const EdgeInsets.fromLTRB(24, 20, 24, 32)
+    : EdgeInsets.fromLTRB(
+        MediaQuery.sizeOf(context).width < 700 ? 20 : 32,
+        24,
+        MediaQuery.sizeOf(context).width < 700 ? 20 : 32,
+        40,
+      );
 String productName(Map<String, dynamic> p) =>
     textOf(p['titulo_corto'], textOf(p['titulo'], 'Producto'));
 bool samplePending(Map<String, dynamic> m) {
@@ -30,6 +34,14 @@ String salePrice(Map<String, dynamic> p) {
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
+  @override
+  Widget build(BuildContext context) => useDesktopWorkspace(context)
+      ? const DesktopHomePage()
+      : const _PhoneHomePage();
+}
+
+class _PhoneHomePage extends StatelessWidget {
+  const _PhoneHomePage();
   @override
   Widget build(BuildContext context) => ApiData(
     path: '/api/dashboard',
@@ -146,12 +158,108 @@ class _SamplesPageState extends State<SamplesPage> {
     super.dispose();
   }
 
+  Widget _desktopTools(Map<String, String> shops) => LayoutBuilder(
+    builder: (context, limits) {
+      final scale = (MediaQuery.textScalerOf(context).scale(13) / 13).clamp(
+        1.0,
+        1.5,
+      );
+      final storeWidth = 170 * scale;
+      final orderWidth = 150 * scale;
+      final filterWidth = 108 * scale;
+      final search = TextField(
+        controller: _query,
+        onChanged: (_) => setState(() {}),
+        decoration: const InputDecoration(
+          labelText: 'Buscar muestras',
+          floatingLabelBehavior: FloatingLabelBehavior.never,
+          prefixIcon: Icon(Icons.search_rounded, size: 18),
+        ),
+      );
+      final store = DropdownButtonFormField<String>(
+        initialValue: shops.containsKey(_store) ? _store : '',
+        isExpanded: true,
+        decoration: const InputDecoration(
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+        items: [
+          const DropdownMenuItem(value: '', child: Text('Tiendas')),
+          ...shops.entries.map(
+            (entry) => DropdownMenuItem(
+              value: entry.key,
+              child: Text(
+                entry.value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ],
+        onChanged: (value) => setState(() => _store = value ?? ''),
+      );
+      final order = DropdownButtonFormField<String>(
+        initialValue: _order,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+        items: const [
+          DropdownMenuItem(value: 'prioridad', child: Text('Sugerido')),
+          DropdownMenuItem(value: 'antiguas', child: Text('Más antiguas')),
+          DropdownMenuItem(value: 'recientes', child: Text('Recientes')),
+          DropdownMenuItem(value: 'tienda', child: Text('Por tienda')),
+        ],
+        onChanged: (value) => setState(() => _order = value ?? 'prioridad'),
+      );
+      final filters = OutlinedButton.icon(
+        onPressed: () => setState(() => _filters = !_filters),
+        icon: const Icon(Icons.tune_rounded, size: 18),
+        label: const Text('Filtros'),
+      );
+      if (limits.maxWidth >=
+          storeWidth + orderWidth + filterWidth + 30 + 220 * scale) {
+        return Row(
+          children: [
+            Expanded(child: search),
+            const SizedBox(width: 10),
+            SizedBox(width: storeWidth, child: store),
+            const SizedBox(width: 10),
+            SizedBox(width: orderWidth, child: order),
+            const SizedBox(width: 10),
+            SizedBox(width: filterWidth, child: filters),
+          ],
+        );
+      }
+      final half = (limits.maxWidth - 10) / 2;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          search,
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              SizedBox(width: storeWidth.clamp(0, half), child: store),
+              SizedBox(width: orderWidth.clamp(0, half), child: order),
+              SizedBox(
+                width: filterWidth.clamp(0, limits.maxWidth),
+                child: filters,
+              ),
+            ],
+          ),
+        ],
+      );
+    },
+  );
+
   @override
   Widget build(BuildContext context) => ApiData(
     path: '/api/muestras',
     query: const {'orden': 'prioridad'},
     builder: (context, data) {
       final ui = CorteScope.of(context);
+      final desktop = useDesktopWorkspace(context);
       final all = rowsOf(data['items']);
       final pending = all.where(samplePending).toList();
       final source = widget.all ? all : pending;
@@ -165,6 +273,12 @@ class _SamplesPageState extends State<SamplesPage> {
         for (final m in source) textOf(m['grupo']),
       }.where((e) => e.isNotEmpty).toList();
       final q = _query.text.trim().toLowerCase();
+      final hasFilters =
+          q.isNotEmpty ||
+          _store.isNotEmpty ||
+          _stage.isNotEmpty ||
+          _onlyPinned ||
+          _onlyReceived;
       final filtered = source.where((m) {
         final p = mapOf(m['producto']),
             a = mapOf(m['avance']),
@@ -207,7 +321,9 @@ class _SamplesPageState extends State<SamplesPage> {
               children: [
                 PageTitle(
                   'Muestras',
-                  subtitle: '${pending.length} pendientes',
+                  subtitle: desktop && widget.all
+                      ? '${all.length} muestras'
+                      : '${pending.length} pendientes',
                   action: FilledButton.icon(
                     onPressed: () => ui.go('/muestras/plan'),
                     icon: const Icon(Icons.calendar_month_outlined, size: 18),
@@ -219,102 +335,107 @@ class _SamplesPageState extends State<SamplesPage> {
                   total: all.length,
                   pending: pending.length,
                 ),
-                const SizedBox(height: 18),
-                TextField(
-                  controller: _query,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    hintText: 'Buscar muestra o tienda',
-                    labelText: 'Buscar muestras',
-                    floatingLabelBehavior: FloatingLabelBehavior.never,
-                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                    suffixIcon: TextButton.icon(
-                      onPressed: () => setState(() => _filters = !_filters),
-                      icon: const Icon(Icons.tune_rounded, size: 20),
-                      label: const Text('Filtros'),
+                SizedBox(height: desktop ? 16 : 18),
+                if (desktop)
+                  _desktopTools(shops)
+                else ...[
+                  TextField(
+                    controller: _query,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      hintText: 'Buscar muestra o tienda',
+                      labelText: 'Buscar muestras',
+                      floatingLabelBehavior: FloatingLabelBehavior.never,
+                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                      suffixIcon: TextButton.icon(
+                        onPressed: () => setState(() => _filters = !_filters),
+                        icon: const Icon(Icons.tune_rounded, size: 20),
+                        label: const Text('Filtros'),
+                      ),
                     ),
                   ),
-                ),
-                if (MediaQuery.sizeOf(context).width >= 700 || _filters)
-                  const SizedBox(height: 12),
-                if (MediaQuery.sizeOf(context).width >= 700 || _filters)
-                  LayoutBuilder(
-                    builder: (context, limits) => Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        SizedBox(
-                          width: (limits.maxWidth < 600
-                              ? limits.maxWidth / 2 - 5
-                              : 210),
-                          child: DropdownButtonFormField<String>(
-                            initialValue: shops.containsKey(_store)
-                                ? _store
-                                : '',
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
-                            ),
-                            items: [
-                              const DropdownMenuItem(
-                                value: '',
-                                child: Text('Tiendas'),
-                              ),
-                              ...shops.entries.map(
-                                (e) => DropdownMenuItem(
-                                  value: e.key,
-                                  child: Text(
-                                    e.value,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                  if (MediaQuery.sizeOf(context).width >= 700 || _filters)
+                    const SizedBox(height: 12),
+                  if (MediaQuery.sizeOf(context).width >= 700 || _filters)
+                    LayoutBuilder(
+                      builder: (context, limits) => Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          SizedBox(
+                            width: (limits.maxWidth < 600
+                                ? limits.maxWidth / 2 - 5
+                                : 210),
+                            child: DropdownButtonFormField<String>(
+                              initialValue: shops.containsKey(_store)
+                                  ? _store
+                                  : '',
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
                                 ),
                               ),
-                            ],
-                            onChanged: (v) => setState(() => _store = v ?? ''),
-                          ),
-                        ),
-                        SizedBox(
-                          width: limits.maxWidth < 600
-                              ? limits.maxWidth / 2 - 5
-                              : 180,
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _order,
-                            decoration: const InputDecoration(
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
+                              items: [
+                                const DropdownMenuItem(
+                                  value: '',
+                                  child: Text('Tiendas'),
+                                ),
+                                ...shops.entries.map(
+                                  (e) => DropdownMenuItem(
+                                    value: e.key,
+                                    child: Text(
+                                      e.value,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => _store = v ?? ''),
                             ),
-                            isExpanded: true,
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'prioridad',
-                                child: Text('Sugerido'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'antiguas',
-                                child: Text('Más antiguas'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'recientes',
-                                child: Text('Recientes'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'tienda',
-                                child: Text('Por tienda'),
-                              ),
-                            ],
-                            onChanged: (v) =>
-                                setState(() => _order = v ?? 'prioridad'),
                           ),
-                        ),
-                      ],
+                          SizedBox(
+                            width: limits.maxWidth < 600
+                                ? limits.maxWidth / 2 - 5
+                                : 180,
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _order,
+                              decoration: const InputDecoration(
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                              ),
+                              isExpanded: true,
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'prioridad',
+                                  child: Text('Sugerido'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'antiguas',
+                                  child: Text('Más antiguas'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'recientes',
+                                  child: Text('Recientes'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'tienda',
+                                  child: Text('Por tienda'),
+                                ),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => _order = v ?? 'prioridad'),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                ],
                 if (_filters) ...[
                   const SizedBox(height: 14),
                   Wrap(
@@ -346,37 +467,36 @@ class _SamplesPageState extends State<SamplesPage> {
                     ],
                   ),
                 ],
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${filtered.length} ${widget.all ? 'muestras' : 'por hacer'}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+                SizedBox(height: desktop ? 14 : 20),
+                if (!desktop || hasFilters)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          desktop
+                              ? '${filtered.length} resultados'
+                              : '${filtered.length} ${widget.all ? 'muestras' : 'por hacer'}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                    ),
-                    if (q.isNotEmpty ||
-                        _store.isNotEmpty ||
-                        _stage.isNotEmpty ||
-                        _onlyPinned ||
-                        _onlyReceived)
-                      TextButton(
-                        onPressed: () => setState(() {
-                          _query.clear();
-                          _store = '';
-                          _stage = '';
-                          _onlyPinned = false;
-                          _onlyReceived = false;
-                        }),
-                        child: const Text('Limpiar'),
-                      ),
-                  ],
-                ),
+                      if (hasFilters)
+                        TextButton(
+                          onPressed: () => setState(() {
+                            _query.clear();
+                            _store = '';
+                            _stage = '';
+                            _onlyPinned = false;
+                            _onlyReceived = false;
+                          }),
+                          child: const Text('Limpiar'),
+                        ),
+                    ],
+                  ),
                 const SizedBox(height: 8),
-                const Divider(),
+                if (desktop) const _SampleTableHeader() else const Divider(),
                 if (filtered.isEmpty)
                   EmptyState(
                     source.isEmpty
@@ -404,64 +524,388 @@ class _SampleTabs extends StatelessWidget {
   final bool all;
   final int total, pending;
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      border: Border(bottom: BorderSide(color: context.corte.line)),
-    ),
-    child: Row(
-      children: [
-        for (final tab in [
-          ('/muestras', 'Pendientes', !all, '$pending'),
-          ('/muestras/agenda', 'Agenda', false, ''),
-          ('/muestras/todas', 'Todas', all, '$total'),
-        ])
-          Expanded(
-            child: InkWell(
-              onTap: () => CorteScope.of(context).go(tab.$1),
-              child: Container(
-                padding: const EdgeInsets.only(top: 9, bottom: 14),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: tab.$3 ? CorteColors.coral : Colors.transparent,
-                      width: 3,
+  Widget build(BuildContext context) {
+    if (useDesktopWorkspace(context)) {
+      return Container(
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: context.corte.line)),
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final tab in [
+                ('/muestras', 'Pendientes', !all, '$pending'),
+                ('/muestras/agenda', 'Agenda', false, ''),
+                ('/muestras/todas', 'Todas', all, '$total'),
+              ])
+                Semantics(
+                  selected: tab.$3,
+                  child: InkWell(
+                    onTap: () => CorteScope.of(context).go(tab.$1),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(12, 9, 12, 12),
+                      margin: const EdgeInsets.only(right: 12),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: tab.$3
+                                ? CorteColors.coral
+                                : Colors.transparent,
+                            width: 3,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            tab.$2,
+                            style: TextStyle(
+                              fontWeight: tab.$3
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                          if (tab.$4.isNotEmpty) ...[
+                            const SizedBox(width: 7),
+                            Text(
+                              tab.$4,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: context.corte.muted,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      tab.$2,
-                      style: TextStyle(
-                        fontWeight: tab.$3 ? FontWeight.w800 : FontWeight.w500,
+            ],
+          ),
+        ),
+      );
+    }
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.corte.line)),
+      ),
+      child: Row(
+        children: [
+          for (final tab in [
+            ('/muestras', 'Pendientes', !all, '$pending'),
+            ('/muestras/agenda', 'Agenda', false, ''),
+            ('/muestras/todas', 'Todas', all, '$total'),
+          ])
+            Expanded(
+              child: InkWell(
+                onTap: () => CorteScope.of(context).go(tab.$1),
+                child: Container(
+                  padding: const EdgeInsets.only(top: 9, bottom: 14),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: tab.$3 ? CorteColors.coral : Colors.transparent,
+                        width: 3,
                       ),
                     ),
-                    if (tab.$4.isNotEmpty) ...[
-                      const SizedBox(width: 7),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
                       Text(
-                        tab.$4,
+                        tab.$2,
                         style: TextStyle(
-                          color: context.corte.muted,
-                          fontSize: 12,
+                          fontWeight: tab.$3
+                              ? FontWeight.w800
+                              : FontWeight.w500,
+                        ),
+                      ),
+                      if (tab.$4.isNotEmpty) ...[
+                        const SizedBox(width: 7),
+                        Text(
+                          tab.$4,
+                          style: TextStyle(
+                            color: context.corte.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+bool _sampleColumnsFit(BuildContext context, double width) {
+  final scale = MediaQuery.textScalerOf(context).scale(13) / 13;
+  return width >= 800 && width >= 640 * scale;
+}
+
+class _SampleColumnWidths {
+  _SampleColumnWidths(BuildContext context)
+    : scale = (MediaQuery.textScalerOf(context).scale(13) / 13).clamp(
+        1.0,
+        double.infinity,
+      );
+  final double scale;
+  double get variant => 150 * scale.clamp(1.0, 1.6);
+  double get status => 146 * scale.clamp(1.0, 1.6);
+  double get action => 76 * scale;
+}
+
+class _SampleTableHeader extends StatelessWidget {
+  const _SampleTableHeader();
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, limits) {
+      final columns = _SampleColumnWidths(context);
+      final wide = _sampleColumnsFit(context, limits.maxWidth);
+      Widget heading(String text) => Semantics(
+        header: true,
+        child: Text(
+          text,
+          style: TextStyle(
+            color: context.corte.muted,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: context.corte.soft,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(7)),
+          border: Border.all(color: context.corte.line),
+        ),
+        child: Row(
+          children: [
+            Expanded(child: heading('Producto')),
+            if (wide) ...[
+              const SizedBox(width: 16),
+              SizedBox(width: columns.variant, child: heading('Variante')),
+              const SizedBox(width: 16),
+              SizedBox(width: columns.status, child: heading('Estado')),
+            ],
+            const SizedBox(width: 16),
+            SizedBox(
+              width: columns.action,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: heading('Acción'),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+class _CompactSampleTile extends StatelessWidget {
+  const _CompactSampleTile({required this.muestra});
+  final Map<String, dynamic> muestra;
+
+  @override
+  Widget build(BuildContext context) {
+    final product = mapOf(muestra['producto']);
+    final shop = mapOf(muestra['tienda']);
+    final advance = mapOf(muestra['avance']);
+    final stage = textOf(advance['etapa']);
+    final variant = textOf(muestra['variante'], 'Sin variante informada');
+    final urgent =
+        {'vencida', 'por_vencer'}.contains(muestra['grupo']) ||
+        mapOf(muestra['avisos'])['promesa_vencida'] == true;
+    final status = urgent
+        ? textOf(muestra['etiqueta'], stageLabel(muestra['grupo']))
+        : stageLabel(advance['etapa']);
+    final buttonLabel = stage == 'por_planear' || stage.isEmpty
+        ? 'Planear'
+        : 'Avance';
+    void openDetail() => CorteScope.of(context).go(
+      '/muestras/m/${Uri.encodeComponent(textOf(muestra['application_id']))}',
+    );
+    return LayoutBuilder(
+      builder: (context, limits) {
+        final wide = _sampleColumnsFit(context, limits.maxWidth);
+        final columns = _SampleColumnWidths(context);
+        final button = OutlinedButton(
+          onPressed: () => showPlanEditor(context, muestra),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(44, 34),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            textStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          child: Text(buttonLabel),
+        );
+        final photo = ExcludeSemantics(
+          child: CortePhoto(
+            textOf(product['imagen']).isEmpty
+                ? null
+                : textOf(product['imagen']),
+            width: 52,
+            height: 58,
+            radius: 5,
+            label: productName(product),
+          ),
+        );
+        final identity = ExcludeSemantics(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                productName(product),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 14,
+                  height: 1.3,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(
+                    Icons.storefront_outlined,
+                    size: 13,
+                    color: context.corte.muted,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      textOf(shop['nombre']),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.3,
+                        color: context.corte.muted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (!wide) ...[
+                const SizedBox(height: 5),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  children: [
+                    Text(
+                      variant,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.3,
+                        color: context.corte.muted,
+                      ),
+                    ),
+                    StatusTag(status, urgent: urgent),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        );
+        return Semantics(
+          container: true,
+          explicitChildNodes: true,
+          button: true,
+          onTap: openDetail,
+          label:
+              'Producto: ${productName(product)}. Tienda: ${textOf(shop['nombre'])}. '
+              'Variante: $variant. Estado: $status. '
+              '${muestra['recibida'] == true ? 'Muestra recibida.' : ''}',
+          child: Material(
+            color: context.corte.surface,
+            child: InkWell(
+              excludeFromSemantics: true,
+              onTap: openDetail,
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 80),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  border: Border(
+                    left: BorderSide(color: context.corte.line),
+                    right: BorderSide(color: context.corte.line),
+                    bottom: BorderSide(color: context.corte.line),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    photo,
+                    const SizedBox(width: 12),
+                    Expanded(child: identity),
+                    if (wide) ...[
+                      const SizedBox(width: 16),
+                      SizedBox(
+                        width: columns.variant,
+                        child: ExcludeSemantics(
+                          child: Text(
+                            variant,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13, height: 1.4),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      SizedBox(
+                        width: columns.status,
+                        child: ExcludeSemantics(
+                          child: StatusTag(status, urgent: urgent),
                         ),
                       ),
                     ],
+                    const SizedBox(width: 16),
+                    if (wide)
+                      SizedBox(
+                        width: columns.action,
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: button,
+                        ),
+                      )
+                    else
+                      button,
                   ],
                 ),
               ),
             ),
           ),
-      ],
-    ),
-  );
+        );
+      },
+    );
+  }
 }
 
 class SampleTile extends StatelessWidget {
-  const SampleTile({super.key, required this.muestra});
+  const SampleTile({super.key, required this.muestra, this.compact = false});
   final Map<String, dynamic> muestra;
+  final bool compact;
   @override
   Widget build(BuildContext context) {
+    if (compact || useDesktopWorkspace(context)) {
+      return _CompactSampleTile(muestra: muestra);
+    }
     final m = muestra,
         p = mapOf(muestra['producto']),
         shop = mapOf(muestra['tienda']),
@@ -761,9 +1205,11 @@ class SampleDetailPage extends StatelessWidget {
                     Flexible(
                       child: Text(
                         salePrice(p),
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
+                        style: TextStyle(
+                          fontSize: useDesktopWorkspace(context) ? 22 : 24,
+                          fontWeight: useDesktopWorkspace(context)
+                              ? FontWeight.w700
+                              : FontWeight.w800,
                         ),
                       ),
                     ),
@@ -1001,9 +1447,11 @@ class _StoresPageState extends State<StoresPage> {
                         children: [
                           Text(
                             textOf(s['nombre']),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: useDesktopWorkspace(context)
+                                  ? FontWeight.w700
+                                  : FontWeight.w800,
                             ),
                           ),
                           const SizedBox(height: 6),

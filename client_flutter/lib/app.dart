@@ -10,6 +10,7 @@ import 'ui/theme.dart';
 import 'ui/theme_preferences.dart';
 import 'ui/shell.dart';
 import 'ui/widgets.dart';
+import 'ui/desktop.dart';
 
 class CorteApplication extends StatefulWidget {
   const CorteApplication({super.key});
@@ -63,8 +64,17 @@ class _CorteApplicationState extends State<CorteApplication>
       theme: corteTheme(),
       darkTheme: corteTheme(brightness: Brightness.dark),
       themeMode: _ui.appearance.mode,
-      builder: (context, child) =>
-          ThemeChromeSync(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) {
+        final content = ThemeChromeSync(
+          child: child ?? const SizedBox.shrink(),
+        );
+        return useDesktopWorkspace(context)
+            ? Theme(
+                data: desktopWorkspaceTheme(Theme.of(context)),
+                child: content,
+              )
+            : content;
+      },
       routerDelegate: _router,
       routeInformationParser: const CorteRouteParser(),
       locale: const Locale('es', 'MX'),

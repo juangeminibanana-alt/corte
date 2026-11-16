@@ -7,6 +7,7 @@ import 'editors.dart';
 import 'format.dart';
 import 'theme.dart';
 import 'widgets.dart';
+import 'desktop.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -383,7 +384,7 @@ class _SettingLine extends StatelessWidget {
   final String label, value;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 15),
+    padding: EdgeInsets.only(bottom: useDesktopWorkspace(context) ? 10 : 15),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
