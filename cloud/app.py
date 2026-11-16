@@ -315,6 +315,44 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
             return Response(pagina_html(exc.mensaje, False), status=exc.http, mimetype='text/html')
         return redirect('/#/inicio', code=303)
 
+    @app.post('/api/cloud/tiktok/import')
+    def shop_import() -> Any:
+        if request.content_length is not None and request.content_length > 64 * 1024:
+            return error('cuerpo_demasiado_grande', 'El archivo de conexión supera el límite permitido.', 413)
+        body = request.get_data(cache=True)
+        if len(body) > 64 * 1024:
+            return error('cuerpo_demasiado_grande', 'El archivo de conexión supera el límite permitido.', 413)
+        try:
+            result = hub.auth.importar_credenciales_nube(request.get_json())
+            revision = result.pop('_revision_credenciales')
+            result['sync_iniciada'] = False
+            if result['verificacion'] == 'ok':
+                # Serialize against disconnect/account changes without holding
+                # the vault lock while starting the synchronization thread.
+                with hub._candado_mutacion:
+                    actual = hub.boveda.leer()
+                    if (actual.get('app_key'), actual.get('epoca_credenciales', 0)) != revision:
+                        raise ErrorDominio('credenciales_cambiaron', 'La conexión cambió antes de sincronizar. '
+                                           'Revisa la cuenta actual e inténtalo de nuevo.', http=409)
+                    hub.encolar_avatar()
+                    hub.sincronizador.iniciar('completa', 'usuario')
+                    result['sync_iniciada'] = True
+            return jsonify(result)
+        except ErrorDominio as exc:
+            return jsonify(exc.a_respuesta(hub.secretos_vivos())), exc.http
+
+    @app.put('/api/cloud/tiktok/credentials')
+    def shop_credentials() -> Any:
+        body = request.get_json()
+        if not isinstance(body, dict) or set(body) != {'app_key', 'app_secret'}:
+            return error('parametros_invalidos', 'Escribe el App Key y el App Secret de la misma app de Partner Center.',
+                         422)
+        try:
+            return jsonify(hub.auth.guardar_credenciales_app(body['app_key'], body['app_secret']))
+        except ErrorDominio as exc:
+            # A validation error must never echo submitted credentials.
+            return jsonify(exc.a_respuesta(hub.secretos_vivos())), exc.http
+
     @app.post('/api/cloud/import')
     def import_local() -> Any:
         try:
@@ -381,7 +419,8 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
     def api(path: str) -> Any:
         route = request.path
         disabled = ('/api/lan', '/api/auth/portapapeles', '/api/credenciales/importar',
-                    '/api/credenciales/legado', '/api/local/importar', '/api/sistema/abrir')
+                    '/api/credenciales/legado', '/api/credenciales/app-secret',
+                    '/api/local/importar', '/api/sistema/abrir')
         if any(route == item or route.startswith(item + '/') for item in disabled):
             return error('no_disponible_en_nube', 'Esta función pertenece a la aplicación de escritorio.', 410)
         dispatcher = display if es_ruta_display(route) else hub.despachador

@@ -2,7 +2,7 @@
 
 Corte ahora incluye una **versión web privada**, con una interfaz clara inspirada en TikTok Shop y acceso desde computadora o teléfono, sin emparejamiento por Wi-Fi.
 
-**Versión publicada:** [Abrir Corte](https://corte-e-book-21589.web.app). El acceso con Google está limitado al propietario. Para cargar datos reales, conecta TikTok Shop desde Configuración con el App Secret y el callback aprobado de tu app.
+**Versión publicada:** [Abrir Corte](https://corte-e-book-21589.web.app). El acceso con Google está limitado al propietario. En Configuración puedes recuperar una conexión anterior desde su JSON o configurar la pareja App Key y App Secret de tu app de TikTok Shop.
 
 - **Inicio simplificado:** resultados, hasta cinco prioridades y accesos directos. El detalle permanece en Muestras, Tiendas, Ventas, Videos y Productos.
 - **Google con Firebase Authentication:** el servidor verifica la identidad y limita el acceso al propietario autorizado.

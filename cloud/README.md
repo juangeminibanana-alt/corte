@@ -36,9 +36,13 @@ El disco tiene snapshots diarios con retención de 14 días. Las copias de **Con
 
 ## Conectar TikTok y migrar
 
-Registra en Partner Center el callback exacto `https://corte-e-book-21589.web.app/oauth/shop`. Desde la aplicación desplegada guarda el App Secret y autoriza tu cuenta de creador. La conexión opcional de TikTok for Developers utiliza `https://corte-e-book-21589.web.app/oauth/tiktok`. Las URLs y permisos deben estar aprobados en las plataformas correspondientes antes de comprobar datos reales.
+Si ya tienes el `config.json` del panel anterior, usa **Configuración → TikTok Shop → Importar conexión anterior**. Corte recibe solo los campos de conexión por HTTPS, los valida y los guarda en su bóveda cifrada. La importación exige un destino sin autorización activa y la misma identidad si ya quedaba una cuenta guardada. Consulta el perfil real de TikTok antes de iniciar la sincronización; una falla de verificación se informa sin afirmar que la cuenta quedó conectada. El archivo original se conserva y sus valores nunca se devuelven en la respuesta.
 
-Las credenciales anteriores de Windows están ligadas a DPAPI y requieren una autorización nueva. Para migrar tu trabajo, exporta el JSON desde la aplicación anterior e impórtalo desde el navegador; no copies archivos DPAPI al servidor.
+Para una conexión nueva configura juntos el **App Key y el App Secret de la misma app**; la nube no completa la clave con la aplicación fija del repositorio. Después autoriza tu cuenta de creador. Para cambiar de app con una autorización activa, desconecta primero la cuenta; guardar las claves conserva los datos existentes.
+
+Registra en Partner Center el callback exacto `https://corte-e-book-21589.web.app/oauth/shop` para las autorizaciones nuevas. La conexión opcional de TikTok for Developers utiliza `https://corte-e-book-21589.web.app/oauth/tiktok`. Las URLs y permisos deben estar aprobados en las plataformas correspondientes.
+
+Los archivos DPAPI de Windows están cifrados para el perfil local y no deben copiarse directamente al servidor. La importación de conexión JSON es independiente de las copias de tu plan, avisos y notas; estas últimas se importan desde **Privacidad y datos** y no contienen credenciales.
 
 ## Comprobaciones
 

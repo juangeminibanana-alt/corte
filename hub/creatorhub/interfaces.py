@@ -155,6 +155,8 @@ class ServicioAuth(Protocol):                                       # auth.crear
     def link(self, abrir_navegador: bool) -> Json: ...              # AuthLinkResponse (state de 10 min, C37)
     def portapapeles(self) -> Json: ...                             # PortapapelesResponse
     def canjear(self, req: Json) -> Json: ...                       # AuthCanjearResponse (cambio de cuenta → coordinador)
+    def guardar_credenciales_app(self, app_key: str, app_secret: str) -> Json: ...
+    def importar_credenciales_nube(self, req: Json) -> Json: ...
     def refrescar(self) -> Json: ...                                # AuthEstadoResponse
     def desconectar(self, borrar_datos: bool) -> Json: ...          # AuthEstadoResponse (→ coordinador)
     def credenciales_estado(self) -> Json: ...                      # CredencialesEstado

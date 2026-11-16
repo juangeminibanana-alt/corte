@@ -46,6 +46,7 @@ P_PERFIL = '/affiliate_creator/202508/profiles'
 VIGENCIA_STATE_S = 600                  # C37: 10 min, un solo uso
 _RE_CODE_SUELTO = frozenset('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~*')
 _RE_SECRETO = importador_legado._RE_SECRETO
+_RE_APP_KEY = importador_legado._RE_APP_KEY
 
 # Textos visibles (01 §5.4, §4.14; vocabulario de 01 §1.5: «conexión», «permiso», nunca «token» ni «scope»).
 MSG_DEMO = 'En el modo de demostración no puedes cambiar la conexión con TikTok.'
@@ -182,7 +183,7 @@ class ServicioAuthReal:
             disponible = os.path.isfile(ruta)
         else:
             ruta, disponible = '', False                      # la demo nunca mira el archivo real
-        return {'app_key': d.get('app_key') or APP_KEY_PUBLICA,
+        return {'app_key': d.get('app_key') or ('' if self.nube else APP_KEY_PUBLICA),
                 'app_secret_configurado': bool(d.get('app_secret')),
                 'tokens_configurados': bool(d.get('access_token') and d.get('refresh_token')),
                 'origen': origen if origen in cx.ORIGENES else None,
@@ -246,7 +247,7 @@ class ServicioAuthReal:
         if self.nube:
             abrir_navegador = False
         d = self.boveda.leer()
-        if not d.get('app_secret'):
+        if not d.get('app_secret') or (self.nube and not d.get('app_key')):
             raise ErrorDominio('sin_credenciales', MSG_FALTA_CLAVE, http=409)
         state = secrets.token_urlsafe(24)
         ahora = self.reloj.ahora()
@@ -448,6 +449,7 @@ class ServicioAuthReal:
             raise ErrorDominio('parametros_invalidos', MSG_NO_ES_URL, http=400)
         if not self.boveda.tiene_app_secret():
             raise ErrorDominio('sin_credenciales', MSG_FALTA_CLAVE, http=409)
+        credenciales_inicio = self.boveda.leer()
         solo_pp = desde_pp and not texto
         ahora = self.reloj.ahora()
         with self._candado:
@@ -459,6 +461,7 @@ class ServicioAuthReal:
             # Confirmación del 409 de un canje «desde el portapapeles»: el state ya se consumió (el portapapeles NO se
             # vuelve a leer sin state vivo) y TikTok ya canjeó el code: se usan los tokens guardados en memoria.
             huella, datos, seq_url = pendiente['huella'], pendiente['datos'], pendiente.get('seq')
+            credenciales_inicio = pendiente['credenciales_inicio']
         else:
             if solo_pp:
                 code, state_url, seq_url = self._del_portapapeles()
@@ -467,6 +470,7 @@ class ServicioAuthReal:
             huella = hashlib.sha256(code.encode('utf-8')).hexdigest()
             if confirmar and pendiente is not None and hmac.compare_digest(pendiente['huella'], huella):
                 datos = pendiente['datos']                     # el code ya se canjeó al responder el 409
+                credenciales_inicio = pendiente['credenciales_inicio']
                 if seq_url is None:
                     seq_url = pendiente.get('seq')             # para vaciar el portapapeles si sigue la misma URL
             else:
@@ -494,11 +498,18 @@ class ServicioAuthReal:
         if distinta and not confirmar:
             with self._candado:
                 self._cambio_pendiente = {'huella': huella, 'datos': dict(datos), 'expira': ahora + VIGENCIA_STATE_S,
-                                          'seq': seq_url, 'desde_pp': solo_pp}
+                                          'seq': seq_url, 'desde_pp': solo_pp,
+                                          'credenciales_inicio': credenciales_inicio}
             raise ErrorDominio('cuenta_distinta', MSG_CUENTA_DISTINTA, http=409)
         primera = not guardado
+        def guardar_canje(d: dict[str, Any]) -> None:
+            if (d.get('app_key') != credenciales_inicio.get('app_key')
+                    or d.get('epoca_credenciales', 0) != credenciales_inicio.get('epoca_credenciales', 0)):
+                raise ErrorDominio('credenciales_cambiaron',
+                                   'La app cambió durante la autorización. Vuelve a autorizar desde Corte.', http=409)
+            d.update(cambios)
         self.coordinador.mutacion_segura(
-            lambda: self.boveda.mutar(lambda d: d.update(cambios), cambia_credenciales=True),
+            lambda: self.boveda.mutar(guardar_canje, cambia_credenciales=True),
             'tiktok' if distinta else 'nada')
         with self._candado:
             self._cambio_pendiente = None
@@ -554,6 +565,85 @@ class ServicioAuthReal:
         return {'conexion': self.conexion()}
 
     # ================================================================ credenciales
+    def importar_credenciales_nube(self, req: Json) -> Json:
+        """Importación explícita de JSON, sin acceder a rutas del servidor u origen.
+
+        Solo completa un destino sin autorización; no mezcla otra identidad ni
+        conserva campos desconocidos del archivo anterior.
+        """
+        self._exigir_real()
+        if not self.nube or not isinstance(req, dict):
+            raise ErrorDominio('archivo_invalido', 'El archivo debe contener un objeto JSON de la conexión anterior.',
+                               http=422)
+        campos = importador_legado.validar_campos(req)
+        requeridos = ('app_key', 'app_secret', 'access_token', 'refresh_token', 'access_expira_at',
+                      'refresh_expira_at', 'open_id', 'user_type', 'granted_scopes')
+        if (any(k not in campos for k in requeridos)
+                or not _RE_APP_KEY.fullmatch(campos['app_key'])
+                or not _RE_SECRETO.fullmatch(campos['app_secret'])
+                or not all(importador_legado._RE_TOKEN.fullmatch(campos[k])
+                           for k in ('access_token', 'refresh_token'))):
+            raise ErrorDominio('archivo_invalido', 'El archivo no incluye una conexión completa de Partner Center.',
+                               http=422)
+        if campos['refresh_expira_at'] <= self._ahora_tokens():
+            raise ErrorDominio('reautorizar', 'La conexión del archivo venció. Conecta de nuevo tu cuenta desde Corte.',
+                               http=422)
+        faltan = [s for s in cx.SCOPES_MINIMOS if s not in campos['granted_scopes']]
+        if faltan:
+            raise ErrorDominio('sin_permiso_tiktok', 'La conexión anterior no tiene los permisos indispensables. '
+                               'Autoriza de nuevo desde Corte.', http=422)
+        anterior = self.boveda.leer()
+        fila = self._leer_fila() or {}
+
+        def exigir_destino_vacio(d: Mapping[str, Any]) -> None:
+            if d.get('access_token') or d.get('refresh_token'):
+                raise ErrorDominio('conexion_existente', 'Corte ya tiene una cuenta autorizada. Desconéctala antes '
+                                   'de importar otra conexión.', http=409)
+            guardado = d.get('open_id') or fila.get('open_id')
+            if guardado and guardado != campos['open_id']:
+                raise ErrorDominio('cuenta_distinta', 'La conexión anterior pertenece a otra cuenta. '
+                                   'Conecta esa cuenta mediante la autorización de TikTok para confirmar el cambio.',
+                                   http=409)
+
+        exigir_destino_vacio(anterior)
+
+        def poner(d: dict[str, Any]) -> None:
+            exigir_destino_vacio(d)
+            if d.get('epoca_credenciales', 0) != anterior.get('epoca_credenciales', 0):
+                raise ErrorDominio('credenciales_cambiaron', 'La conexión cambió durante la importación. '
+                                   'Revisa la cuenta e inténtalo de nuevo.', http=409)
+            d.update(campos, origen='importado')
+
+        def guardar_importacion() -> None:
+            self.boveda.mutar(poner, cambia_credenciales=True)
+            self._espejar(estado=cx.estado_base(self.boveda.leer()), refresh_rechazos_seguidos=0,
+                          refresh_aviso=None, ultimo_error_codigo=None, ultimo_error_mensaje=None)
+
+        self.coordinador.mutacion_segura(guardar_importacion, 'nada')
+        revision_importada = (campos['app_key'], anterior.get('epoca_credenciales', 0) + 1)
+        with self._candado:
+            self._cambio_pendiente = None
+        perfil = self._traer_perfil()
+        verificada = (isinstance(perfil, Mapping) and isinstance(perfil.get('username'), str)
+                      and bool(perfil['username'].strip()))
+
+        def confirmar_perfil() -> None:
+            actual = self.boveda.leer()
+            if (actual.get('app_key'), actual.get('epoca_credenciales', 0)) != revision_importada:
+                raise ErrorDominio('credenciales_cambiaron', 'La conexión cambió al verificar el archivo. '
+                                   'Revisa la cuenta actual antes de sincronizar.', http=409)
+            if verificada:
+                self._guardar_perfil(perfil)
+
+        self.coordinador.mutacion_segura(confirmar_perfil, 'nada')
+        self._publicar()
+        _log.info('Conexión anterior importada en la bóveda cifrada; verificación %s',
+                  'correcta' if verificada else 'pendiente')
+        return {'ok': verificada, 'conexion': self.conexion(), 'verificacion': 'ok' if verificada else 'fallo',
+                '_revision_credenciales': revision_importada,
+                'importado': {'app_secret': True, 'access_token': True, 'refresh_token': True,
+                              'scopes': len(campos['granted_scopes'])}}
+
     def importar(self, req: Json) -> Json:
         self._exigir_real()
         if not isinstance(req, Mapping):
@@ -604,6 +694,67 @@ class ServicioAuthReal:
         self._publicar()
         _log.info('Clave de la app guardada (cifrada con DPAPI)')
         return self.credenciales_estado()
+
+    def guardar_credenciales_app(self, app_key: str, app_secret: str) -> Json:
+        """Guarda una pareja explícita; cambiar de app exige desconectar antes.
+
+        La cuenta y sus datos se conservan al cambiar de app sin autorización.
+        Una rotación con conexión se verifica antes de escribir, sin mantener
+        el candado de la bóveda durante una petición de red.
+        """
+        self._exigir_real()
+        if not isinstance(app_key, str) or not _RE_APP_KEY.fullmatch(app_key):
+            raise ErrorDominio('app_key_invalida',
+                               'El App Key debe tener de 4 a 64 letras, números, guiones o guiones bajos.', http=422)
+        if not isinstance(app_secret, str) or not _RE_SECRETO.fullmatch(app_secret):
+            raise ErrorDominio('app_secret_invalido', MSG_CLAVE_FORMATO, http=422)
+        anterior = self.boveda.leer()
+
+        def exigir_app_desconectada(d: Mapping[str, Any]) -> None:
+            if d.get('app_key') != app_key and (d.get('access_token') or d.get('refresh_token')):
+                raise ErrorDominio('app_key_en_uso',
+                                   'Desconecta primero tu cuenta de TikTok Shop para cambiar el App Key. '
+                                   'Tus datos guardados se conservarán.', http=409)
+
+        exigir_app_desconectada(anterior)
+        if anterior.get('access_token') or anterior.get('refresh_token'):
+            verificar = getattr(self.cliente, 'verificar_app_secret', None)
+            if not callable(verificar):
+                raise ErrorDominio('servicio_no_disponible',
+                                   'No pudimos verificar la clave de la app. Inténtalo de nuevo.', http=503)
+            try:
+                resultado = verificar(app_secret)
+            except (ErrorApi, ErrorRed):
+                raise ErrorDominio('sin_internet', 'No pudimos hablar con TikTok para revisar la clave. '
+                                   'Inténtalo de nuevo.', http=503) from None
+            if resultado != 'ok':
+                raise ErrorDominio('app_secret_invalido', MSG_CLAVE_RECHAZADA, http=422)
+
+        def poner(d: dict[str, Any]) -> None:
+            exigir_app_desconectada(d)
+            if (d.get('app_key') != anterior.get('app_key')
+                    or d.get('epoca_credenciales', 0) != anterior.get('epoca_credenciales', 0)):
+                raise ErrorDominio('credenciales_cambiaron',
+                                   'La conexión cambió mientras guardabas la app. Revisa la cuenta e inténtalo de nuevo.',
+                                   http=409)
+            d.update(app_key=app_key, app_secret=app_secret)
+            if not (d.get('access_token') and d.get('refresh_token')):
+                d['origen'] = 'manual'
+
+        def guardar() -> None:
+            self.boveda.mutar(poner, cambia_credenciales=True)
+            # Un enlace o canje pendiente de la app anterior no debe reutilizarse.
+            if anterior.get('app_key') != app_key:
+                with self.almacen.escritor() as c:
+                    c.execute('DELETE FROM oauth_states')
+
+        self.coordinador.mutacion_segura(guardar, 'nada')
+        with self._candado:
+            self._cambio_pendiente = None
+        self._espejar()
+        self._publicar()
+        _log.info('Credenciales de la app guardadas en la bóveda cifrada')
+        return {'ok': True, **self.credenciales_estado()}
 
     def borrar_legado(self) -> Json:
         self._exigir_real()
