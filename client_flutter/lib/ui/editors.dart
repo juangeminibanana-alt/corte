@@ -209,7 +209,7 @@ class _EditorDialogState extends State<_EditorDialog> {
                             const SizedBox(height: 8),
                             Text(
                               'Versión actual ${textOf(vigente!['rev'])}. Tu edición sigue en el formulario.',
-                              style: const TextStyle(color: CorteColors.muted),
+                              style: TextStyle(color: context.corte.muted),
                             ),
                             TextButton(
                               onPressed: busy
@@ -1017,9 +1017,9 @@ class _MessageEditorDialogState extends State<MessageEditorDialog> {
                                   'Completa los datos antes de copiar: ${resolved.faltantes.join(', ')}.',
                             ),
                           const SizedBox(height: 12),
-                          const Text(
+                          Text(
                             'Copiar registra el aviso. Marca «Ya lo envié» sólo después de enviarlo en el chat.',
-                            style: TextStyle(color: CorteColors.muted),
+                            style: TextStyle(color: context.corte.muted),
                           ),
                         ],
                         if (_error != null) ...[
@@ -1210,11 +1210,11 @@ class NotesPanel extends StatelessWidget {
         builder: (context, data) {
           final notes = rowsOf(data['items']);
           if (notes.isEmpty)
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
                 'Añade ideas, detalles o algo que quieras recordar.',
-                style: TextStyle(color: CorteColors.muted),
+                style: TextStyle(color: context.corte.muted),
               ),
             );
           return Column(
@@ -1226,12 +1226,12 @@ class NotesPanel extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (note['fijada'] == true)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 4, right: 9),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4, right: 9),
                             child: Icon(
                               Icons.push_pin_outlined,
                               size: 17,
-                              color: CorteColors.action,
+                              color: context.corte.action,
                             ),
                           ),
                         Expanded(child: SelectableText(textOf(note['texto']))),
@@ -1439,11 +1439,11 @@ class RemindersPanel extends StatelessWidget {
               )
               .toList();
           if (reminders.isEmpty)
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
                 'Organiza aquí tus próximos pasos.',
-                style: TextStyle(color: CorteColors.muted),
+                style: TextStyle(color: context.corte.muted),
               ),
             );
           return Column(
@@ -1473,8 +1473,8 @@ class RemindersPanel extends StatelessWidget {
                                 ? Icons.check_circle_rounded
                                 : Icons.radio_button_unchecked_rounded,
                             color: item['estado'] == 'hecho'
-                                ? CorteColors.cyanInk
-                                : CorteColors.muted,
+                                ? context.corte.cyanInk
+                                : context.corte.muted,
                           ),
                         ),
                         Expanded(
@@ -1494,8 +1494,8 @@ class RemindersPanel extends StatelessWidget {
                                   item['pospuesto_hasta'] ?? item['vence_at'],
                                   time: true,
                                 ),
-                                style: const TextStyle(
-                                  color: CorteColors.muted,
+                                style: TextStyle(
+                                  color: context.corte.muted,
                                   fontSize: 12,
                                 ),
                               ),

@@ -5,7 +5,9 @@ import 'auth/auth_controller.dart';
 import 'data/corte_repository.dart';
 import 'platform/data_store.dart';
 import 'platform/notifications.dart';
+import 'platform/theme_chrome.dart';
 import 'ui/theme.dart';
+import 'ui/theme_preferences.dart';
 import 'ui/shell.dart';
 import 'ui/widgets.dart';
 
@@ -53,21 +55,29 @@ class _CorteApplicationState extends State<CorteApplication>
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp.router(
-    title: 'Corte',
-    debugShowCheckedModeBanner: false,
-    theme: corteTheme(),
-    routerDelegate: _router,
-    routeInformationParser: const CorteRouteParser(),
-    locale: const Locale('es', 'MX'),
-    supportedLocales: const [Locale('es', 'MX'), Locale('es'), Locale('en')],
-    localizationsDelegates: GlobalMaterialLocalizations.delegates,
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _ui.appearance,
+    builder: (context, _) => MaterialApp.router(
+      title: 'Corte',
+      debugShowCheckedModeBanner: false,
+      theme: corteTheme(),
+      darkTheme: corteTheme(brightness: Brightness.dark),
+      themeMode: _ui.appearance.mode,
+      builder: (context, child) =>
+          ThemeChromeSync(child: child ?? const SizedBox.shrink()),
+      routerDelegate: _router,
+      routeInformationParser: const CorteRouteParser(),
+      locale: const Locale('es', 'MX'),
+      supportedLocales: const [Locale('es', 'MX'), Locale('es'), Locale('en')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+    ),
   );
 }
 
 class CorteUiController extends ChangeNotifier {
   CorteUiController({required this.auth}) {
     repo = CorteRepository(adapter: auth.transport);
+    appearance = CorteThemePreferences(repo)..addListener(notifyListeners);
     auth.addListener(_authChanged);
     unawaited(
       createCorteDataStore()
@@ -75,6 +85,7 @@ class CorteUiController extends ChangeNotifier {
             if (!_closed) {
               repo.attachStore(store);
               repo.invalidar();
+              unawaited(appearance.load(force: true));
               revision++;
               notifyListeners();
               unawaited(_maintain());
@@ -108,6 +119,7 @@ class CorteUiController extends ChangeNotifier {
   String? _warmedRevision;
   String? _remoteRevision;
   late final CorteRepository repo;
+  late final CorteThemePreferences appearance;
   String location = '/inicio';
   final _history = <String>[];
   bool _receivedRoute = false;
@@ -125,6 +137,8 @@ class CorteUiController extends ChangeNotifier {
         ownerScope: auth.state.authenticated ? auth.state.ownerScope : null,
         cacheScope: auth.state.authenticated ? auth.state.cacheScope : null,
       );
+      appearance.resetForScope();
+      unawaited(appearance.load());
       revision++;
       _remoteRevision = null;
       _warmedRevision = null;
@@ -150,8 +164,10 @@ class CorteUiController extends ChangeNotifier {
     if (!value.startsWith('/') || value.startsWith('//')) value = '/inicio';
     if (_receivedRoute && value != location) {
       final previous = _history.lastIndexOf(value);
-      if (previous >= 0) _history.removeRange(previous, _history.length);
-      else _history.add(location);
+      if (previous >= 0)
+        _history.removeRange(previous, _history.length);
+      else
+        _history.add(location);
     }
     _receivedRoute = true;
     replace(value);
@@ -240,6 +256,7 @@ class CorteUiController extends ChangeNotifier {
           _dataDirty ||
           result.resultados.isNotEmpty ||
           _snapshotDay != today;
+      if (refreshData) await appearance.load(force: true);
       if (repo.copiaPersistenteDisponible && refreshData) {
         final snapshot = await repo.snapshot(
           force: changed || result.resultados.isNotEmpty,
@@ -286,6 +303,8 @@ class CorteUiController extends ChangeNotifier {
     _revisionTimer?.cancel();
     _refreshTimer?.cancel();
     notifications.dispose();
+    appearance.removeListener(notifyListeners);
+    appearance.dispose();
     auth.removeListener(_authChanged);
     repo.close();
     super.dispose();
@@ -402,8 +421,8 @@ class CorteAccess extends StatelessWidget {
                   pending != null
                       ? 'Confirma este código en el navegador para conectar tu cuenta con Google.'
                       : 'Tus muestras, tus productos y tus resultados, juntos.',
-                  style: const TextStyle(
-                    color: CorteColors.muted,
+                  style: TextStyle(
+                    color: context.corte.muted,
                     fontSize: 16,
                     height: 1.5,
                   ),
@@ -415,7 +434,7 @@ class CorteAccess extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(22),
                     decoration: BoxDecoration(
-                      color: CorteColors.rose,
+                      color: context.corte.rose,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: SelectableText(
@@ -461,10 +480,10 @@ class CorteAccess extends StatelessWidget {
                   InlineNotice(text: state.errorMessage!, error: true),
                 ],
                 const SizedBox(height: 30),
-                const Text(
+                Text(
                   'Acceso privado con tu cuenta de Google.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: CorteColors.muted, fontSize: 13),
+                  style: TextStyle(color: context.corte.muted, fontSize: 13),
                 ),
               ],
             ),

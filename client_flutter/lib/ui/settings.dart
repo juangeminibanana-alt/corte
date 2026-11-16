@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
 import '../app.dart';
@@ -26,6 +27,8 @@ class SettingsPage extends StatelessWidget {
                 'Ajustes',
                 subtitle: 'Tu cuenta y tu forma de trabajar.',
               ),
+              const SectionHeading('Apariencia'),
+              const _AppearanceSettings(),
               const SectionHeading('Tu cuenta de Google'),
               _SettingLine(
                 label: 'Sesión',
@@ -169,6 +172,102 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
+class _AppearanceSettings extends StatefulWidget {
+  const _AppearanceSettings();
+  @override
+  State<_AppearanceSettings> createState() => _AppearanceSettingsState();
+}
+
+class _AppearanceSettingsState extends State<_AppearanceSettings> {
+  int? _revision;
+  String? _scope;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final ui = CorteScope.of(context);
+    if (_revision == ui.revision && _scope == ui.repo.cacheScope) return;
+    _revision = ui.revision;
+    _scope = ui.repo.cacheScope;
+    // Loading may notify the MaterialApp; start it after this build has ended.
+    Future.microtask(() {
+      if (mounted) ui.appearance.load(force: true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ui = CorteScope.of(context);
+    final appearance = ui.appearance;
+    return AnimatedBuilder(
+      animation: appearance,
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final option in const [
+                ('claro', 'Claro', Icons.light_mode_outlined),
+                ('oscuro', 'Oscuro', Icons.dark_mode_outlined),
+                ('sistema', 'Sistema', Icons.brightness_auto_outlined),
+              ])
+                ChoiceChip(
+                  avatar: Icon(option.$3, size: 18),
+                  label: Text(option.$2),
+                  selected: appearance.value == option.$1,
+                  onSelected:
+                      !appearance.loaded ||
+                          appearance.busy ||
+                          appearance.pending ||
+                          appearance.needsReview
+                      ? null
+                      : (selected) async {
+                          if (!selected) return;
+                          try {
+                            final result = await appearance.choose(option.$1);
+                            if (!mounted) return;
+                            ui.refresh();
+                            toast(
+                              context,
+                              result.enCola
+                                  ? 'Apariencia guardada en este equipo; pendiente de envío.'
+                                  : 'Apariencia guardada.',
+                            );
+                          } catch (_) {
+                            if (mounted) ui.refresh();
+                          }
+                        },
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            appearance.busy
+                ? 'Guardando tu elección…'
+                : appearance.pending
+                ? 'Tu elección se enviará cuando recuperes la conexión.'
+                : appearance.value == 'sistema'
+                ? 'Corte cambia con el tema de tu dispositivo.'
+                : 'Tu elección se conserva en tu cuenta de Corte.',
+            style: TextStyle(color: context.corte.muted),
+          ),
+          if (appearance.error != null) ...[
+            const SizedBox(height: 10),
+            InlineNotice(text: appearance.error!, error: true),
+            if (!appearance.loaded)
+              TextButton(
+                onPressed: () => appearance.load(force: true),
+                child: const Text('Reintentar'),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 String _connectionLabel(Object? state) =>
     const {
       'conectada': 'Conectada',
@@ -232,11 +331,11 @@ class _NotificationSettingsState extends State<_NotificationSettings> {
                 : 'Recibe avisos de tus recordatorios en este dispositivo.',
           ),
           if (permission == 'denegado')
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
               child: Text(
                 'Android todavía no permite las notificaciones de Corte.',
-                style: TextStyle(color: CorteColors.muted),
+                style: TextStyle(color: context.corte.muted),
               ),
             ),
           const SizedBox(height: 8),
@@ -288,10 +387,7 @@ class _SettingLine extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(color: CorteColors.muted, fontSize: 13),
-        ),
+        Text(label, style: TextStyle(color: context.corte.muted, fontSize: 13)),
         const SizedBox(height: 3),
         SelectableText(
           value,
@@ -315,7 +411,7 @@ class _NavigationLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListTile(
     contentPadding: const EdgeInsets.symmetric(vertical: 7),
-    leading: Icon(icon, color: CorteColors.cyanInk),
+    leading: Icon(icon, color: context.corte.cyanInk),
     title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
     subtitle: Text(subtitle),
     trailing: const Icon(Icons.chevron_right_rounded),
@@ -402,6 +498,20 @@ class _PreferencesFormState extends State<_PreferencesForm> {
     super.didUpdateWidget(oldWidget);
     if (!dirty && oldWidget.value['rev'] != widget.value['rev']) {
       _load(widget.value);
+    } else if (dirty &&
+        !busy &&
+        current == null &&
+        base['rev'] != widget.value['rev'] &&
+        base['capacidad_videos_dia'] == widget.value['capacidad_videos_dia'] &&
+        base['firma'] == widget.value['firma'] &&
+        listEquals(
+          base['dias_videos'] as List?,
+          widget.value['dias_videos'] as List?,
+        )) {
+      // Appearance uses the same preference revision. Safely advance the base
+      // only if none of this form's fields changed on the server.
+      base = widget.value;
+      opId = nuevoId();
     }
   }
 
@@ -651,11 +761,11 @@ class _PendingChangesState extends State<_PendingChanges> {
             if (!snapshot.hasData) return const LinearProgressIndicator();
             final entries = snapshot.data!;
             if (entries.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text(
                   'No hay cambios pendientes en este dispositivo.',
-                  style: TextStyle(color: CorteColors.muted),
+                  style: TextStyle(color: context.corte.muted),
                 ),
               );
             }
@@ -757,7 +867,7 @@ class _QueuedChangeState extends State<_QueuedChange> {
                         ),
                         Text(
                           'Actual: ${_fieldValue(current[entry.key])}',
-                          style: const TextStyle(color: CorteColors.muted),
+                          style: TextStyle(color: context.corte.muted),
                         ),
                         SelectableText(
                           'Tu cambio: ${_fieldValue(entry.value)}',
@@ -833,7 +943,7 @@ class _QueuedChangeState extends State<_QueuedChange> {
               Icon(
                 failed ? Icons.error_outline_rounded : Icons.schedule_rounded,
                 size: 20,
-                color: failed ? CorteColors.action : CorteColors.muted,
+                color: failed ? context.corte.action : context.corte.muted,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -851,12 +961,12 @@ class _QueuedChangeState extends State<_QueuedChange> {
                               'Este cambio necesita revisión.',
                             )
                           : 'Guardado en este equipo; pendiente de envío.',
-                      style: const TextStyle(color: CorteColors.muted),
+                      style: TextStyle(color: context.corte.muted),
                     ),
                     if (error != null)
                       Text(
                         error!,
-                        style: const TextStyle(color: CorteColors.action),
+                        style: TextStyle(color: context.corte.action),
                       ),
                   ],
                 ),
@@ -938,6 +1048,7 @@ String _fieldLabel(String field) =>
       'capacidad_videos_dia': 'Videos por día',
       'dias_videos': 'Días para tus videos',
       'firma': 'Firma',
+      'tema': 'Apariencia',
       'titulo': 'Título',
       'texto': 'Texto',
       'estado': 'Estado',
@@ -954,6 +1065,12 @@ String _fieldLabel(String field) =>
     field.replaceAll('_', ' ');
 String _fieldValue(Object? value) => value == null
     ? 'Sin valor'
+    : const {
+        'claro': 'Claro',
+        'oscuro': 'Oscuro',
+        'sistema': 'Sistema',
+      }.containsKey(value)
+    ? const {'claro': 'Claro', 'oscuro': 'Oscuro', 'sistema': 'Sistema'}[value]!
     : value is bool
     ? (value ? 'Sí' : 'No')
     : value is List
@@ -993,12 +1110,12 @@ class NotesPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (note['fijada'] == true)
-                    const Padding(
-                      padding: EdgeInsets.only(right: 10, top: 3),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 10, top: 3),
                       child: Icon(
                         Icons.push_pin_outlined,
                         size: 19,
-                        color: CorteColors.action,
+                        color: context.corte.action,
                       ),
                     ),
                   Expanded(
@@ -1013,8 +1130,8 @@ class NotesPage extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
                               date(note['actualizado_at']),
-                              style: const TextStyle(
-                                color: CorteColors.muted,
+                              style: TextStyle(
+                                color: context.corte.muted,
                                 fontSize: 12,
                               ),
                             ),
@@ -1173,7 +1290,7 @@ class _ReminderRowState extends State<_ReminderRow> {
                   done
                       ? Icons.check_circle_rounded
                       : Icons.radio_button_unchecked_rounded,
-                  color: done ? CorteColors.cyanInk : CorteColors.muted,
+                  color: done ? context.corte.cyanInk : context.corte.muted,
                 ),
               ),
               Expanded(
@@ -1195,7 +1312,7 @@ class _ReminderRowState extends State<_ReminderRow> {
                           item['pospuesto_hasta'] ?? item['vence_at'],
                           time: true,
                         ),
-                        style: const TextStyle(color: CorteColors.muted),
+                        style: TextStyle(color: context.corte.muted),
                       ),
                       _EntityLink(value: item),
                     ],
@@ -1316,9 +1433,9 @@ class _EntityLink extends StatelessWidget {
       'plan': 'Ver plan',
     }[entity];
     if (prefix == null || id is! String || id.isEmpty) {
-      return const Text(
+      return Text(
         'General',
-        style: TextStyle(color: CorteColors.muted, fontSize: 12),
+        style: TextStyle(color: context.corte.muted, fontSize: 12),
       );
     }
     return TextButton(

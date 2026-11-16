@@ -363,7 +363,7 @@ class _PlannerFormState extends State<_PlannerForm> {
             Text('Terminas de grabar el ${result.finish}.'),
             Text(
               'Con dos días de margen, último día sugerido de publicación: ${result.publishBy}.',
-              style: const TextStyle(color: CorteColors.muted),
+              style: TextStyle(color: context.corte.muted),
             ),
           ],
           if (result.lateCount > 0 || result.brokenPromises > 0) ...[
@@ -458,13 +458,13 @@ class _CandidateRow extends StatelessWidget {
                     ),
                     Text(
                       textOf(mapOf(sample['tienda'])['nombre']),
-                      style: const TextStyle(color: CorteColors.cyanInk),
+                      style: TextStyle(color: context.corte.cyanInk),
                     ),
                     if (sample['fecha_limite_at'] != null)
                       Text(
                         'Fecha límite: ${date(sample['fecha_limite_at'])}',
-                        style: const TextStyle(
-                          color: CorteColors.muted,
+                        style: TextStyle(
+                          color: context.corte.muted,
                           fontSize: 12,
                         ),
                       ),
@@ -509,10 +509,7 @@ class _PreviewRow extends StatelessWidget {
                     item.late
                         ? 'Después de la fecha límite'
                         : 'Necesita una nueva fecha con la tienda',
-                    style: const TextStyle(
-                      color: CorteColors.action,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: context.corte.action, fontSize: 12),
                   ),
               ],
             ),

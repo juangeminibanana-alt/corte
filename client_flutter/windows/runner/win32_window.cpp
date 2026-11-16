@@ -263,6 +263,11 @@ void Win32Window::SetQuitOnClose(bool quit_on_close) {
   quit_on_close_ = quit_on_close;
 }
 
+void Win32Window::SetFrameDarkMode(bool enabled) {
+  frame_dark_mode_ = enabled;
+  UpdateTheme(window_handle_);
+}
+
 bool Win32Window::OnCreate() {
   // No-op; provided for subclasses.
   return true;
@@ -273,16 +278,33 @@ void Win32Window::OnDestroy() {
 }
 
 void Win32Window::UpdateTheme(HWND const window) {
-  DWORD light_mode;
-  DWORD light_mode_size = sizeof(light_mode);
-  LSTATUS result = RegGetValue(HKEY_CURRENT_USER, kGetPreferredBrightnessRegKey,
-                               kGetPreferredBrightnessRegValue,
-                               RRF_RT_REG_DWORD, nullptr, &light_mode,
-                               &light_mode_size);
-
-  if (result == ERROR_SUCCESS) {
-    BOOL enable_dark_mode = light_mode == 0;
-    DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE,
-                          &enable_dark_mode, sizeof(enable_dark_mode));
+  if (window == nullptr) {
+    return;
+  }
+  BOOL enable_dark_mode = FALSE;
+  if (frame_dark_mode_.has_value()) {
+    enable_dark_mode = frame_dark_mode_.value() ? TRUE : FALSE;
+  } else {
+    DWORD light_mode = 1;
+    DWORD light_mode_size = sizeof(light_mode);
+    if (RegGetValue(HKEY_CURRENT_USER, kGetPreferredBrightnessRegKey,
+                    kGetPreferredBrightnessRegValue, RRF_RT_REG_DWORD,
+                    nullptr, &light_mode, &light_mode_size) == ERROR_SUCCESS) {
+      enable_dark_mode = light_mode == 0 ? TRUE : FALSE;
+    }
+  }
+  HRESULT applied = DwmSetWindowAttribute(
+      window, DWMWA_USE_IMMERSIVE_DARK_MODE, &enable_dark_mode,
+      sizeof(enable_dark_mode));
+  if (FAILED(applied)) {
+    // Windows 10 1809 used 19 before the attribute settled on 20. If neither
+    // exists, leave the OS frame unchanged; content still uses the app theme.
+    constexpr DWORD kLegacyImmersiveDarkMode = 19;
+    applied = DwmSetWindowAttribute(window, kLegacyImmersiveDarkMode,
+                                    &enable_dark_mode,
+                                    sizeof(enable_dark_mode));
+  }
+  if (SUCCEEDED(applied)) {
+    RedrawWindow(window, nullptr, nullptr, RDW_INVALIDATE | RDW_FRAME);
   }
 }

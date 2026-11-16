@@ -1,6 +1,9 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <variant>
+
+#include <flutter/standard_method_codec.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -26,6 +29,27 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   native_channel_ = std::make_unique<CorteNativeChannel>(flutter_controller_->engine()->messenger());
+  theme_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "corte/window",
+          &flutter::StandardMethodCodec::GetInstance());
+  theme_channel_->SetMethodCallHandler(
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+        if (call.method_name() != "setDarkMode") {
+          result->NotImplemented();
+          return;
+        }
+        const bool* dark = call.arguments() == nullptr
+                               ? nullptr
+                               : std::get_if<bool>(call.arguments());
+        if (dark == nullptr) {
+          result->Error("invalid_arguments", "Expected a resolved dark-mode boolean.");
+          return;
+        }
+        SetFrameDarkMode(*dark);
+        result->Success();
+      });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -41,6 +65,10 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  if (theme_channel_) {
+    theme_channel_->SetMethodCallHandler(nullptr);
+    theme_channel_ = nullptr;
+  }
   native_channel_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;

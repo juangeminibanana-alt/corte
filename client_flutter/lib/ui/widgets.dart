@@ -22,7 +22,7 @@ class InlineNotice extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: error ? CorteColors.rose : CorteColors.soft,
+        color: error ? context.corte.rose : context.corte.soft,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -31,7 +31,7 @@ class InlineNotice extends StatelessWidget {
           Icon(
             error ? Icons.error_outline_rounded : Icons.info_outline_rounded,
             size: 20,
-            color: error ? CorteColors.action : CorteColors.cyanInk,
+            color: error ? context.corte.action : context.corte.cyanInk,
           ),
           const SizedBox(width: 10),
           Expanded(child: Text(text)),
@@ -78,7 +78,7 @@ class PageTitle extends StatelessWidget {
           ),
           if (subtitle != null && subtitle!.isNotEmpty) ...[
             const SizedBox(height: 7),
-            Text(subtitle!, style: const TextStyle(color: CorteColors.muted)),
+            Text(subtitle!, style: TextStyle(color: context.corte.muted)),
           ],
         ],
       );
@@ -128,7 +128,7 @@ class SectionHeading extends StatelessWidget {
         ),
         if (subtitle != null) ...[
           const SizedBox(height: 6),
-          Text(subtitle!, style: const TextStyle(color: CorteColors.muted)),
+          Text(subtitle!, style: TextStyle(color: context.corte.muted)),
         ],
       ],
     ),
@@ -154,7 +154,7 @@ class EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 38, color: CorteColors.muted),
+          Icon(icon, size: 38, color: context.corte.muted),
           const SizedBox(height: 18),
           Text(
             title,
@@ -168,7 +168,7 @@ class EmptyState extends StatelessWidget {
               child: Text(
                 text!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: CorteColors.muted),
+                style: TextStyle(color: context.corte.muted),
               ),
             ),
           ],
@@ -215,7 +215,9 @@ class _ApiDataState extends State<ApiData> {
       _future = ui.repo.get(widget.path, query: widget.query);
     }
     return FutureBuilder<JsonMap>(
-      key: ValueKey(key),
+      // A refresh of the same account and resource must preserve form drafts.
+      // Changing identity still discards both the old data and widget state.
+      key: ValueKey(identity),
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -287,11 +289,11 @@ class _CortePhotoState extends State<CortePhoto> {
           : ui.repo.imagen(path, tamano: widget.width > 160 ? 'md' : 'sm');
     }
     final placeholder = ColoredBox(
-      color: CorteColors.soft,
+      color: context.corte.soft,
       child: Center(
         child: Icon(
           widget.video ? Icons.videocam_off_outlined : Icons.image_outlined,
-          color: const Color(0xFFACADB6),
+          color: context.corte.muted,
           size: widget.width < 60 ? 20 : 29,
         ),
       ),
@@ -345,10 +347,7 @@ class MetricStrip extends StatelessWidget {
                 children: [
                   Text(
                     m.$1,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: CorteColors.muted,
-                    ),
+                    style: TextStyle(fontSize: 13, color: context.corte.muted),
                   ),
                   const SizedBox(height: 7),
                   Text(
@@ -381,7 +380,7 @@ class StatusTag extends StatelessWidget {
         height: 7,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: urgent ? CorteColors.coral : CorteColors.cyanInk,
+          color: urgent ? CorteColors.coral : context.corte.cyanInk,
         ),
       ),
       const SizedBox(width: 7),
@@ -391,7 +390,7 @@ class StatusTag extends StatelessWidget {
           style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 12,
-            color: urgent ? CorteColors.action : CorteColors.ink,
+            color: urgent ? context.corte.action : context.corte.ink,
           ),
         ),
       ),
@@ -409,7 +408,7 @@ class DefinitionRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Text(label, style: const TextStyle(color: CorteColors.muted)),
+          child: Text(label, style: TextStyle(color: context.corte.muted)),
         ),
         const SizedBox(width: 18),
         Flexible(child: SelectableText(value, textAlign: TextAlign.right)),
@@ -451,8 +450,8 @@ class MiniBars extends StatelessWidget {
                             : (values[i] / maximum * 145).clamp(2.0, 145.0),
                         decoration: BoxDecoration(
                           color: i == points.length - 1
-                              ? CorteColors.cyanInk
-                              : CorteColors.action,
+                              ? context.corte.cyanInk
+                              : context.corte.action,
                           borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(4),
                           ),
@@ -463,9 +462,9 @@ class MiniBars extends StatelessWidget {
                         textOf(points[i]['etiqueta']),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 10,
-                          color: CorteColors.muted,
+                          color: context.corte.muted,
                         ),
                       ),
                     ],

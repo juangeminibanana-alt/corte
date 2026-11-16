@@ -405,8 +405,8 @@ class _SampleTabs extends StatelessWidget {
   final int total, pending;
   @override
   Widget build(BuildContext context) => Container(
-    decoration: const BoxDecoration(
-      border: Border(bottom: BorderSide(color: CorteColors.line)),
+    decoration: BoxDecoration(
+      border: Border(bottom: BorderSide(color: context.corte.line)),
     ),
     child: Row(
       children: [
@@ -441,8 +441,8 @@ class _SampleTabs extends StatelessWidget {
                       const SizedBox(width: 7),
                       Text(
                         tab.$4,
-                        style: const TextStyle(
-                          color: CorteColors.muted,
+                        style: TextStyle(
+                          color: context.corte.muted,
                           fontSize: 12,
                         ),
                       ),
@@ -501,10 +501,10 @@ class SampleTile extends StatelessWidget {
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.storefront_outlined,
                   size: 15,
-                  color: CorteColors.muted,
+                  color: context.corte.muted,
                 ),
                 const SizedBox(width: 5),
                 Expanded(
@@ -512,10 +512,7 @@ class SampleTile extends StatelessWidget {
                     textOf(shop['nombre']),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: CorteColors.muted,
-                    ),
+                    style: TextStyle(fontSize: 12, color: context.corte.muted),
                   ),
                 ),
               ],
@@ -537,7 +534,7 @@ class SampleTile extends StatelessWidget {
           ),
         );
         return Material(
-          color: Colors.white,
+          color: context.corte.surface,
           child: InkWell(
             onTap: () => ui.go(
               '/muestras/m/${Uri.encodeComponent(textOf(m['application_id']))}',
@@ -545,8 +542,8 @@ class SampleTile extends StatelessWidget {
             child: Container(
               constraints: const BoxConstraints(minHeight: 126),
               padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: CorteColors.line)),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: context.corte.line)),
               ),
               child: wide
                   ? Row(
@@ -569,9 +566,9 @@ class SampleTile extends StatelessWidget {
                               const SizedBox(height: 5),
                               Text(
                                 textOf(m['variante'], 'Sin variante informada'),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 13,
-                                  color: CorteColors.muted,
+                                  color: context.corte.muted,
                                 ),
                               ),
                             ],
@@ -609,9 +606,9 @@ class SampleTile extends StatelessWidget {
                                           textOf(m['variante']),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 12,
-                                            color: CorteColors.muted,
+                                            color: context.corte.muted,
                                           ),
                                         ),
                                         const SizedBox(height: 5),
@@ -716,7 +713,7 @@ class SampleDetailPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: CorteColors.rose,
+              color: context.corte.rose,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -738,9 +735,9 @@ class SampleDetailPage extends StatelessWidget {
                     if (p['comision_bp'] != null)
                       Text(
                         '${percent(p['comision_bp'])} de comisión',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: CorteColors.action,
+                          color: context.corte.action,
                         ),
                       ),
                   ],
@@ -830,9 +827,9 @@ class SampleDetailPage extends StatelessWidget {
           for (final v in rowsOf(detail['videos_del_producto']).take(8))
             VideoRow(video: v),
           if (rowsOf(detail['videos_del_producto']).isEmpty)
-            const Text(
+            Text(
               'Todavía no hay un video con ventas registrado para este producto.',
-              style: TextStyle(color: CorteColors.muted),
+              style: TextStyle(color: context.corte.muted),
             ),
           const SizedBox(height: 16),
           NotesPanel(entidad: 'muestra', entidadId: id),
@@ -847,9 +844,9 @@ class SampleDetailPage extends StatelessWidget {
               subtitle: Text(date(item['at'], time: true)),
             ),
           if (rowsOf(detail['historial']).isEmpty)
-            const Text(
+            Text(
               'Sin cambios registrados.',
-              style: TextStyle(color: CorteColors.muted),
+              style: TextStyle(color: context.corte.muted),
             ),
         ],
       );
@@ -899,12 +896,12 @@ class AgendaPage extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: CorteColors.rose,
+                  color: context.corte.rose,
                   borderRadius: BorderRadius.circular(9),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.movie_creation_outlined,
-                  color: CorteColors.action,
+                  color: context.corte.action,
                 ),
               ),
               title: Text(
@@ -987,8 +984,8 @@ class _StoresPageState extends State<StoresPage> {
               ),
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 18),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: CorteColors.line)),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: context.corte.line)),
                 ),
                 child: Row(
                   children: [
@@ -1012,8 +1009,8 @@ class _StoresPageState extends State<StoresPage> {
                           const SizedBox(height: 6),
                           Text(
                             textOf(s['salud_porque']),
-                            style: const TextStyle(
-                              color: CorteColors.muted,
+                            style: TextStyle(
+                              color: context.corte.muted,
                               fontSize: 13,
                             ),
                           ),

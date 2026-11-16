@@ -118,8 +118,8 @@ class _ProductGalleryState extends State<ProductGallery> {
                       decoration: BoxDecoration(
                         border: Border.all(
                           color: _index == i
-                              ? CorteColors.action
-                              : CorteColors.line,
+                              ? context.corte.action
+                              : context.corte.line,
                           width: _index == i ? 2 : 1,
                         ),
                         borderRadius: BorderRadius.circular(7),
@@ -140,11 +140,11 @@ class _ProductGalleryState extends State<ProductGallery> {
             ),
           ],
           if (widget.photos.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
               child: Text(
                 'TikTok todavía no proporcionó fotografías de este producto.',
-                style: TextStyle(color: CorteColors.muted, fontSize: 12),
+                style: TextStyle(color: context.corte.muted, fontSize: 12),
               ),
             ),
         ],
@@ -271,8 +271,8 @@ class ProductRow extends StatelessWidget {
       ),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 17),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: CorteColors.line)),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: context.corte.line)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -297,18 +297,12 @@ class ProductRow extends StatelessWidget {
                     textOf(product['tienda_nombre']),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: CorteColors.muted,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: context.corte.muted, fontSize: 12),
                   ),
                   const SizedBox(height: 7),
                   Text(
                     '${integer(product['pedidos_validos'])} pedidos · ${integer(product['unidades'])} unidades',
-                    style: const TextStyle(
-                      color: CorteColors.muted,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: context.corte.muted, fontSize: 12),
                   ),
                 ],
               ),
@@ -321,9 +315,9 @@ class ProductRow extends StatelessWidget {
                   money(product['comision_estimada_centavos']),
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
-                const Text(
+                Text(
                   'Comisión est.',
-                  style: TextStyle(color: CorteColors.muted, fontSize: 11),
+                  style: TextStyle(color: context.corte.muted, fontSize: 11),
                 ),
               ],
             ),
@@ -376,9 +370,9 @@ class ProductDetailPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 3),
-            const Text(
+            Text(
               'Precio de venta',
-              style: TextStyle(color: CorteColors.muted, fontSize: 12),
+              style: TextStyle(color: context.corte.muted, fontSize: 12),
             ),
             const SizedBox(height: 18),
             DefinitionRow(
@@ -397,18 +391,18 @@ class ProductDetailPage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: CorteColors.rose,
+                color: context.corte.rose,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'TU MUESTRA',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      color: CorteColors.action,
+                      color: context.corte.action,
                       letterSpacing: 1,
                     ),
                   ),
@@ -432,7 +426,7 @@ class ProductDetailPage extends StatelessWidget {
             const SizedBox(height: 18),
             Text(
               textOf(data['categoria_ruta']),
-              style: const TextStyle(color: CorteColors.muted, fontSize: 12),
+              style: TextStyle(color: context.corte.muted, fontSize: 12),
             ),
           ],
           if (textOf(p['enlace']).isNotEmpty) ...[
@@ -544,7 +538,7 @@ class _SkuExplorerState extends State<_SkuExplorer> {
       children: [
         Text(
           textOf(widget.eligibility['estado_texto']),
-          style: const TextStyle(color: CorteColors.muted),
+          style: TextStyle(color: context.corte.muted),
         ),
         if (colors.isNotEmpty) ...[
           const SizedBox(height: 12),
@@ -570,8 +564,8 @@ class _SkuExplorerState extends State<_SkuExplorer> {
         for (final s in filtered)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: CorteColors.line)),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: context.corte.line)),
             ),
             child: Row(
               children: [
@@ -590,8 +584,8 @@ class _SkuExplorerState extends State<_SkuExplorer> {
                           textOf(s['motivo_texto']).isNotEmpty)
                         Text(
                           textOf(s['motivo_texto']),
-                          style: const TextStyle(
-                            color: CorteColors.muted,
+                          style: TextStyle(
+                            color: context.corte.muted,
                             fontSize: 12,
                           ),
                         ),
@@ -608,11 +602,11 @@ class _SkuExplorerState extends State<_SkuExplorer> {
             ),
           ),
         if (skus.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 18),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 18),
             child: Text(
               'No hay variantes disponibles en esta respuesta de TikTok.',
-              style: TextStyle(color: CorteColors.muted),
+              style: TextStyle(color: context.corte.muted),
             ),
           ),
       ],
@@ -744,15 +738,15 @@ class _ExtendedProduct extends StatelessWidget {
                   ),
               ],
             ),
-          const ExpansionTile(
-            title: Text('Reseñas y fotografías de compradores'),
+          ExpansionTile(
+            title: const Text('Reseñas y fotografías de compradores'),
             tilePadding: EdgeInsets.zero,
             children: [
               Padding(
-                padding: EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.only(bottom: 16),
                 child: Text(
                   'La conexión actual de creador con TikTok Shop no proporciona reseñas ni fotografías de compradores.',
-                  style: TextStyle(color: CorteColors.muted),
+                  style: TextStyle(color: context.corte.muted),
                 ),
               ),
             ],
@@ -789,8 +783,8 @@ class VideoRow extends StatelessWidget {
     ).go('/videos/${Uri.encodeComponent(textOf(video['content_id']))}'),
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 17),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: CorteColors.line)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.corte.line)),
       ),
       child: Row(
         children: [
@@ -817,19 +811,13 @@ class VideoRow extends StatelessWidget {
                   video['vistas'] == null
                       ? 'Vistas no disponibles'
                       : '${integer(video['vistas'])} vistas',
-                  style: const TextStyle(
-                    color: CorteColors.muted,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: context.corte.muted, fontSize: 12),
                 ),
                 const SizedBox(height: 6),
                 if (video['pedidos_validos'] != null)
                   Text(
                     '${integer(video['pedidos_validos'])} pedidos válidos',
-                    style: const TextStyle(
-                      color: CorteColors.muted,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: context.corte.muted, fontSize: 12),
                   ),
               ],
             ),
@@ -954,7 +942,7 @@ class VideoDetailPage extends StatelessWidget {
                   if (v['publicado_at'] != null)
                     Text(
                       'Publicado el ${date(v['publicado_at'])}',
-                      style: const TextStyle(color: CorteColors.muted),
+                      style: TextStyle(color: context.corte.muted),
                     ),
                   const SizedBox(height: 18),
                   MetricStrip([

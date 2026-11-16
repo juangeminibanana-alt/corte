@@ -107,7 +107,7 @@ class Fixture {
       preferences = {
         ...preferences,
         ...Map<String, dynamic>.from(op['cambios'] as Map),
-        'rev': 5,
+        'rev': (preferences['rev'] as int) + 1,
       };
       return preferences;
     }
@@ -141,6 +141,39 @@ Future<void> mount(WidgetTester tester, Fixture fixture, Widget child) async {
 }
 
 void main() {
+  testWidgets(
+    'changing appearance preserves an unsaved signature and advances only its unchanged base revision',
+    (tester) async {
+      final fixture = Fixture();
+      await mount(tester, fixture, const SettingsPage());
+      final signature = find.byType(TextFormField);
+      await tester.ensureVisible(signature);
+      await tester.enterText(signature, 'Mi firma pendiente');
+      await tester.pump();
+      final dark = find.widgetWithText(ChoiceChip, 'Oscuro');
+      await tester.ensureVisible(dark);
+      await tester.tap(dark);
+      await tester.pumpAndSettle();
+      expect(fixture.ui.appearance.mode, ThemeMode.dark);
+      expect(fixture.operations.single['cambios'], {
+        'rev': 4,
+        'tema': 'oscuro',
+      });
+      expect(
+        tester.widget<TextFormField>(signature).controller!.text,
+        'Mi firma pendiente',
+      );
+      final save = find.widgetWithText(FilledButton, 'Guardar preferencias');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(fixture.operations, hasLength(2));
+      expect((fixture.operations.last['cambios'] as Map)['rev'], 5);
+      expect(fixture.preferences['firma'], 'Mi firma pendiente');
+      expect(fixture.preferences['tema'], 'oscuro');
+    },
+  );
+
   testWidgets(
     'preferences commit canonical revision-scoped operations and confirmed values survive refresh',
     (tester) async {

@@ -12,22 +12,39 @@ import 'package:corte/ui/widgets.dart';
 import 'package:corte/ui/theme.dart';
 
 void main() {
-  testWidgets('browser back and forward restore content and application history', (tester) async {
-    final auth = CorteAuthController(runtime: CorteRuntime(platform: 'web', baseUri: Uri.parse(corteCloudOrigin)), client: MockClient((_) async => http.Response('', 404)));
-    final ui = CorteUiController(auth: auth);
-    final delegate = CorteRouter(ui);
-    await delegate.setNewRoutePath('/inicio');
-    ui.go('/muestras'); ui.go('/productos/synthetic-product');
-    var updates = 0;
-    ui.addListener(() { updates++; });
-    await delegate.setNewRoutePath('/muestras');
-    expect(ui.location, '/muestras'); expect(updates, greaterThan(0));
-    await delegate.setNewRoutePath('/productos/synthetic-product');
-    expect(ui.location, '/productos/synthetic-product');
-    expect(ui.back(), isTrue); expect(ui.location, '/muestras');
-    expect(ui.back(), isTrue); expect(ui.location, '/inicio');
-    delegate.dispose(); ui.dispose(); auth.dispose();
-  });
+  testWidgets(
+    'browser back and forward restore content and application history',
+    (tester) async {
+      final auth = CorteAuthController(
+        runtime: CorteRuntime(
+          platform: 'web',
+          baseUri: Uri.parse(corteCloudOrigin),
+        ),
+        client: MockClient((_) async => http.Response('', 404)),
+      );
+      final ui = CorteUiController(auth: auth);
+      final delegate = CorteRouter(ui);
+      await delegate.setNewRoutePath('/inicio');
+      ui.go('/muestras');
+      ui.go('/productos/synthetic-product');
+      var updates = 0;
+      ui.addListener(() {
+        updates++;
+      });
+      await delegate.setNewRoutePath('/muestras');
+      expect(ui.location, '/muestras');
+      expect(updates, greaterThan(0));
+      await delegate.setNewRoutePath('/productos/synthetic-product');
+      expect(ui.location, '/productos/synthetic-product');
+      expect(ui.back(), isTrue);
+      expect(ui.location, '/muestras');
+      expect(ui.back(), isTrue);
+      expect(ui.location, '/inicio');
+      delegate.dispose();
+      ui.dispose();
+      auth.dispose();
+    },
+  );
   test('a product photo never becomes a video cover', () {
     expect(
       videoCover({
@@ -56,57 +73,64 @@ void main() {
     );
   });
 
-  for (final width in [360.0, 768.0, 1440.0]) {
-    testWidgets('sample action and long variant fit at width $width', (
-      tester,
-    ) async {
-      tester.view.physicalSize = Size(width, 900);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final auth = CorteAuthController(
-        runtime: CorteRuntime(
-          platform: 'web',
-          baseUri: Uri.parse(corteCloudOrigin),
-        ),
-        client: MockClient((_) async => http.Response('', 404)),
-      );
-      final ui = CorteUiController(auth: auth);
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: corteTheme(),
-          home: CorteScope(
-            controller: ui,
-            child: Scaffold(
-              body: SampleTile(
-                muestra: {
-                  'application_id': 'synthetic-sample',
-                  'grupo': 'vencida',
-                  'etiqueta': 'Vencida sin video',
-                  'recibida': true,
-                  'variante': 'Café Marrón muy largo / Extra grande',
-                  'producto': {
-                    'product_id': 'synthetic-product',
-                    'titulo_corto':
-                        'Chaqueta de invierno con un título largo y completo',
-                  },
-                  'tienda': {
-                    'nombre': 'Tienda de prendas y accesorios con nombre largo',
-                  },
-                  'avance': {'etapa': 'por_planear'},
-                },
+  for (final brightness in Brightness.values) {
+    for (final width in [360.0, 768.0, 1440.0]) {
+      testWidgets(
+        'sample action and long variant fit at width $width in $brightness',
+        (tester) async {
+          tester.view.physicalSize = Size(width, 900);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final auth = CorteAuthController(
+            runtime: CorteRuntime(
+              platform: 'web',
+              baseUri: Uri.parse(corteCloudOrigin),
+            ),
+            client: MockClient((_) async => http.Response('', 404)),
+          );
+          final ui = CorteUiController(auth: auth);
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: corteTheme(brightness: brightness),
+              home: CorteScope(
+                controller: ui,
+                child: Scaffold(
+                  body: SampleTile(
+                    muestra: {
+                      'application_id': 'synthetic-sample',
+                      'grupo': 'vencida',
+                      'etiqueta': 'Vencida sin video',
+                      'recibida': true,
+                      'variante': 'Café Marrón muy largo / Extra grande',
+                      'producto': {
+                        'product_id': 'synthetic-product',
+                        'titulo_corto':
+                            'Chaqueta de invierno con un título largo y completo',
+                      },
+                      'tienda': {
+                        'nombre':
+                            'Tienda de prendas y accesorios con nombre largo',
+                      },
+                      'avance': {'etapa': 'por_planear'},
+                    },
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
+          );
+          await tester.pump();
+          expect(tester.takeException(), isNull);
+          expect(
+            find.widgetWithText(OutlinedButton, 'Planear'),
+            findsOneWidget,
+          );
+          await tester.pumpWidget(const SizedBox.shrink());
+          ui.dispose();
+          auth.dispose();
+        },
       );
-      await tester.pump();
-      expect(tester.takeException(), isNull);
-      expect(find.widgetWithText(OutlinedButton, 'Planear'), findsOneWidget);
-      await tester.pumpWidget(const SizedBox.shrink());
-      ui.dispose();
-      auth.dispose();
-    });
+    }
   }
   testWidgets('gallery selection resets when changing product', (tester) async {
     final auth = CorteAuthController(
