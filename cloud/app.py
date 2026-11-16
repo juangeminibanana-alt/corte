@@ -475,6 +475,35 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
             # A validation error must never echo submitted credentials.
             return jsonify(exc.a_respuesta(hub.secretos_vivos())), exc.http
 
+    @app.post('/api/cloud/display/import')
+    def display_import() -> Any:
+        if len(request.get_data(cache=True)) > 64 * 1024:
+            return error('cuerpo_demasiado_grande', 'El archivo de conexión de videos supera el límite permitido.', 413)
+        from cloud.display_import import import_display, _shop_identity
+        try:
+            result = import_display(hub, request.get_json())
+            revision = result.pop('_revision')
+            shop_revision = result.pop('_shop_revision')
+            result['sync_iniciada'] = False
+            with hub._candado_mutacion:
+                if _shop_identity(hub) != shop_revision:
+                    return error('credenciales_cambiaron', 'La cuenta de TikTok Shop cambió antes de sincronizar. Revisa su estado.', 409)
+                actual = hub.display.boveda.leer()
+                if (actual.get('client_key'), actual.get('open_id'), actual.get('epoca_credenciales', 0)) != revision:
+                    return error('credenciales_cambiaron', 'La conexión de videos cambió antes de sincronizar. Revisa su estado.', 409)
+                started = hub.sincronizador.iniciar('incremental', 'usuario')
+                result['sync_iniciada'] = not started.get('ya_en_curso', False)
+                result['sync_en_curso'] = bool(started.get('ya_en_curso', False))
+                result['display'] = hub.display.estado()
+            return jsonify(result)
+        except ErrorDominio as exc:
+            # New credentials may not yet belong to secretos_vivos; never
+            # include submitted values, upstream details, or log identifiers.
+            return error(exc.codigo, exc.mensaje, exc.http)
+        except Exception:
+            return error('servicio_no_disponible', 'No pudimos completar la recuperación. Revisa el estado de la '
+                         'conexión antes de volver a intentarlo.', 503)
+
     @app.post('/api/cloud/import')
     def import_local() -> Any:
         try:

@@ -13,7 +13,7 @@ import type * as C from '@/contrato';
 import { Boton, Foto, Icono, useToast } from '@/componentes';
 import { navegar } from '@/app';
 import { useAcciones } from '@/datos';
-import { diasEntre, fechaLocalDe, formato, nuevoId, sumarDias } from '@/dominio';
+import { diasEntre, fechaLocalDe, formato, nuevoId, resolverPortadaVideo, sumarDias } from '@/dominio';
 import { abrirMensajeEn } from '../control/contexto';
 import { T } from '../textos';
 import { cx, nombreDe } from '../util/comun';
@@ -46,7 +46,7 @@ export function yaAvisoVideoPrevio(detalle: C.MuestraDetalleResponse): boolean {
 function FilaVideo(p: { v: C.VideoDeProducto; nombre: string; tienda: string; destacado?: boolean }): ReactElement {
   return (
     <li className={cx(css.video, p.destacado && css.destacado)}>
-      <Foto url={p.v.miniatura} alt={`${T.fotoDelProducto}: ${p.nombre}`} anchoCss={44} proporcion="1:1" radio="sm" tienda={p.tienda} className={cx(css.miniatura)} />
+      <Foto url={resolverPortadaVideo(p.v).url} alt={T.videoId(formato.idCorto(p.v.content_id))} anchoCss={44} proporcion="1:1" radio="sm" tienda={p.tienda} className={cx(css.miniatura)} />
       <span className={css.videoTextos}>
         <span className={css.videoId}>{T.videoId(formato.idCorto(p.v.content_id))}</span>
         <span className={css.videoMeta}>{T.vendeDesdeElFila(formato.fechaCorta(p.v.primera_venta))}</span>

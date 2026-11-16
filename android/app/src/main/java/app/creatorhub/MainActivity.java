@@ -84,6 +84,12 @@ public final class MainActivity extends Activity implements Nucleo.Emisor, Puent
         else marcarBordeABordeAntiguo();
 
         web = new WebView(this);
+        android.content.SharedPreferences politicaCache = getSharedPreferences("corte_cache_policy", MODE_PRIVATE);
+        if (politicaCache.getInt("imagenes_verificadas", 0) < 2) {
+            // Sólo recursos HTTP antiguos; no borra cookies, almacenamiento web, copia, cola ni credenciales.
+            web.clearCache(true);
+            politicaCache.edit().putInt("imagenes_verificadas", 2).apply();
+        }
         web.setBackgroundColor(getColor(R.color.fondo));
         setContentView(web);
 

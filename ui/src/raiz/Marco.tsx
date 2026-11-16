@@ -214,7 +214,6 @@ export function Marco(p: { cargadores?: Cargadores; cargadoresReautorizar?: Carg
         {!completa && !enRaiz ? (
           <header className={css.cabecera}>
             <a href="#/inicio" className={css.marcaMovil} aria-label="Corte · Inicio"><Logo tamano={28} /><span>Corte</span></a>
-            <span className={css.espacio}>Espacio de creador</span>
             <div className={css.herramientas}>
               <button type="button" className={css.buscar} onClick={() => abrirPaleta()} aria-label="Buscar en Corte">
                 <Icono nombre="Search" tamano={18} /><span>Buscar</span><kbd>Ctrl K</kbd>

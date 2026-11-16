@@ -16,6 +16,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 import secrets
 import sqlite3
 import ssl
@@ -109,7 +110,7 @@ class HttpsCorte:
                         data = archive.read(MAX_RESPUESTA + 1)
                     if len(data) > MAX_RESPUESTA:
                         raise ValueError('Respuesta demasiado grande')
-                allowed = {'content-type', 'etag', 'retry-after'}
+                allowed = {'content-type', 'etag', 'retry-after', 'cache-control'}
                 return RespuestaHttp(remote.code, [(k, v) for k, v in remote.headers.items()
                                                    if k.lower() in allowed], data)
         except (OSError, urllib.error.URLError, TimeoutError, http.client.HTTPException) as exc:
@@ -146,7 +147,7 @@ class CacheNativa:
             return row[0] if row else None
 
     def guardar(self, ruta: str, r: RespuestaHttp) -> None:
-        if r.status != 200:
+        if r.status != 200 or not self._imagen_coincide(ruta, r.cabeceras):
             return
         with self.db() as db:
             db.execute('INSERT OR REPLACE INTO cache VALUES (?,?,?,?,?)',
@@ -160,8 +161,36 @@ class CacheNativa:
     def leer(self, ruta: str) -> RespuestaHttp | None:
         with self.db() as db:
             row = db.execute('SELECT status,headers,body,at FROM cache WHERE k=?', (ruta,)).fetchone()
-        return (RespuestaHttp(row[0], [*json.loads(row[1]), ('X-CH-Fuente', 'copia'),
-                                      ('X-CH-Copia-At', str(row[3]))], row[2]) if row else None)
+        if row is None:
+            return None
+        headers = json.loads(row[1])
+        if not self._imagen_coincide(ruta, headers):
+            # Repara entradas de versiones anteriores sin afectar las imágenes correctas.
+            with self.db() as db:
+                db.execute('DELETE FROM cache WHERE k=?', (ruta,))
+            return None
+        if not any(k.lower() == 'cache-control' for k, _ in headers):
+            headers.append(('Cache-Control', 'private, no-store'))
+        return RespuestaHttp(row[0], [*headers, ('X-CH-Fuente', 'copia'),
+                                      ('X-CH-Copia-At', str(row[3]))], row[2])
+
+    @staticmethod
+    def _imagen_coincide(ruta: str, headers: list) -> bool:
+        u = urllib.parse.urlsplit(ruta)
+        if not u.path.startswith('/img/'):
+            return True
+        query = urllib.parse.parse_qs(u.query, keep_blank_values=True)
+        versiones, variantes = query.get('v', []), query.get('t', [])
+        if (len(versiones) != 1 or not re.fullmatch(r'[0-9a-f]{8}', versiones[0])
+                or len(variantes) > 1 or (variantes and variantes[0] not in ('', 'xs', 'sm', 'md'))):
+            return False
+        variante = variantes[0] if variantes else ''
+        etiqueta = '"' + versiones[0] + ('-' + variante if variante else '') + '"'
+        cabeceras = {k.lower(): v for k, v in headers}
+        # Es almacenamiento privado sin conexión, separado de la caché HTTP del WebView.
+        # Un v=0 o una respuesta de otra versión nunca se vuelve una copia estable.
+        return (cabeceras.get('etag') == etiqueta and cabeceras.get('content-type', '').split(';')[0]
+                in ('image/jpeg', 'image/png', 'image/webp', 'image/gif'))
 
     def pendientes(self, todos: bool = False) -> list[dict]:
         with self.db() as db:
@@ -177,14 +206,21 @@ class CacheNativa:
                     raise ValueError('La operación ya existe con otro contenido')
                 db.execute('INSERT OR IGNORE INTO cola(id,op) VALUES (?,?)', (op['op_id'], encoded))
 
-    def confirmar(self, resultados: list[dict]) -> None:
+    def confirmar(self, resultados: list[dict], invalidar_copia: bool = False) -> None:
         with self.db() as db:
+            hubo_resultado = False
             for r in resultados:
                 if r.get('estado') in ('aplicada', 'duplicada'):
                     db.execute('DELETE FROM cola WHERE id=?', (r['op_id'],))
+                    hubo_resultado = True
                 elif r.get('estado') in ('conflicto', 'invalida'):
                     db.execute('UPDATE cola SET estado=?,resultado=? WHERE id=?',
                                (r['estado'], codificar(r).decode(), r['op_id']))
+                    hubo_resultado = True
+            if invalidar_copia and hubo_resultado:
+                # Misma transacción que la confirmación: un cierre aquí no deja visible
+                # un cambio rechazado con un marcador que impediría volver a leer Google.
+                db.execute("INSERT INTO meta VALUES ('snapshot_revision','') ON CONFLICT(k) DO UPDATE SET v=''" )
 
 
 class ClienteNativo:
@@ -411,10 +447,12 @@ class ClienteNativo:
             raise ValueError('Copia incompleta')
         self.cache.guardar('/api/snapshot', r)
         with self.work_lock:
-            if not self.cache.pendientes():
-                # This is a separate local replica, never the historical database.
-                self.replica.borrar('todo')
-                self.local.importar({'formato': 'corte-local', 'version': 1, **data['local']})
+            pendientes = self.cache.pendientes()
+            # This is a separate local replica, never the historical database.
+            self.replica.borrar('todo')
+            self.local.importar({'formato': 'corte-local', 'version': 1, **data['local']})
+            if pendientes:
+                self.local.aplicar_ops(pendientes, CTX_UI)
         for ruta in data.get('imagenes', [])[:16]:
             if self.parar.is_set():
                 break
@@ -433,15 +471,16 @@ class ClienteNativo:
                     r = self.remoto('POST', '/api/local/ops', {'ops': batch})
                     if r.status != 200:
                         return
-                    self.cache.confirmar(json.loads(r.cuerpo)['resultados']); batch = []
+                    self.cache.confirmar(json.loads(r.cuerpo)['resultados'], invalidar_copia=True); batch = []
                 if len(codificar({'ops': [op]})) > MAX_LOTE:
-                    self.cache.confirmar([{'op_id': op['op_id'], 'estado': 'invalida', 'error': 'El cambio es demasiado grande.'}])
+                    self.cache.confirmar([{'op_id': op['op_id'], 'estado': 'invalida', 'error': 'El cambio es demasiado grande.'}],
+                                         invalidar_copia=True)
                     continue
                 batch.append(op)
             if batch:
                 r = self.remoto('POST', '/api/local/ops', {'ops': batch})
                 if r.status == 200:
-                    self.cache.confirmar(json.loads(r.cuerpo)['resultados'])
+                    self.cache.confirmar(json.loads(r.cuerpo)['resultados'], invalidar_copia=True)
         finally:
             self.io_ops.release()
 
@@ -562,7 +601,8 @@ class DespachadorNativo:
                 return r
             if metodo == 'GET' and any(ruta == x or ruta.startswith(x + '/') for x in trabajo):
                 limpias = {k: v for k, v in cabeceras.items() if k.lower() != 'if-none-match'}
-                r = self.local.despachar(metodo, ruta, consulta, limpias, cuerpo, ctx)
+                with c.work_lock:
+                    r = self.local.despachar(metodo, ruta, consulta, limpias, cuerpo, ctx)
                 r.cabeceras.extend([('X-CH-Fuente', 'copia'), ('X-CH-Copia-At', str(int(time.time())))])
                 return r
             completa = ruta + ('?' + consulta if consulta else '')

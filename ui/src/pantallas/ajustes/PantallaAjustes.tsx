@@ -160,7 +160,7 @@ export function PantallaAjustes(): ReactElement {
   const nube = esNube();
   const secciones = seccionesPara(android, nube);
   const pedida = r.params['seccion'] ?? null;
-  const compacta = clase === 'compacta';
+  const compacta = clase === 'compacta' || clase === 'media';
   const valida = pedida === null ? null : esSeccion(pedida) && secciones.some((s) => s.id === pedida) ? pedida : 'invalida';
   const titulo = nube ? 'Configuración' : compacta && android ? T.tituloMas : T.tituloPantalla;
 

@@ -44,7 +44,7 @@ export const TIPOS_EVENTO: readonly C.EventoHub['tipo'][] = [
   'display.cambio',
 ];
 const CONJUNTO_TIPOS: ReadonlySet<string> = new Set(TIPOS_EVENTO);
-const EVENTOS_SHELL_WINDOWS = ['recordatorio.vencido', 'ventana.preguntar_cierre', 'ventana.mostrar_ruta'] as const;
+const EVENTOS_SHELL_WINDOWS = ['recordatorio.vencido', 'ventana.preguntar_cierre', 'ventana.mostrar_ruta', 'datos.cambiaron'] as const;
 const CONJUNTO_SHELL: ReadonlySet<string> = new Set(EVENTOS_SHELL_WINDOWS);
 
 /** rev. 5 · Forma mínima de EstadoDisplay (lo que la interfaz lee para decidir el estado de Ajustes). */
@@ -73,7 +73,7 @@ export function leerEventoSse(nombre: string, data: string): C.EventoHub | null 
   return evento as C.EventoHub;
 }
 
-/** Solo loopback: conserva el puente de la ventana y los recordatorios del proceso de Windows. */
+/** Solo loopback: conserva el puente de la ventana, los recordatorios y la actualización de su copia local. */
 export function conectarEventosShellWindows(sumidero: SumideroEventos): () => void {
   if (typeof EventSource === 'undefined') return () => undefined;
   const fuente = new EventSource('/api/events');
@@ -82,7 +82,8 @@ export function conectarEventosShellWindows(sumidero: SumideroEventos): () => vo
     if (!activo) return;
     const data = ev instanceof MessageEvent && typeof ev.data === 'string' ? ev.data : '';
     const evento = leerEventoSse(nombre, data);
-    if (evento && CONJUNTO_SHELL.has(evento.tipo)) sumidero.evento(evento);
+    if (evento && CONJUNTO_SHELL.has(evento.tipo)
+      && (evento.tipo !== 'datos.cambiaron' || evento.secciones.includes('local'))) sumidero.evento(evento);
   };
   const oyentes = [...EVENTOS_SHELL_WINDOWS, 'message'].map((tipo) => [tipo, recibir(tipo)] as const);
   for (const [tipo, fn] of oyentes) fuente.addEventListener(tipo, fn);

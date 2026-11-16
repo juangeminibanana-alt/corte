@@ -5,7 +5,7 @@
 import type { ReactElement } from 'react';
 import type * as C from '@/contrato';
 import { Foto, Icono, type ColumnaTabla } from '@/componentes';
-import { ETIQUETA_ESTADO_ORDEN, formato, nombreCorto } from '@/dominio';
+import { ETIQUETA_ESTADO_ORDEN, formato, nombreCorto, resolverPortadaVideo } from '@/dominio';
 import { T, TITULO_COLUMNA as TC } from '../textos';
 import { cx } from '../util/comun';
 import { ChipSalud } from '../muestras/chips';
@@ -83,10 +83,10 @@ function CeldaVideo(p: { v: C.FilaVideo }): ReactElement {
   const nombre = nombreVideo(v);
   return (
     <span className={css.producto}>
-      <Foto url={v.miniatura} alt="" anchoCss={30} proporcion="9:16" radio="xs" tienda={v.tienda_principal} className={cx(css.miniaturaVideo)} />
+      <Foto url={resolverPortadaVideo(v).url} alt="" anchoCss={30} proporcion="9:16" radio="xs" tienda={v.tienda_principal} className={cx(css.miniaturaVideo)} />
       <span className={css.textos}>
         <span className={css.principal}>{nombre}</span>
-        <span className={css.secundario}>{v.miniatura_origen === 'producto' ? T.fotoDelProducto : T.videoId(formato.idCorto(v.content_id))}</span>
+        <span className={css.secundario}>{T.videoId(formato.idCorto(v.content_id))}</span>
       </span>
     </span>
   );

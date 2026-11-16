@@ -27,6 +27,7 @@ import { T } from './textos';
 import css from './ajustes.module.css';
 import { cx } from './clases';
 import { abrirAutorizacionNube, esNube, origenNube } from '../../nube/entorno';
+import { ImportarVideosNube } from './ImportarVideosNube';
 
 const M = T.metricas;
 
@@ -425,6 +426,7 @@ function SeccionWindows(): ReactElement {
 
   return (
     <Seccion titulo={titulo} id="metricas" descripcion={M.descripcion}>
+      {esNube() && !e.conectada ? <ImportarVideosNube /> : null}
       {/* Identidad: la cuenta de TikTok conectada o, sin cuenta, qué falta (con el ícono de la sección, sin avatar). */}
       <div className={cx(css.cuenta)} data-estado-metricas={vista}>
         {conCuenta ? (

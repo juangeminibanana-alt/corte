@@ -23,11 +23,12 @@
    text-3; las acciones abajo a la derecha, alineadas con el pie del bloque de textos. Manda sobre 02 §7.9 (title2) en
    jerarquía (LEEME.md:17). */
 .win {
-  position: sticky;
-  top: 0;
+  position: relative;
+  top: auto;
   z-index: var(--z-header);
   isolation: isolate;
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--space-3) var(--space-4);
   min-height: var(--header-h);
@@ -39,7 +40,7 @@
   right: calc(var(--content-pad-x) * -1);
 }
 .textos {
-  flex: 1;
+  flex: 1 1 320px;
   min-width: 0;
   display: flex;
   flex-direction: column;

@@ -371,7 +371,7 @@ class _Sincronizador(FasesFicha, PasoVideosTikTok):
             vitrina = None if (vit_err is not None or vit_ok is None) else uno('SELECT COUNT(*) FROM vitrina')[0]
             portadas = uno("""SELECT COUNT(*),
                                      COUNT(CASE WHEN i.estado = 'ok' THEN 1 END)
-                              FROM videos v LEFT JOIN imagenes i ON i.img_key = 'p:' || v.portada_product_id""")
+                              FROM videos v LEFT JOIN imagenes i ON i.img_key = 'v:' || v.content_id""")
         return {'perfil': perfil, 'muestras': muestras, 'cumplimientos': cumplimientos, 'detalles': detalles,
                 'productos_con_imagen': con_imagen, 'fichas_ventas': {'con_ficha': fichas[1], 'total': fichas[0]},
                 'pedidos': pedidos[0], 'pedidos_desde': fecha_local(pedidos[1]) if pedidos[1] else None,
@@ -1596,8 +1596,8 @@ class _Sincronizador(FasesFicha, PasoVideosTikTok):
         return r
 
     def _portadas_c4(self) -> tuple[int, int, int]:
-        """C4: portada de cada video = producto con más pedidos válidos en ese content_id (empate: mayor comisión
-        estimada, luego product_id menor). Sin red."""
+        """Registra los videos con ventas y su producto principal histórico. La columna heredada
+        portada_product_id conserva la relación; las portadas visibles solo salen de la caché v:<content_id>."""
         filas = self._leer(_SQL_PORTADAS)
         nuevos = camb = 0
         with self._tx() as db:

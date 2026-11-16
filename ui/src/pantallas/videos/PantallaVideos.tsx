@@ -13,7 +13,7 @@ import type * as C from '@/contrato';
 import { useConsulta, useSync, type EstadoConsulta } from '@/datos';
 import { Pantalla, navegar, useClaseAncho, useParametro, usePlataforma } from '@/app';
 import {
-  AvatarTienda, CampoTexto, Chip, ChipFiltro, EncabezadoPantalla, EstadoVacio, Foto, Menu, MiniaturaVideo, PuntoVivo, Segmentado,
+  AvatarTienda, Boton, CampoTexto, Chip, ChipFiltro, EncabezadoPantalla, EstadoVacio, Foto, Icono, Menu, MiniaturaVideo, PuntoVivo, Segmentado,
   Tabla, type ColumnaTabla,
 } from '@/componentes';
 import { formato } from '@/dominio';
@@ -134,49 +134,21 @@ function TarjetaGaleria(p: {
   const dinero = formato.dinero(v.comision_estimada_centavos);
   const portada = portadaDe(v);
   return (
-    <li className={cx(css.celda)}>
-      <MiniaturaVideo
-        url={portada.url}
-        {...(portada.delProducto ? { rotulo: T.fotoDelProducto } : {})}
-        {...(p.lugar !== null && p.lugar <= 10 ? { ranking: p.lugar } : {})}
-        comision={dinero}
-        unidades={T.unidades(v.unidades)}
-        nombre={p.nombre}
-        fechaPoster={formato.fechaCorta(v.primera_venta)}
-        tienda={v.tienda_principal}
-        anchoCss={220}
-        etiqueta={T.etiquetaVideo(p.lugar, dinero, v.unidades, p.nombre)}
-        alPulsar={() => navegar(rutaVideo(v.content_id))}
-        className={cx(css.miniatura)}
-      />
-      <div className={cx(css.pie)}>
-        {v.tienda_principal ? (
-          <span className={cx(css.pieTienda)}>
-            {/* 20 y no 16: debajo de 20 AvatarTienda es un cuadrito de 10 del tono, que en claro parecía una imagen rota;
-                con 20 lleva las iniciales, como el de TarjetaProducto. */}
-            <AvatarTienda nombre={v.tienda_principal} tamano={20} />
-            <span className={cx(css.recorte)}>{v.tienda_principal}</span>
-          </span>
-        ) : null}
-        {/* «123 pedidos · 12 % reembolsos»: si no cabe, se parte en el punto medio, nunca a mitad de una cifra. */}
-        <span className={cx(css.pieCifras)}>
-          <span className={cx(css.sinCorte)}>{T.pedidos(v.pedidos)}</span>
-          {' · '}
-          <span className={cx(css.sinCorte)}>{T.reembolsos(formato.porcentaje(v.tasa_reembolso))}</span>
+    <li className={cx(css.videoCard)}>
+      <button type="button" className={css.videoAbrir} onClick={() => navegar(rutaVideo(v.content_id))} aria-label={`Ver ${p.nombre}`}>
+        <span className={css.videoPortada}>
+          {portada.url ? <Foto url={portada.url} alt="" anchoCss={280} proporcion="9:16" radio="xs" className={cx(css.videoFoto)} /> : <span className={css.videoSinPortada}><Icono nombre="SquarePlay" tamano={24} /><span>Portada no disponible</span></span>}
+          {portada.url ? <span className={css.videoPlay} aria-hidden="true"><Icono nombre="Play" tamano={22} /></span> : null}
         </span>
-        <MetricasTarjeta video={v} />
-        {sinVentasConVistas(v) ? (
-          <Chip tono="neutro" icono="Eye" className={cx(css.pieChip)} titulo={T.sinVentasConVistasAyuda}>
-            {T.sinVentasConVistas}
-          </Chip>
-        ) : null}
-        {p.vendiendo ? (
-          <Chip tono="ok" className={cx(css.pieChip)} titulo={T.vendiendoAhoraAyuda}>
-            <PuntoVivo estado="ok" className={cx(css.punto)} />
-            {T.vendiendoAhora}
-          </Chip>
-        ) : null}
-      </div>
+        <span className={css.videoContenido}>
+          <span className={css.videoNombre} title={p.nombre}>{p.nombre}</span>
+          <span className={css.videoNumeros}>
+            <span><strong>{dinero}</strong><span>Comisión</span></span>
+            <span><strong>{formato.numero(v.pedidos_validos)}</strong><span>Pedidos</span></span>
+          </span>
+          {typeof v.vistas === 'number' ? <span className={css.videoVistas}><Icono nombre="Eye" tamano={14} />{T.vistas(cifraCompacta(v.vistas))}</span> : null}
+        </span>
+      </button>
     </li>
   );
 }
@@ -188,20 +160,21 @@ export function PantallaVideos(): ReactElement {
   });
   const [vista, setVistaEstado] = useState<Vista>(() => (leerLocal(CLAVE_VISTA) === 'tabla' ? 'tabla' : 'cuadricula'));
   const [ordenParam, setOrden] = useParametro('orden');
-  const [filtros, setFiltros] = useState<FiltrosVideos>({ soloConVentas: true, vendiendoAhora: false, reembolsoAlto: false, q: '' });
+  const [filtros, setFiltros] = useState<FiltrosVideos>({ soloConVentas: false, vendiendoAhora: false, reembolsoAlto: false, q: '' });
+  const [verFiltros, setVerFiltros] = useState(false);
   const ancho = useClaseAncho();
   const android = usePlataforma() === 'android';
-  const angosta = android || ancho === 'compacta';
-  const conTabla = !angosta;
+  const angosta = android || ancho === 'compacta' || ancho === 'media';
+  const conTabla = !android && ancho !== 'compacta';
   const clic = useClicReciente();
   const sync = useSync();
 
   const { params, tablero } = useRangoVideos(rango);
-  const videos = useConsulta('videos', params ?? {}, { activa: params !== null });
+  const videos = useConsulta('videos', { ...(params ?? {}), limite: 1000 }, { activa: params !== null });
   const tablero7 = useConsulta('dashboard', { periodo: '7d' });
   const p7 = tablero7.datos?.periodo;
-  const semana = useConsulta('videos', p7 ? { desde: p7.desde, hasta: p7.hasta } : {}, { activa: !!p7 });
-  const productos = useConsulta('productos', {});
+  const semana = useConsulta('videos', p7 ? { desde: p7.desde, hasta: p7.hasta, limite: 1000 } : { limite: 1000 }, { activa: !!p7 });
+  const productos = useConsulta('productos', { limite: 1000 });
 
   const errorRango = rango !== 'todo' ? tablero.error : null;
   // Sin las fechas del rango (cargando o sin la PC) la consulta queda inactiva con params {}: lo que guarde la caché para
@@ -243,7 +216,7 @@ export function PantallaVideos(): ReactElement {
     guardarLocal(CLAVE_VISTA, v);
   };
   const cambiar = (c: Partial<FiltrosVideos>): void => setFiltros((f) => ({ ...f, ...c }));
-  const hayFiltros = filtros.vendiendoAhora || filtros.reembolsoAlto || filtros.q.trim() !== '' || !filtros.soloConVentas;
+  const hayFiltros = filtros.vendiendoAhora || filtros.reembolsoAlto || filtros.q.trim() !== '' || filtros.soloConVentas;
 
   const error = errorRango ?? videos.error;
   const cargando = !error && (params === null || videos.cargando || (!items && !videos.error));
@@ -278,7 +251,7 @@ export function PantallaVideos(): ReactElement {
         icono="Search"
         titulo={T.sinResultados}
         texto={T.sinResultadosTexto}
-        accion={{ etiqueta: T.quitarFiltros, alPulsar: () => setFiltros({ soloConVentas: true, vendiendoAhora: false, reembolsoAlto: false, q: '' }) }}
+        accion={{ etiqueta: T.quitarFiltros, alPulsar: () => setFiltros({ soloConVentas: false, vendiendoAhora: false, reembolsoAlto: false, q: '' }) }}
         className={cx(css.estado)}
       />
     );
@@ -314,116 +287,27 @@ export function PantallaVideos(): ReactElement {
     );
   }
 
-  // Con las métricas de TikTok se dice de cuándo son las vistas; sin ellas, de dónde sale la fecha (primera venta).
-  const metricasAt = conMetricas && items ? metricasAl(items) : null;
-  const contexto = items && items.length > 0 ? (
-    <>
-      <span>{T.contexto(resumen.conPedidos, resumen.conVentas, resumen.ultimos7)}</span>
-      <span className={cx(css.notaFecha)}>{metricasAt !== null ? T.notaMetricas(formato.fechaCorta(metricasAt)) : T.notaFecha}</span>
-    </>
-  ) : undefined;
-
-  const sinNada = rango === 'todo' && !!items && items.length === 0;
-  // «Cuadrícula | Tabla» va en el encabezado, a la derecha del título: así rango y orden caben en una fila desde la
-  // ventana mínima de Windows (960) y los filtros en la siguiente.
-  const vistaControl = conTabla ? (
-    <Segmentado<Vista>
-      etiqueta={T.vista}
-      valor={vista}
-      alCambiar={setVista}
-      opciones={[
-        { valor: 'cuadricula', etiqueta: T.vistaCuadricula, icono: 'LayoutGrid' },
-        { valor: 'tabla', etiqueta: T.vistaTabla, icono: 'LayoutList' },
-      ]}
-      className={cx(css.segmentoVista)}
-    />
-  ) : null;
-
   return (
     <Pantalla titulo={T.titulo} lista={!!items || !!error}>
       <div className={cx(css.pantalla)}>
-        <EncabezadoPantalla
-          titulo={T.titulo}
-          {...(contexto ? { contexto } : {})}
-          {...(vistaControl && !sinNada ? { acciones: vistaControl } : {})}
-        />
-        {/* Sin ningún video en todo el historial, rango, orden y vista no sirven: solo el estado vacío. */}
-        {sinNada ? null : (
-        <div className={cx(css.controles, css.trasEncabezado)}>
-          <div className={cx(css.filaControles)} data-angosta={angosta ? '' : undefined}>
-            {angosta ? (
-              // En el celular los 5 rangos no caben en un segmentado sin partirse: van en un menú (hoja inferior).
-              <Menu
-                etiqueta={T.rangoCon(T.rangos[rango])}
-                icono="CalendarDays"
-                disparador="boton"
-                opciones={RANGOS.map((r) => ({
-                  id: r,
-                  etiqueta: T.rangos[r],
-                  ...(r === rango ? { icono: 'Check' as const } : {}),
-                  alPulsar: () => setRango(r),
-                }))}
-                className={cx(css.menuRango)}
-              />
-            ) : (
-              <Segmentado<ClaveRango>
-                etiqueta={T.rango}
-                valor={rango}
-                alCambiar={setRango}
-                opciones={RANGOS.map((r) => ({ valor: r, etiqueta: T.rangos[r] }))}
-                className={cx(css.segmentoRango)}
-              />
-            )}
-            {/* En el celular el orden va como botón de ícono junto al rango (un renglón menos antes de las fotos); su
-                nombre accesible y el título de la hoja dicen el orden actual, y si no es el de siempre se ve en un chip. */}
-            <Menu
-              etiqueta={T.ordenarCon(T.orden[orden])}
-              icono="ArrowDownUp"
-              disparador={angosta ? 'icono' : 'boton'}
-              opciones={ordenesPara(conMetricas).map((o) => ({
-                id: o,
-                etiqueta: T.orden[o],
-                ...(o === orden ? { icono: 'Check' as const } : {}),
-                alPulsar: () => setOrden(o === 'comision' ? null : o, { reemplazar: true }),
-              }))}
-              className={cx(angosta ? css.ordenIcono : css.menuControl)}
-            />
-          </div>
-          {items && items.length > 0 ? (
-            <div className={cx(css.filaFiltros)}>
-              <div className={cx(css.chips)} role="group" aria-label={T.filtros}>
-                {angosta && orden !== 'comision' ? (
-                  <ChipFiltro activo alCambiar={() => setOrden(null, { reemplazar: true })}>{T.ordenActivo(T.orden[orden])}</ChipFiltro>
-                ) : null}
-                {vendiendo ? (
-                  <ChipFiltro activo={filtros.vendiendoAhora} conteo={vendiendo.size} alCambiar={(a) => cambiar({ vendiendoAhora: a })}>
-                    {T.vendiendoAhora}
-                  </ChipFiltro>
-                ) : null}
-                <ChipFiltro activo={filtros.soloConVentas} conteo={resumen.conVentas} alCambiar={(a) => cambiar({ soloConVentas: a })}>
-                  {T.soloConVentas}
-                </ChipFiltro>
-                <ChipFiltro activo={filtros.reembolsoAlto} conteo={reembolsoAltos} alCambiar={(a) => cambiar({ reembolsoAlto: a })}>
-                  {T.reembolsoAlto}
-                </ChipFiltro>
-              </div>
-              <CampoTexto
-                etiqueta={T.buscar}
-                etiquetaOculta
-                tipo="search"
-                placeholder={T.buscar}
-                valor={filtros.q}
-                alCambiar={(q) => cambiar({ q })}
-                className={cx(css.buscador)}
-              />
-            </div>
-          ) : null}
-          {items && hayFiltros && visibles.length > 0 ? (
-            <p className={cx(css.mostrando)} aria-live="polite">{T.mostrando(visibles.length, items.length)}</p>
-          ) : null}
+        <header className={css.videoCabecera}>
+          <div><h1>Videos</h1><p>Tus publicaciones y sus resultados</p></div>
+          <Boton variante="secundario" icono="RefreshCw" cargando={sync.estado?.en_curso === true} deshabilitado={!sync.puede} alPulsar={() => void sync.sincronizar()}>Actualizar</Boton>
+        </header>
+        <div className={css.videoHerramientas}>
+          <CampoTexto etiqueta="Buscar video o producto" etiquetaOculta tipo="search" placeholder="Buscar video o producto" valor={filtros.q} alCambiar={q => cambiar({ q })} className={cx(css.videoBuscar)} />
+          <Menu etiqueta={T.rangos[rango]} icono="CalendarDays" disparador="boton" opciones={RANGOS.map(r => ({ id:r, etiqueta:T.rangos[r], ...(r===rango ? { icono:'Check' as const } : {}), alPulsar:() => setRango(r) }))} />
+          <Menu etiqueta={T.orden[orden]} icono="ArrowDownUp" disparador="boton" opciones={ordenesPara(conMetricas).map(o => ({ id:o, etiqueta:T.orden[o], ...(o===orden ? { icono:'Check' as const } : {}), alPulsar:() => setOrden(o==='comision' ? null : o, { reemplazar:true }) }))} />
+          <button type="button" className={css.videoControl} data-filtros="" aria-label="Filtros de videos" aria-expanded={verFiltros} aria-controls="filtros-videos" onClick={() => setVerFiltros(v => !v)}>Filtros<Icono nombre="ChevronDown" tamano={16} /></button>
+          {conTabla ? <div className={css.videoVistasControl} aria-label="Vista de videos"><button type="button" className={css.videoControl} aria-pressed={vista==='cuadricula'} aria-label="Ver cuadrícula" onClick={() => setVista('cuadricula')}><Icono nombre="LayoutGrid" tamano={18} /></button><button type="button" className={css.videoControl} aria-pressed={vista==='tabla'} aria-label="Ver tabla" onClick={() => setVista('tabla')}><Icono nombre="LayoutList" tamano={18} /></button></div> : null}
         </div>
-        )}
-        <div className={cx(css.trasEncabezado, videos.refrescando && css.refrescando)}>{cuerpo}</div>
+        {verFiltros ? <div id="filtros-videos" className={css.chips} role="group" aria-label={T.filtros}>
+          {vendiendo ? <ChipFiltro activo={filtros.vendiendoAhora} conteo={vendiendo.size} alCambiar={a => cambiar({ vendiendoAhora:a })}>{T.vendiendoAhora}</ChipFiltro> : null}
+          <ChipFiltro activo={filtros.soloConVentas} conteo={resumen.conVentas} alCambiar={a => cambiar({ soloConVentas:a })}>{T.soloConVentas}</ChipFiltro>
+          <ChipFiltro activo={filtros.reembolsoAlto} conteo={reembolsoAltos} alCambiar={a => cambiar({ reembolsoAlto:a })}>{T.reembolsoAlto}</ChipFiltro>
+        </div> : null}
+        {items ? <p className={css.videoConteo} aria-live="polite">{hayFiltros ? `${visibles.length} de ${videos.datos?.total ?? items.length} videos` : `${videos.datos?.total ?? items.length} videos`}<span>{rango === 'todo' ? 'Todo el historial' : T.rangos[rango]}</span></p> : null}
+        <div className={cx(videos.refrescando && css.refrescando)}>{cuerpo}</div>
       </div>
     </Pantalla>
   );

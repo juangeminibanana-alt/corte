@@ -1,4 +1,6 @@
 import app.creatorhub.red.SeguridadNube;
+import app.creatorhub.red.PoliticaCacheImagenes;
+import app.creatorhub.red.ControlPrecargaImagenes;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
@@ -30,6 +32,19 @@ public final class PruebaSeguridadNube {
         while (SeguridadNube.cabeEnLote(bytes, cantidad, op)) { bytes += op.getBytes(StandardCharsets.UTF_8).length + (cantidad == 0 ? 0 : 1); cantidad++; }
         comprobar(cantidad == 3 && bytes <= 224 * 1024, "Lote Unicode por bytes, bajo límite cloud");
         comprobar(!SeguridadNube.cabeEnLote(10, 200, "{}"), "Tope 200 operaciones");
-        System.out.println("PASS: PKCE conocido, aleatoriedad, origen/rutas cerradas y lotes UTF-8 bajo límite real.");
+        String imagen = "/img/v/123456789?v=aaaaaaaa&t=md";
+        comprobar(PoliticaCacheImagenes.almacenable(imagen, "\"aaaaaaaa-md\"", "image/webp"), "Versión y variante verificadas");
+        for (String etag : new String[]{"\"bbbbbbbb-md\"", "\"aaaaaaaa-sm\"", "W/\"aaaaaaaa-md\"", "\"aaaaaaaa\""})
+            comprobar(!PoliticaCacheImagenes.almacenable(imagen, etag, "image/webp"), "No persistir versión/variante/ETag débil distintos");
+        comprobar(!PoliticaCacheImagenes.almacenable(imagen, "\"aaaaaaaa-md\"", "text/html"), "No persistir HTML como imagen");
+        comprobar(!PoliticaCacheImagenes.almacenable("/img/v/123456789?v=0&t=md", "\"aaaaaaaa-md\"", "image/webp"), "v0 no se persiste");
+        ControlPrecargaImagenes control = new ControlPrecargaImagenes();
+        comprobar(control.intentar("imagenes-a", 0), "Primer intento tras snapshot");
+        comprobar(!control.intentar("imagenes-a", 59999), "304 no provoca reintento inmediato");
+        comprobar(control.intentar("imagenes-a", 60000) && control.intentar("imagenes-a", 120000), "Dos reintentos acotados");
+        comprobar(!control.intentar("imagenes-a", 999999), "Tope tres por copia/sesión");
+        comprobar(control.intentar("imagenes-b", 999999), "Nuevas imágenes tienen presupuesto propio");
+        control.reiniciar(); comprobar(control.intentar("imagenes-b", 1000000), "Volver al frente permite recuperar faltantes");
+        System.out.println("PASS: PKCE, origen/rutas, lotes UTF-8, cache ETag/variante/MIME y presupuesto de precarga.");
     }
 }

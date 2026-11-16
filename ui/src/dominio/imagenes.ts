@@ -3,6 +3,23 @@
 import type * as C from '@/contrato';
 import type { TonoAvatar, VarianteImagen } from '@firmas/dominio';
 
+/** Una portada representa al video; la foto de su producto pertenece a la ficha del producto. */
+export function resolverPortadaVideo(v: {
+  content_id?: string;
+  portada?: C.UrlImagen | null;
+  miniatura?: C.UrlImagen | null;
+  miniatura_origen?: string | null;
+}): { url: C.UrlImagen | null; delProducto: false } {
+  for (const url of [v.portada, v.miniatura]) {
+    if (!url || /[\x00-\x20\x7f]/.test(url)) continue;
+    const coincidencia = /^\/(?:lan\/v1\/)?img\/v\/(\d{1,25})(?:\?[^#]*)?$/.exec(url);
+    if (coincidencia && (v.content_id === undefined || coincidencia[1] === v.content_id)) {
+      return { url, delProducto: false };
+    }
+  }
+  return { url: null, delProducto: false };
+}
+
 // ---------------------------------------------------------------- avatar de tienda (02 §7.17, literal)
 const TONOS: readonly TonoAvatar[] = ['iris', 'coral', 'aqua', 'ambar', 'rosa', 'pizarra', 'cielo', 'verde'];
 const norm = (t: string): string => t.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();

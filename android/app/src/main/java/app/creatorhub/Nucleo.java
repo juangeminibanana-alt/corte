@@ -8,6 +8,7 @@ import app.creatorhub.datos.CopiaSinConexion;
 import app.creatorhub.datos.MigracionNube;
 import app.creatorhub.red.ClienteHub;
 import app.creatorhub.red.Emparejador;
+import app.creatorhub.red.ControlPrecargaImagenes;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -43,6 +44,7 @@ public final class Nucleo implements ClienteHub.Oyente {
     public final ExecutorService io = Executors.newFixedThreadPool(4);
     private final ExecutorService fondo = Executors.newSingleThreadExecutor();
     private final AtomicBoolean precargando = new AtomicBoolean();
+    private final ControlPrecargaImagenes controlPrecarga = new ControlPrecargaImagenes();
     private final AtomicBoolean sondeandoAcceso = new AtomicBoolean();
     private final AtomicReference<HttpsURLConnection> largoEnCurso = new AtomicReference<>();
     private final Object senal = new Object();
@@ -184,6 +186,7 @@ public final class Nucleo implements ClienteHub.Oyente {
 
     // ------------------------------------------------------------------ ciclo de vida
     public void alFrente(boolean si) {
+        if (si && !alFrente) controlPrecarga.reiniciar();
         alFrente = si;
         if (si) reanudarAccesoNube();
         if (si) arrancarBucle();
@@ -301,7 +304,7 @@ public final class Nucleo implements ClienteHub.Oyente {
             if (alVolver || !revision.equals(ultimaRevisionNube) || !copia.existe()) {
                 refrescarCopia(true);
                 if (ultimaCopiaValida) ultimaRevisionNube = revision;
-            }
+            } else precargarImagenes(); // Reintenta faltantes de la misma copia con presupuesto acotado.
             enviarCola();
             if (antes != syncEnCurso) emitirCopia(copia.meta());
             avisarConexion();
@@ -343,7 +346,7 @@ public final class Nucleo implements ClienteHub.Oyente {
             CopiaSinConexion.Meta nueva = copia.actualizar(cliente);
             ultimaRevisionCopia = SystemClock.elapsedRealtime();
             ultimaCopiaValida = true;
-            if (nueva == null) return false;
+            if (nueva == null) { if (precargar) precargarImagenes(); return false; }
             emitirCopia(nueva);
             avisarConexion();
             if (precargar) precargarImagenes();
@@ -366,6 +369,9 @@ public final class Nucleo implements ClienteHub.Oyente {
 
     private void precargarImagenes() {
         if (!precargando.compareAndSet(false, true)) return;
+        CopiaSinConexion.Meta metaImagenes = copia.meta();
+        String claveImagenes = metaImagenes.imgRev + ":" + metaImagenes.imagenes.hashCode();
+        if (!controlPrecarga.intentar(claveImagenes, SystemClock.elapsedRealtime())) { precargando.set(false); return; }
         fondo.execute(() -> {
             try {
                 copia.precargar(cliente, (hechas, total) -> {

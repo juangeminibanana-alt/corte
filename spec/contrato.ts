@@ -618,6 +618,8 @@ export interface TiendaDetalleResponse {
 }
 
 export interface FilaVideo {
+  /** Producto asociado a sus ventas; nunca sustituye la portada del video. */
+  producto_principal_id?: string | null;
   content_id: string;
   /** rev. 3 · Siempre null: oEmbed ya no devuelve `title` (CONTEXTO 12/11). La interfaz muestra el nombre corto del
    *  producto principal o "Video 7677…3012". */

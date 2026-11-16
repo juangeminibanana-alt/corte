@@ -4,7 +4,8 @@ Port de spec/verificacion/analitica_ref.Analitica (03 §5) con las reglas de 01 
 grupo y etapa (vista v_muestras), pendiente, prioridad y razones (§2.6), tarjeta de video (§4.3), salud con nombre (§2.7),
 plantilla sugerida (§4.8), precio ≈ y comisión por venta mínima (§6.0). Cambios de la rev. 3.1:
 - imágenes con la regla C45 (`ResolutorImagenes`, SQL sobre `imagenes` en la misma transacción), nunca sha1(url);
-- FilaVideo con portada = foto del producto `videos.portada_product_id`, `miniatura_origen` y `titulo` siempre null (C4);
+- Las portadas de video salen exclusivamente de su propia clave `v:<content_id>`; un producto asociado nunca
+  sustituye a la portada del video. La miniatura heredada también apunta a esa misma imagen real.
 - objetos locales con las claves exactas del contrato (creatorhub.local.serial) y cohorte COALESCE(plan, muestra);
 - nombre corto del usuario (PlanVideo.nombre_corto) gana sobre el calculado (01 §6.0 regla 5).
 Rev. 4 (15/11): `producto_detalle` agrega `extendido` (ProductoExtendido del contrato: galería de vitrina, precios de la
@@ -789,9 +790,8 @@ class Vista:
 
     # ================================================================== videos y productos
     def miniatura_video(self, content_id: str) -> tuple[str | None, str | None]:
-        """Portada = foto del producto `videos.portada_product_id` con la regla C45 (C4)."""
-        u = self.img.producto(self.portadas.get(content_id))
-        return u, ('producto' if u else None)
+        """Identidad exacta del video. Sin portada conocida, ninguna foto de producto ocupa su lugar."""
+        return self.img.url('v', content_id), None
 
     def videos_todos(self, desde: dt.date | None, hasta: dt.date | None) -> list[Json]:
         clave = (desde, hasta)
@@ -808,6 +808,7 @@ class Vista:
             if m['plan_content_id']:
                 vinculadas[m['plan_content_id']].append(m['application_id'])
         filas = []
+        self.img.cargar(f'v:{cid}' for cid in g)
         for cid, rs in g.items():
             val = [r for r in rs if r['valida']]
             com = sum(r['com_estimada_centavos'] for r in val)
@@ -817,6 +818,8 @@ class Vista:
             ped, vped = {r['order_id'] for r in rs}, {r['order_id'] for r in val}
             miniatura, origen = self.miniatura_video(cid)
             filas.append({'content_id': cid, 'titulo': None, 'miniatura': miniatura, 'miniatura_origen': origen,
+                          'portada': miniatura,
+                          'producto_principal_id': self.portadas.get(cid),
                           'enlace': self.enlace_video(cid),
                           'pedidos': len(ped), 'pedidos_validos': len(vped), 'unidades': sum(r['unidades_netas'] for r in val),
                           'ventas_centavos': sum(r['ventas_linea_centavos'] for r in val), 'comision_estimada_centavos': com,
@@ -1012,15 +1015,17 @@ class Vista:
         vids = []
         d = self.display                                       # rev. 5: métricas de la Display API (si hay)
         por_video = self.videos_producto(pid)
-        if d is not None:
-            self.img.cargar(f'v:{cid}' for cid in por_video)
+        self.img.cargar(f'v:{cid}' for cid in por_video)
         for cid, rs in por_video.items():
             com = sum(r['com_estimada_centavos'] for r in rs if r['valida'])
-            v = {'content_id': cid, 'miniatura': self.miniatura_video(cid)[0], 'enlace': self.enlace_video(cid),
+            portada = self.miniatura_video(cid)[0]
+            v = {'content_id': cid, 'miniatura': portada, 'portada': portada, 'enlace': self.enlace_video(cid),
                  'primera_venta': min(r['fecha'] for r in rs), 'comision_estimada_centavos': com}
             if d is not None:
-                v.update(display_api.campos_video_producto(d, cid, len({r['order_id'] for r in rs if r['valida']}), com,
-                                                           self.img.url('v', cid)))
+                campos = display_api.campos_video_producto(d, cid, len({r['order_id'] for r in rs if r['valida']}), com,
+                                                           portada)
+                campos.pop('portada', None)  # La caché real no depende de disponer también de métricas.
+                v.update(campos)
             vids.append(v)
         vids.sort(key=lambda v: (v['primera_venta'], v['content_id']), reverse=True)
         return vids
@@ -1287,7 +1292,9 @@ class Vista:
         for f in filas:
             cid = f['content_id']
             ped, com = vida.get(cid, (f['pedidos_validos'], f['comision_estimada_centavos']))
-            f.update(display_api.campos_fila_video(d, cid, ped, com, self.img.url('v', cid)))
+            campos = display_api.campos_fila_video(d, cid, ped, com, f['portada'])
+            campos.pop('portada', None)  # Nunca reemplazar una portada real cacheada por un campo opcional ausente.
+            f.update(campos)
 
     def _perfil_tiktok(self) -> Json:
         d = self.display

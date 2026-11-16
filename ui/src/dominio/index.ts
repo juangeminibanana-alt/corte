@@ -9,7 +9,7 @@ export {
 } from './fechas';
 export { formato } from './formato';
 export { nombreCorto, nombreParaMensaje, normalizarTitulo, sinAcentos, coincide, resaltar, nuevoId } from './texto';
-export { tonoTienda, inicialesTienda, iconoCategoria, varianteParaAncho, urlConVariante, registroImagenes } from './imagenes';
+export { tonoTienda, inicialesTienda, iconoCategoria, varianteParaAncho, urlConVariante, registroImagenes, resolverPortadaVideo } from './imagenes';
 export {
   ETIQUETA_GRUPO, TONO_GRUPO, ICONO_GRUPO, ETIQUETA_ETAPA, PASO_ETAPA, ICONO_ETAPA, ETIQUETA_SALUD, TONO_SALUD,
   ETIQUETA_NIVEL, ETIQUETA_MOTIVO_NO_SE_PUEDE, ETIQUETA_FUENTE_PRECIO, ETIQUETA_ESTADO_ORDEN, ETIQUETA_PASO_SYNC,

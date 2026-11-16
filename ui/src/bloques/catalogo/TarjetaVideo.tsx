@@ -8,7 +8,7 @@
 import type { ReactElement } from 'react';
 import type * as C from '@/contrato';
 import { Chip, MiniaturaVideo, TarjetaProducto } from '@/componentes';
-import { formato, hoyLocal, nombreCorto, sumarDias } from '@/dominio';
+import { formato, hoyLocal, nombreCorto, resolverPortadaVideo, sumarDias } from '@/dominio';
 import { T } from '../textos';
 import { cx } from '../util/comun';
 import css from './TarjetaVideo.module.css';
@@ -42,8 +42,7 @@ export function TarjetaVideo(p: { video: C.FilaVideo; ranking?: number; nombrePr
   return (
     <article className={cx(css.video, p.className)} style={{ maxWidth: `${Math.max(120, p.anchoCss)}px` }}>
       <MiniaturaVideo
-        url={v.miniatura}
-        {...(v.miniatura_origen === 'producto' ? { rotulo: T.fotoDelProducto } : {})}
+        url={resolverPortadaVideo(v).url}
         {...(p.ranking !== undefined ? { ranking: p.ranking } : {})}
         comision={comision}
         unidades={unidades}

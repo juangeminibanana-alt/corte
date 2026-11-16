@@ -311,31 +311,52 @@ class ServicioDisplay:
         code = uno('code')
         if not code or len(code) > MAX_CODE:
             return self._recordar(state, 400, pagina_html(PAG_INVALIDA, False))
+        initial = self.boveda.leer()
+        revision = (initial.get('client_key'), initial.get('epoca_credenciales', 0))
         try:
             tokens = self.cliente.canjear(code, intento.verifier, intento.redirect_uri)
         except ErrorDisplay as e:
-            self._anotar_error(e)
+            with self.boveda.candado:
+                current = self.boveda.leer()
+                if (current.get('client_key'), current.get('epoca_credenciales', 0)) != revision:
+                    return self._recordar(state, 409, pagina_html('La conexión cambió. Vuelve a Corte para revisar su estado.', False))
+                self._anotar_error(e)
             self.publicar()
             return self._recordar(state, 502 if e.transitorio else 400, pagina_html(e.mensaje, False))
-        return self._recordar(state, 200, self._conectar(tokens))
+        try:
+            return self._recordar(state, 200, self._conectar(tokens, revision))
+        except ErrorDominio as e:
+            return self._recordar(state, e.http, pagina_html(e.mensaje, False))
 
-    def _conectar(self, tokens: Mapping[str, Any]) -> bytes:
-        previo = self.boveda.leer().get('open_id')
+    def _conectar(self, tokens: Mapping[str, Any], revision: tuple[Any, Any]) -> bytes:
+        previous = []
         ahora = self.reloj.ahora()
-        self.boveda.mutar(lambda d: d.update(dict(tokens), conectada_at=ahora, reautorizar=False, ultimo_error=None,
-                                             origen='oauth'), cambia_credenciales=True)
+        def save(d: dict[str, Any]) -> None:
+            if (d.get('client_key'), d.get('epoca_credenciales', 0)) != revision:
+                raise ErrorDominio('credenciales_cambiaron', 'La conexión cambió. Vuelve a Corte para revisar su estado.', http=409)
+            previous.append(d.get('open_id'))
+            d.update(dict(tokens), conectada_at=ahora, reautorizar=False, ultimo_error=None, origen='oauth')
+        self.boveda.mutar(save, cambia_credenciales=True)
+        saved_revision = (revision[0], revision[1] + 1)
+        previo = previous[0]
         if previo and previo != tokens.get('open_id'):
             _log.info('Se conectó otra cuenta de TikTok a la Display API: se borran los datos de la anterior')
             self._borrar_datos()
         try:
             perfil = D.normalizar_usuario(self.cliente.usuario())
-            with self.almacen.escritor() as db:
-                if D.guardar_perfil(db, perfil, ahora):
-                    self.almacen.marcar_data_version(db)
+            with self.boveda.candado:
+                current = self.boveda.leer()
+                if (current.get('client_key'), current.get('epoca_credenciales', 0)) != saved_revision:
+                    raise ErrorDominio('credenciales_cambiaron', 'La conexión cambió al verificar el perfil. Revisa su estado.', http=409)
+                with self.almacen.escritor() as db:
+                    if D.guardar_perfil(db, perfil, ahora):
+                        self.almacen.marcar_data_version(db)
             if self.almacen.confirmar_data_version() is not None:
                 self.bus.notificar_cambio(self.almacen.versiones(), ['cuenta'])
         except ErrorDisplay as e:
             _log.info('Conectado, pero no se pudo leer el perfil de la Display API (%s)', e.codigo)
+        except ErrorDominio:
+            raise
         except Exception as e:  # noqa: BLE001 - el perfil llega en la siguiente sync
             _log.warning('No se pudo guardar el perfil de la Display API (%s)', type(e).__name__)
         _log.info('Cuenta conectada a la Display API')

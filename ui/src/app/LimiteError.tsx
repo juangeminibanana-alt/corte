@@ -13,11 +13,15 @@ interface Props {
   children: ReactNode;
 }
 
-class Limite extends Component<Props, { error: boolean; intento: number }> {
-  override state = { error: false, intento: 0 };
+export function esErrorDeModulo(error: unknown): boolean {
+  return error instanceof Error && /dynamically imported module|importing a module script|loading chunk|loading css chunk/i.test(error.message);
+}
 
-  static getDerivedStateFromError(): { error: boolean } {
-    return { error: true };
+class Limite extends Component<Props, { error: boolean; modulo: boolean; intento: number }> {
+  override state = { error: false, modulo: false, intento: 0 };
+
+  static getDerivedStateFromError(error: unknown): { error: boolean; modulo: boolean } {
+    return { error: true, modulo: esErrorDeModulo(error) };
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
@@ -31,9 +35,9 @@ class Limite extends Component<Props, { error: boolean; intento: number }> {
         <span className={css.icono} aria-hidden="true">
           <Icono nombre="CircleAlert" tamano={20} />
         </span>
-        <p className={css.texto}>{TEXTO_ERROR_SECCION}</p>
-        <Boton variante="secundario" tamano="sm" icono="RotateCcw" alPulsar={() => this.setState((s) => ({ error: false, intento: s.intento + 1 }))}>
-          Reintentar
+        <p className={css.texto}>{this.state.modulo ? 'No pudimos abrir esta sección. Recarga Corte para volver a intentarlo.' : TEXTO_ERROR_SECCION}</p>
+        <Boton variante="secundario" tamano="sm" icono="RotateCcw" alPulsar={() => this.state.modulo ? window.location.reload() : this.setState((s) => ({ error: false, modulo: false, intento: s.intento + 1 }))}>
+          {this.state.modulo ? 'Recargar Corte' : 'Reintentar'}
         </Boton>
       </div>
     );

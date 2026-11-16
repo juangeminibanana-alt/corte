@@ -11,11 +11,11 @@ import { navegar, useClaseAncho, usePlataforma } from '@/app';
 import {
   AvatarTienda, BandaKpi, Boton, BotonIcono, Chip, Foto, GraficaColumnas, Icono, Kpi, MiniaturaVideo, Tabla, Tarjeta, TarjetaProducto, useToast,
 } from '@/componentes';
-import { ahoraS, formato, hoyLocal } from '@/dominio';
+import { ahoraS, formato, hoyLocal, resolverPortadaVideo } from '@/dominio';
 import { ChipSalud, ListaNotas, TarjetaMuestra, columnasMuestras, useControlMuestra } from '@/bloques';
 import { copiarTexto } from '@/plataforma';
 import {
-  MESES_GRAFICA_ANGOSTA, REGLA_MUESTRAS, avisosConPromesas, mejorMes, muestraConNombre, nombreVisible, participacionKpi, pedidosTienda, portadaDelProducto,
+  MESES_GRAFICA_ANGOSTA, REGLA_MUESTRAS, avisosConPromesas, mejorMes, muestraConNombre, nombreVisible, participacionKpi, pedidosTienda,
   productoDePortada, seccionesMuestras, serieMensualContinua, ultimosPuntos, videosDeTienda, type AvisoVista,
 } from './logica';
 import { T } from './textos';
@@ -381,8 +381,7 @@ function Ventas(p: { detalle: C.TiendaDetalleResponse; videos: C.FilaVideo[] | u
               return (
                 <MiniaturaVideo
                   key={v.content_id}
-                  url={v.miniatura}
-                  {...(portadaDelProducto(v) ? { rotulo: T.fotoDelProducto } : {})}
+                  url={resolverPortadaVideo(v).url}
                   ranking={i + 1}
                   comision={dinero}
                   unidades={T.videoUnidades(v.unidades)}

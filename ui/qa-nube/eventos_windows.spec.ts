@@ -41,13 +41,14 @@ test('el canal loopback conserva cierre, navegación y recordatorio sin duplicar
   fuente.emitir('message', { tipo: 'ventana.mostrar_ruta', ruta: '/ajustes' });
   fuente.emitir('ventana.preguntar_cierre', { tipo: 'sync.fin', estado: {} });
   fuente.emitir('message', { tipo: 'datos.cambiaron', secciones: ['plan'] });
+  fuente.emitir('datos.cambiaron', { secciones: ['local'], local_rev: 9 });
   expect(evento.mock.calls.map(([e]) => e.tipo)).toEqual([
-    'ventana.preguntar_cierre', 'ventana.mostrar_ruta', 'recordatorio.vencido', 'ventana.mostrar_ruta',
+    'ventana.preguntar_cierre', 'ventana.mostrar_ruta', 'recordatorio.vencido', 'ventana.mostrar_ruta', 'datos.cambiaron',
   ]);
   expect(invalidar).not.toHaveBeenCalled();
   cerrar();
   fuente.emitir('ventana.preguntar_cierre', {});
-  expect(evento).toHaveBeenCalledTimes(4);
+  expect(evento).toHaveBeenCalledTimes(5);
   expect(fuente.cerrada).toBe(true);
 });
 

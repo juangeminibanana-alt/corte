@@ -3,7 +3,7 @@
  * video (C4: `titulo` siempre es null), resumen del encabezado, filtros, orden, ranking y semana en curso. Sin React.
  */
 import type * as C from '@/contrato';
-import { coincide, diaSemana, formato, nombreCorto, normalizarTitulo, sumarDias } from '@/dominio';
+import { coincide, diaSemana, formato, nombreCorto, normalizarTitulo, resolverPortadaVideo, sumarDias } from '@/dominio';
 import type { ClaveOrden, ClaveRango } from './textos';
 import { T } from './textos';
 import type { ReglaColumnas } from './ajusteColumnas';
@@ -36,9 +36,8 @@ export function hayMetricas(items: readonly Pick<C.FilaVideo, 'vistas'>[] | unde
 }
 
 /** Portada a mostrar: la REAL del video ('/img/v/…') si existe; si no, la de siempre (foto del producto, rotulada). */
-export function portadaDe(v: Pick<C.FilaVideo, 'portada' | 'miniatura' | 'miniatura_origen'>): { url: C.UrlImagen | null; delProducto: boolean } {
-  if (v.portada) return { url: v.portada, delProducto: false };
-  return { url: v.miniatura, delProducto: portadaEsDelProducto(v) };
+export function portadaDe(v: Pick<C.FilaVideo, 'portada' | 'miniatura' | 'miniatura_origen'> & { content_id?: string }): { url: C.UrlImagen | null; delProducto: boolean } {
+  return resolverPortadaVideo(v);
 }
 
 /** Tiene vistas en TikTok pero ninguna venta válida (todo se reembolsó o se canceló). */
@@ -188,10 +187,9 @@ export function claveTiendaVideo(tienda: string | null, productos: readonly C.Fi
  * Nombre visible de un video (C4): el nombre corto del producto de su portada (el que más vendió en ese video) o,
  * si no se conoce, «Video 7677…3012». `titulo` no se usa: el hub siempre lo manda en null.
  */
-export function nombreVideo(v: Pick<C.FilaVideo, 'content_id' | 'miniatura'>, nombres: ReadonlyMap<string, string>): string {
-  const id = productoDePortada(v.miniatura);
-  const nombre = id ? nombres.get(id) : undefined;
-  return nombre && nombre.trim() ? nombre : T.nombreVideo(formato.idCorto(v.content_id));
+export function nombreVideo(v: Pick<C.FilaVideo, 'content_id' | 'miniatura'> & Partial<Pick<C.FilaVideo, 'titulo' | 'descripcion'>>, _nombres: ReadonlyMap<string, string>): string {
+  const texto = (v.titulo || v.descripcion || '').replace(/(?:^|\s)#[^\s]+/g, '').replace(/\s+/g, ' ').trim();
+  return texto || T.nombreVideo(formato.idCorto(v.content_id));
 }
 
 /** ¿La portada es la foto del producto? (C4: con imagen, siempre lo es salvo que el hub diga lo contrario). */
@@ -239,7 +237,8 @@ export function filtrarVideos(
     if (f.soloConVentas && v.pedidos_validos === 0) return false;
     if (f.vendiendoAhora && !(vendiendo?.has(v.content_id) ?? false)) return false;
     if (f.reembolsoAlto && !(v.tasa_reembolso > UMBRAL_REEMBOLSO_ALTO)) return false;
-    if (q && !coincide(q, nombreVideo(v, nombres), v.tienda_principal, v.content_id)) return false;
+    const producto = v.producto_principal_id ?? productoDePortada(v.miniatura);
+    if (q && !coincide(q, nombreVideo(v, nombres), producto ? nombres.get(producto) : null, v.tienda_principal, v.content_id)) return false;
     return true;
   });
 }

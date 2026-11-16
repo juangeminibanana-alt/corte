@@ -8,7 +8,7 @@ import { useMemo, useState, type ReactElement } from 'react';
 import type * as C from '@/contrato';
 import { Boton, CampoTexto, Foto, Hoja, Icono } from '@/componentes';
 import { useConsulta } from '@/datos';
-import { contentIdDeEnlace, esEnlaceTikTok, esPendiente, formato, hoyLocal, opCambioEtapa, type DatosEtapa } from '@/dominio';
+import { contentIdDeEnlace, esEnlaceTikTok, esPendiente, formato, hoyLocal, opCambioEtapa, resolverPortadaVideo, type DatosEtapa } from '@/dominio';
 import { useOperaciones, useUsername } from '../control/operaciones';
 import { T } from '../textos';
 import { cuenta, cx, nombreDe, usuarioDeEnlace } from '../util/comun';
@@ -31,7 +31,7 @@ function VideoOpcion(p: { v: C.VideoDeProducto; nombre: string; tienda: string; 
   return (
     <li>
       <button type="button" className={css.opcion} aria-pressed={p.elegido} onClick={p.alElegir}>
-        <Foto url={p.v.miniatura} alt={`${T.fotoDelProducto}: ${p.nombre}`} anchoCss={40} proporcion="1:1" radio="sm" tienda={p.tienda} className={cx(css.portada)} />
+        <Foto url={resolverPortadaVideo(p.v).url} alt={T.videoId(formato.idCorto(p.v.content_id))} anchoCss={40} proporcion="1:1" radio="sm" tienda={p.tienda} className={cx(css.portada)} />
         <span className={css.opcionTexto}>
           <span className={css.opcionTitulo}>{T.videoId(formato.idCorto(p.v.content_id))}</span>
           <span className={css.opcionMeta}>
@@ -161,7 +161,7 @@ export function HojaPublicar(p: HojaPublicarProps): ReactElement {
         <MuestraEnHoja m={m} />
         {p.sugerido ? (
           <div className={css.confirmar}>
-            <Foto url={sugerido?.miniatura ?? m.producto.imagen} alt={`${T.fotoDelProducto}: ${nombre}`} anchoCss={64} proporcion="1:1" radio="sm" tienda={m.tienda.nombre} />
+            <Foto url={sugerido ? resolverPortadaVideo(sugerido).url : null} alt={T.videoId(formato.idCorto(p.sugerido))} anchoCss={64} proporcion="1:1" radio="sm" tienda={m.tienda.nombre} />
             <div className={css.confirmarTextos}>
               <span className={css.pregunta}>{T.esEsteVideo}</span>
               <span className={css.idVideo}>{T.videoId(formato.idCorto(p.sugerido))}</span>
@@ -205,7 +205,7 @@ export function HojaPublicar(p: HojaPublicarProps): ReactElement {
             ) : null}
             {idPegado && !otraCuenta ? (
               <div className={css.confirmar}>
-                <Foto url={videoPegado?.miniatura ?? m.producto.imagen} alt={`${T.fotoDelProducto}: ${nombre}`} anchoCss={64} proporcion="1:1" radio="sm" tienda={m.tienda.nombre} />
+                <Foto url={videoPegado ? resolverPortadaVideo(videoPegado).url : null} alt={T.videoId(formato.idCorto(idPegado))} anchoCss={64} proporcion="1:1" radio="sm" tienda={m.tienda.nombre} />
                 <div className={css.confirmarTextos}>
                   <span className={css.pregunta}>{T.esEsteVideo}</span>
                   <span className={css.idVideo}>{T.videoId(formato.idCorto(idPegado))}</span>

@@ -5,6 +5,7 @@ import android.webkit.WebResourceResponse;
 import app.creatorhub.Nucleo;
 import app.creatorhub.datos.CopiaSinConexion;
 import app.creatorhub.red.ClienteHub;
+import app.creatorhub.red.PoliticaCacheImagenes;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -81,16 +82,22 @@ public final class ProxyHub {
         // rev. 5: '/img/v/<content_id>' (portada real de la Display API) ya no está reservada; la valida normalizarImagen.
         String norm = CopiaSinConexion.normalizarImagen(rutaQuery);
         if (norm == null) return error(404, "no_encontrado", "No existe.", "hub");
-        boolean versionada = !norm.contains("?v=0&") && !norm.endsWith("?v=0");
+        boolean versionada = PoliticaCacheImagenes.etagEsperada(norm) != null;
         if (versionada) {
             File f = n.copia.imagenEnCache(norm);
             if (f != null) return archivoImagen(f, "copia");
         }
+        ClienteHub.Respuesta falloRemoto = null;
         if (n.cliente.conectado()) {
             try {
                 ClienteHub.Respuesta r = n.cliente.pedir(new ClienteHub.Peticion("GET", "/lan/v1" + norm).limite(10L * 1024 * 1024));
-                if (r.codigo == 200 && versionada) n.copia.guardarImagen(norm, r.cuerpo);
-                return desdeHub(r, versionada && r.codigo == 200 ? "public, max-age=31536000, immutable" : "no-cache");
+                if (r.codigo == 200) {
+                    if (PoliticaCacheImagenes.almacenable(norm, r.cabecera("ETag"), r.tipo))
+                        n.copia.guardarImagen(norm, r.cuerpo, r.cabecera("ETag"));
+                    return desdeHub(r, PoliticaCacheImagenes.CACHE_HTTP);
+                }
+                if (!PoliticaCacheImagenes.permiteRespaldo(r.codigo)) return desdeHub(r, PoliticaCacheImagenes.CACHE_HTTP);
+                falloRemoto = r;
             } catch (IOException e) {
                 n.cliente.marcarDesconectado();
             }
@@ -101,6 +108,7 @@ public final class ProxyHub {
                 if (f != null) return archivoImagen(f, "copia");
             }
         }
+        if (falloRemoto != null) return desdeHub(falloRemoto, PoliticaCacheImagenes.CACHE_HTTP);
         Map<String, String> h = new HashMap<>();
         h.put(FUENTE, "sin_conexion");
         h.put("Cache-Control", "no-store");
@@ -111,7 +119,7 @@ public final class ProxyHub {
         try {
             InputStream in = new FileInputStream(f);
             Map<String, String> h = new HashMap<>();
-            h.put("Cache-Control", "public, max-age=31536000, immutable");
+            h.put("Cache-Control", PoliticaCacheImagenes.CACHE_HTTP);
             h.put("X-Content-Type-Options", "nosniff");
             h.put(FUENTE, fuente);
             return new WebResourceResponse(CopiaSinConexion.mimeDe(f), null, 200, "OK", h, in);

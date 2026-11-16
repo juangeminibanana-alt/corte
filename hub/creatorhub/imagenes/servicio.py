@@ -73,13 +73,13 @@ _SQL_FILA = ('SELECT img_key, tipo, ref_id, url_origen, url_huella, version, rut
              'FROM imagenes WHERE img_key = ?')
 _SQL_PENDIENTES = """
 SELECT i.img_key, i.url_origen,
-       CASE WHEN i.tipo = 'a' THEN 0
+       CASE WHEN i.tipo IN ('a', 'v') THEN 0
             WHEN EXISTS (SELECT 1 FROM muestras m WHERE m.product_id = i.ref_id) THEN 0
             WHEN EXISTS (SELECT 1 FROM vitrina v WHERE v.product_id = i.ref_id)
               OR EXISTS (SELECT 1 FROM orden_lineas l WHERE l.product_id = i.ref_id) THEN 1
             ELSE 2 END AS prioridad
 FROM imagenes i
-WHERE i.url_origen IS NOT NULL AND i.tipo IN ('p', 'a')
+WHERE i.url_origen IS NOT NULL AND i.tipo IN ('p', 'a', 'v')
   AND ((i.estado = 'pendiente' AND i.descargada_at IS NULL)
        OR (i.estado = 'error' AND (i.intentos <= ? OR i.actualizado_at <= ?)))
 """
@@ -548,7 +548,7 @@ class _Imagenes:
         ahora = self._reloj.ahora()
         with self._almacen.lector() as conn:
             filas = conn.execute("SELECT img_key FROM imagenes WHERE estado = 'error' AND url_origen IS NOT NULL "
-                                 "AND tipo IN ('p', 'a') AND intentos > ? AND actualizado_at <= ?",
+                                 "AND tipo IN ('p', 'a', 'v') AND intentos > ? AND actualizado_at <= ?",
                                  (len(REINTENTOS_S), ahora - REINTENTO_LARGO_S)).fetchall()
         for (clave,) in filas:
             self._cola.poner(clave, 2)

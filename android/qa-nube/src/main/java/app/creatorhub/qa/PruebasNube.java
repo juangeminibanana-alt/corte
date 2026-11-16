@@ -7,10 +7,13 @@ import android.content.ContextWrapper;
 import android.os.Bundle;
 import app.creatorhub.Nucleo;
 import app.creatorhub.datos.ColaOps;
+import app.creatorhub.datos.CopiaSinConexion;
 import app.creatorhub.datos.AlmacenSeguro;
 import app.creatorhub.datos.MigracionNube;
 import app.creatorhub.red.CanalNube;
 import app.creatorhub.red.SeguridadNube;
+import app.creatorhub.red.PoliticaCacheImagenes;
+import app.creatorhub.red.ControlPrecargaImagenes;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -29,7 +32,7 @@ public final class PruebasNube extends Instrumentation {
         Bundle resultado = new Bundle();
         try {
             probar();
-            resultado.putString("native_checks", "PASS: Keystore/reapertura, PKCE, rutas, fsync, deduplicacion, UTF8, archivo SHA256, defer y DTO sin secretos");
+            resultado.putString("native_checks", "PASS: Keystore, PKCE, rutas, fsync, deduplicacion, UTF8, archivo SHA256, defer, DTO limpio, cache ETag y reintentos acotados");
             resultado.putBoolean("production_data_touched", false);
             finish(Activity.RESULT_OK, resultado);
         } catch (Throwable e) {
@@ -63,6 +66,25 @@ public final class PruebasNube extends Instrumentation {
         comprobar(publico.contains("ABCD-EFGH") && !publico.contains(verifier) && !publico.contains("code_verifier")
                 && !publico.contains("request_id"), "Reapertura segura sin secreto en DTO");
         seguro.borrar("corte.nube.autorizacion.v1"); // El runner jamás inicia ni sondea una autorización real.
+        CopiaSinConexion imagenes = new CopiaSinConexion(aislado);
+        String imagen = "/img/v/123456789?v=aaaaaaaa&t=md";
+        File archivoImagen = imagenes.archivoImagen(imagen);
+        comprobar(archivoImagen.getParentFile().mkdirs(), "Directorio cache aislado");
+        Files.write(archivoImagen.toPath(), "LEGACY-SIN-ETAG".getBytes(StandardCharsets.UTF_8));
+        comprobar(imagenes.imagenEnCache(imagen) == null, "No confiar en cache vieja sin ETag");
+        byte[] png = android.util.Base64.decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", android.util.Base64.DEFAULT);
+        imagenes.guardarImagen(imagen, png, "\"bbbbbbbb-md\"");
+        comprobar(imagenes.imagenEnCache(imagen) == null, "ETag distinto no se guarda bajo URL vieja");
+        imagenes.guardarImagen(imagen, png, "\"aaaaaaaa-md\"");
+        comprobar(imagenes.imagenEnCache(imagen) != null && "image/png".equals(CopiaSinConexion.mimeDe(archivoImagen)), "Cache privada con identidad fuerte");
+        comprobar(imagenes.imagenEnCache("/img/v/123456789?v=bbbbbbbb&t=md") == null
+                && imagenes.imagenEnCache("/img/v/987654321?v=aaaaaaaa&t=md") == null, "No cruzar ID/version");
+        comprobar(!PoliticaCacheImagenes.almacenable(imagen, "\"aaaaaaaa-sm\"", "image/webp")
+                && !PoliticaCacheImagenes.almacenable(imagen, "\"aaaaaaaa-md\"", "text/html"), "Variante y MIME correctos");
+        ControlPrecargaImagenes presupuesto = new ControlPrecargaImagenes();
+        comprobar(presupuesto.intentar("a", 0) && !presupuesto.intentar("a", 59999)
+                && presupuesto.intentar("a", 60000) && presupuesto.intentar("a", 120000)
+                && !presupuesto.intentar("a", 999999), "Tres intentos con pausa, sin bucle por304");
         JSONObject op = new JSONObject().put("op_id", "qa-pendiente-uno").put("tipo", "nota.crear")
                 .put("datos", new JSONObject().put("texto", "Nota sintetica pendiente"));
         ColaOps cola = new ColaOps(aislado);

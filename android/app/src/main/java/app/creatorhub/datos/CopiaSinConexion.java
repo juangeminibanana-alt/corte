@@ -5,6 +5,7 @@ import android.net.Uri;
 import android.util.JsonReader;
 import android.util.JsonToken;
 import app.creatorhub.red.ClienteHub;
+import app.creatorhub.red.PoliticaCacheImagenes;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -248,20 +249,37 @@ public final class CopiaSinConexion {
     }
 
     public File archivoImagen(String normalizada) { return new File(dirImg, sha1(normalizada)); }
+    private File archivoEtiqueta(String normalizada) { return new File(dirImg, sha1(normalizada) + ".etag"); }
+
+    private boolean imagenVerificada(String normalizada) {
+        File f = archivoImagen(normalizada), etiqueta = archivoEtiqueta(normalizada);
+        String esperada = PoliticaCacheImagenes.etagEsperada(normalizada);
+        if (esperada == null || !f.isFile() || f.length() == 0 || !etiqueta.isFile() || etiqueta.length() > 128) return false;
+        try (InputStream in = new FileInputStream(etiqueta)) {
+            return esperada.equals(new String(leerTodo(in, 128), StandardCharsets.US_ASCII));
+        } catch (IOException e) { return false; }
+    }
 
     /** La imagen en caché (y la marca como usada para el LRU) o null. */
     public File imagenEnCache(String normalizada) {
         File f = archivoImagen(normalizada);
-        if (!f.isFile() || f.length() == 0) return null;
+        // Entradas antiguas sin prueba de ETag se rehidratan; no se confunde una respuesta actual con una URL vieja.
+        if (!imagenVerificada(normalizada)) return null;
         //noinspection ResultOfMethodCallIgnored
         f.setLastModified(System.currentTimeMillis());
+        archivoEtiqueta(normalizada).setLastModified(System.currentTimeMillis());
         return f;
     }
 
-    public void guardarImagen(String normalizada, byte[] datos) {
+    public void guardarImagen(String normalizada, byte[] datos, String etag) {
         if (datos.length == 0 || datos.length > TOPE_IMAGEN) return;
+        String esperada = PoliticaCacheImagenes.etagEsperada(normalizada);
+        if (esperada == null || !esperada.equals(etag)) return;
         if (!dirImg.isDirectory() && !dirImg.mkdirs()) return;
-        try { escribirAtomico(archivoImagen(normalizada), datos); } catch (IOException ignorado) { /* caché opcional */ }
+        try {
+            escribirAtomico(archivoImagen(normalizada), datos);
+            escribirAtomico(archivoEtiqueta(normalizada), etag.getBytes(StandardCharsets.US_ASCII));
+        } catch (IOException ignorado) { /* caché opcional; sin sidecar válido no se lee */ }
     }
 
     /** Precarga las imágenes de la copia: 4 a la vez, solo las que faltan; luego recorta la caché a 150 MB. */
@@ -271,7 +289,7 @@ public final class CopiaSinConexion {
         final List<String> faltan = new ArrayList<>();
         for (String u : lista) {
             String n = normalizarImagen(u);
-            if (n != null && !archivoImagen(n).isFile()) faltan.add(n);
+            if (n != null && !imagenVerificada(n)) faltan.add(n);
         }
         final int total = faltan.size();
         if (total == 0) { recortarCache(); return; }
@@ -283,7 +301,8 @@ public final class CopiaSinConexion {
                     try {
                         if (cliente.conectado()) {
                             ClienteHub.Respuesta r = cliente.pedir(new ClienteHub.Peticion("GET", "/lan/v1" + n).limite(TOPE_IMAGEN));
-                            if (r.codigo == 200) guardarImagen(n, r.cuerpo);
+                            if (r.codigo == 200 && PoliticaCacheImagenes.almacenable(n, r.cabecera("ETag"), r.tipo))
+                                guardarImagen(n, r.cuerpo, r.cabecera("ETag"));
                         }
                     } catch (IOException ignorado) {
                         // sin conexión a mitad de la precarga: se completa en la siguiente copia

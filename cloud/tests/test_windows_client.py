@@ -168,6 +168,45 @@ class WindowsClientTests(unittest.TestCase):
         self.assertEqual(result.status, 200)
         self.assertTrue(http.opener.open.call_args.args[0].full_url.endswith('?q=texto%20con%2Fseparador'))
 
+    def test_media_proxy_keeps_bytes_mime_and_private_http_policy(self):
+        http = HttpsCorte()
+        remote = Mock()
+        remote.code = 200
+        remote.headers = {'Content-Type': 'image/webp', 'ETag': '"aaaaaaaa-sm"',
+                          'Cache-Control': 'private, no-store'}
+        remote.read.return_value = b'RIFF-synthetic-cover-bytes'
+        remote.__enter__, remote.__exit__ = Mock(return_value=remote), Mock(return_value=False)
+        http.opener = Mock()
+        http.opener.open.return_value = remote
+        r = http.pedir('GET', '/img/v/7123456789012345678?v=aaaaaaaa&t=sm')
+        headers = {k.lower(): v for k, v in r.cabeceras}
+        self.assertEqual(r.cuerpo, remote.read.return_value)
+        self.assertEqual(headers['content-type'], 'image/webp')
+        self.assertEqual(headers['cache-control'], 'private, no-store')
+
+    def test_offline_images_require_matching_version_variant_and_repair_legacy_mismatch(self):
+        from creatorhub.interfaces import RespuestaHttp
+        url = '/img/v/7123456789012345678?v=aaaaaaaa&t=sm'
+        valid = RespuestaHttp(200, [('Content-Type', 'image/webp'), ('ETag', '"aaaaaaaa-sm"'),
+                                   ('Cache-Control', 'private, no-store')], b'correct-cover')
+        self.client.cache.guardar(url, valid)
+        self.assertEqual(self.client.cache.leer(url).cuerpo, b'correct-cover')
+        invalid = RespuestaHttp(200, [('Content-Type', 'image/webp'), ('ETag', '"bbbbbbbb-sm"')], b'new-version')
+        for candidate in ['/img/v/7123456789012345678?v=0&t=sm',
+                          '/img/v/7123456789012345678?v=bbbbbbbb&t=md',
+                          '/img/v/7123456789012345678?v=bbbbbbbb&v=aaaaaaaa&t=sm']:
+            self.client.cache.guardar(candidate, invalid)
+            self.assertIsNone(self.client.cache.leer(candidate))
+        self.client.cache.guardar(url, invalid)
+        self.assertEqual(self.client.cache.leer(url).cuerpo, b'correct-cover')
+        # Existing installs may already have stored a mismatched response under this URL.
+        with self.client.cache.db() as db:
+            db.execute('UPDATE cache SET headers=?,body=? WHERE k=?',
+                       (json.dumps(invalid.cabeceras), invalid.cuerpo, url))
+        self.assertIsNone(self.client.cache.leer(url))
+        self.client.cache.guardar('/img/p/8234567890123456789?v=aaaaaaaa&t=sm', valid)
+        self.assertIsNotNone(self.client.cache.leer('/img/p/8234567890123456789?v=aaaaaaaa&t=sm'))
+
     @unittest.skipUnless(sys.platform == 'win32', 'Windows shell')
     def test_access_gate_closes_cleanly_and_authenticated_shell_keeps_close_dialog(self):
         from creatorhub.plataforma.windows.ventana import ShellVentana
@@ -235,6 +274,31 @@ class WindowsClientTests(unittest.TestCase):
         self.assertEqual(self.client.cache.pendientes(), [])
         payload = json.loads(self.transport.pedir.call_args.args[2])
         self.assertEqual(payload['ops'][0]['op_id'], op['op_id'])
+
+    def test_rejected_optimistic_change_refreshes_even_with_unchanged_server_revision_and_preserves_other_pending(self):
+        c = self.client
+        server_snapshot = self.snapshot()
+        historical = Path(self.db.ruta).read_bytes()
+        c.cache.guardar('/api/snapshot', respuesta(server_snapshot))
+        c.cache.meta('snapshot_revision', 'unchanged-server-revision')
+        rejected = {'op_id': secrets.token_hex(16), 'tipo': 'preferencias.editar',
+                    'cambios': {'tema': 'oscuro', 'rev': server_snapshot['local']['preferencias']['rev']}}
+        note_id = secrets.token_hex(16)
+        pending = {'op_id': secrets.token_hex(16), 'tipo': 'nota.crear',
+                   'datos': {'id': note_id, 'entidad': 'general', 'entidad_id': None, 'texto': 'Nota pendiente de prueba'}}
+        c.aplicar_ops([rejected, pending])
+        self.transport.pedir.side_effect = None
+        self.transport.pedir.return_value = respuesta({'resultados': [
+            {'op_id': rejected['op_id'], 'estado': 'conflicto', 'objeto': server_snapshot['local']['preferencias']}]})
+        c.flush()
+        self.assertEqual(c.cache.meta('snapshot_revision'), '')
+        self.assertEqual(c.cache.pendientes(), [pending])
+        self.transport.pedir.return_value = respuesta(server_snapshot)
+        self.assertTrue(c._actualizar_copia())
+        self.assertEqual(c.local.exportar()['preferencias']['tema'], server_snapshot['local']['preferencias']['tema'])
+        self.assertEqual(c.local.exportar()['notas'][0]['id'], note_id)
+        self.assertEqual(c.cache.pendientes(), [pending])
+        self.assertEqual(Path(self.db.ruta).read_bytes(), historical)
 
     def test_logout_preserves_copy_and_pending_work(self):
         self.client.cache.guardar('/api/snapshot', respuesta(self.snapshot()))
