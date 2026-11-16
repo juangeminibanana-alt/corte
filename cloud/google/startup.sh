@@ -4,6 +4,11 @@ set -euo pipefail
 set +x
 umask 077
 
+mountpoint_bin=$(command -v mountpoint)
+docker_bin=$(command -v docker)
+[[ "$mountpoint_bin" =~ ^/[A-Za-z0-9/_-]+$ ]] && [ -x "$mountpoint_bin" ] || exit 1
+[[ "$docker_bin" =~ ^/[A-Za-z0-9/_-]+$ ]] && [ -x "$docker_bin" ] || exit 1
+
 metadata() {
   curl --fail --silent --show-error --retry 3 --max-time 15 \
     -H 'Metadata-Flavor: Google' \
@@ -79,14 +84,17 @@ Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target
 RequiresMountsFor=/mnt/disks/corte
+ConditionPathIsMountPoint=/mnt/disks/corte
 StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStartPre=/usr/bin/mountpoint -q /mnt/disks/corte
-ExecStartPre=-/usr/bin/docker rm -f corte
-ExecStart=/usr/bin/docker run --rm --name corte --cap-drop ALL --security-opt no-new-privileges --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --env-file /run/corte/runtime.env --publish 8080:10000 --mount type=bind,src=/mnt/disks/corte/data,dst=/var/lib/corte --log-driver gcplogs --log-opt mode=non-blocking --log-opt max-buffer-size=4m $image
-ExecStop=/usr/bin/docker stop --time 40 corte
+ExecStartPre=$mountpoint_bin -q /mnt/disks/corte
+ExecStartPre=-$docker_bin rm -f corte
+ExecStart=$docker_bin run --rm --name corte --cap-drop ALL --security-opt no-new-privileges --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --env-file /run/corte/runtime.env --publish 8080:10000 --mount type=bind,src=/mnt/disks/corte/data,dst=/var/lib/corte --log-driver gcplogs --log-opt mode=non-blocking --log-opt max-buffer-size=4m $image
+ExecStop=$docker_bin stop --time 40 corte
+StandardOutput=journal+console
+StandardError=journal+console
 Restart=always
 RestartSec=5
 TimeoutStopSec=50
@@ -96,4 +104,9 @@ WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
 systemctl enable --now corte.service
-echo 'Corte container started; verify health, certificate and authenticated access separately.'
+if ! systemctl is-active --quiet corte.service; then
+  systemctl status corte.service --no-pager -l || true
+  journalctl -u corte.service --no-pager -n 20 || true
+  exit 1
+fi
+echo 'Corte service active; verify gateway health, Hosting and authenticated access separately.'

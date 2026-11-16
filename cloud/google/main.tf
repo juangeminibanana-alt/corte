@@ -360,8 +360,7 @@ resource "google_cloud_run_v2_service" "gateway" {
         value = "https://${var.hosting_site_id}.web.app"
       }
       startup_probe {
-        http_get {
-          path = "/api/health"
+        tcp_socket {
           port = 8080
         }
         period_seconds    = 10
