@@ -1,5 +1,12 @@
 /* Barra inferior (02 §7.8). Solo tokens. La píldora aparece con fundido y escala .9 → 1 en 200 ms. */
 .barra {
+  --glass-bg: var(--chrome-bg);
+  --glass-bg-solid: var(--chrome-bg);
+  --glass-border: var(--chrome-border);
+  --text-1: var(--chrome-fg);
+  --text-2: #e0e0e6;
+  --warn-solid: #35363e;
+  --warn-on-solid: #ffffff;
   position: fixed;
   left: 0;
   right: 0;
@@ -7,7 +14,8 @@
   z-index: var(--z-nav);
   height: calc(var(--bottomnav-h) + var(--inset-bottom));
   padding: 0 var(--inset-right) var(--inset-bottom) var(--inset-left);
-  border-top: 1px solid var(--glass-border);
+  background: var(--chrome-bg);
+  border-top: 1px solid var(--chrome-border);
   transition: transform var(--dur-base) var(--ease-standard);
 }
 .oculta {
@@ -55,8 +63,8 @@
   color: inherit;
 }
 .activo .pildora {
-  background: var(--brand-subtle);
-  color: var(--brand-ink);
+  background: transparent;
+  color: var(--brand);
   animation: pildora var(--dur-base) var(--ease-enter) both;
 }
 .etiqueta {
@@ -69,8 +77,18 @@
   font-weight: var(--weight-medium);
 }
 .activo .etiqueta {
-  color: var(--text-1);
+  color: #ff5275;
   font-weight: var(--weight-semibold);
+}
+.activo { position: relative; }
+.activo::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  width: 30px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--brand);
 }
 .insignia {
   position: absolute;

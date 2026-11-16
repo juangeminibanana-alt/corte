@@ -121,15 +121,21 @@
 /* ------------------------------------------------------------- Android */
 .and {
   position: sticky;
-  top: 0;
+  top: calc(56px + var(--inset-top));
   z-index: var(--z-header);
   isolation: isolate;
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  min-height: calc(var(--header-h) + var(--inset-top));
-  padding: var(--inset-top) var(--space-1) 0 var(--content-pad-x);
+  min-height: var(--header-h);
+  padding: 0 var(--space-1) 0 var(--content-pad-x);
   margin: 0 calc(var(--content-pad-x) * -1);
+  background: var(--bg-canvas);
+}
+:global([data-nav="ninguna"]) .and {
+  top: 0;
+  min-height: calc(var(--header-h) + var(--inset-top));
+  padding-top: var(--inset-top);
 }
 .and .volver {
   width: var(--touch-min);

@@ -1,15 +1,20 @@
 # Corte
 
-Corte ahora incluye una **versión web privada**, con una interfaz clara inspirada en TikTok Shop y acceso desde computadora o teléfono, sin emparejamiento por Wi-Fi.
+Corte mantiene sus **aplicaciones nativas de Windows y Android**, conectadas a Google Cloud, además de una versión web privada. La interfaz compartida usa navegación negra, contenido claro y acentos coral y cian inspirados en TikTok Shop. El modo nube funciona por HTTPS sin emparejar el teléfono con una PC.
 
 **Versión publicada:** [Abrir Corte](https://corte-e-book-21589.web.app). El acceso con Google está limitado al propietario. En Configuración puedes recuperar una conexión anterior desde su JSON o configurar la pareja App Key y App Secret de tu app de TikTok Shop.
 
+**Aplicaciones 1.1.2:** [Android APK](https://corte-e-book-21589.web.app/descargas/Corte-Android-1.1.2.apk) · [Windows ZIP](https://corte-e-book-21589.web.app/descargas/Corte-Windows-1.1.2.zip). Android actualiza la instalación anterior con la misma firma; Windows incluye `CreatorHub.exe`, `_internal` y `Instalar Corte.cmd`.
+
 - **Inicio simplificado:** resultados, hasta cinco prioridades y accesos directos. El detalle permanece en Muestras, Tiendas, Ventas, Videos y Productos.
+- **Muestras y productos:** lista con fotos reales, filtros y acciones; ficha con galería completa, variante recibida y opciones disponibles para solicitar muestras. La copia sin conexión conserva las fichas consultadas y precarga sus imágenes ya descargadas.
 - **Google con Firebase Authentication:** el servidor verifica la identidad y limita el acceso al propietario autorizado.
 - **Firebase Storage:** copias privadas del trabajo local, con importación y restauración desde Configuración.
 - **Publicación en Google:** Firebase Hosting sirve la interfaz por HTTPS; Cloud Run la conecta con el backend privado de Compute Engine y su disco persistente. Conserva la sincronización de TikTok y la analítica existentes.
 
 La configuración, los requisitos y la publicación están en [Corte en la nube](cloud/README.md). Firebase Authentication y Storage comparten el proyecto de Google Cloud donde se ejecuta el backend Python. El repositorio por sí solo no activa estos servicios.
+
+El [inventario de API y sus límites](docs/API_COVERAGE.md) distingue lo que obtiene la autorización de creador de las API que requieren una tienda de vendedor. Las reseñas y fotos de compradores no están implementadas. La [dirección visual elegida](ui/DESIGN.md) documenta composición, accesibilidad y diferencias intencionales respecto de los conceptos.
 
 ## Desarrollo de la versión web
 
@@ -28,17 +33,22 @@ python -m pip install -r cloud/requirements.txt
 python -m unittest discover -s cloud/tests -v
 ```
 
-## Aplicaciones de escritorio y Android existentes
+## Aplicaciones de escritorio y Android
 
 Corte es un hub de Windows y una app de Android para **creadores afiliados de TikTok Shop**. Junta en un solo lugar las
 muestras que pediste (y los videos que debes), tus ventas y comisiones, las tiendas, los productos y los videos, y te
 ayuda a ponerte al día con las tiendas.
 
-- **Hub de Windows** (`CreatorHub.exe`): sincroniza tu cuenta con la **API oficial de Affiliate Creator** de TikTok
-  Shop Partner Center y, si la conectas, con la **Display API** de TikTok for Developers (portadas, vistas y likes de
-  tus videos). Guarda todo en tu equipo; las credenciales se cifran con DPAPI de Windows.
-- **App de Android**: se empareja con la PC por la red local (TLS con certificado fijado), muestra la misma interfaz y
-  conserva una copia para consultarla sin conexión.
+- **Windows** (`CreatorHub.exe`): conserva el shell nativo y el hub Python con su archivo local. Al conectar Google,
+  trabaja con el servidor de la nube y conserva una copia para consultar sin conexión. El archivo previo permanece
+  separado; la sincronización de TikTok se ejecuta en Google para evitar renovar las mismas credenciales desde dos equipos.
+- **Android**: mantiene Java, WebView con interfaz incluida en el APK, Keystore, copia local, operaciones pendientes y
+  recordatorios. Se conecta al mismo servidor por HTTPS con autorización de Google; no carga una web remota en su WebView.
+- **Servidor de Google**: sincroniza la **API oficial de Affiliate Creator** de TikTok Shop y la **Display API**
+  conectada para portadas y métricas reales de videos. Las credenciales permanecen cifradas en el servidor.
+
+La arquitectura original de red local sigue disponible para instalaciones que la utilicen. El modo nube usa una
+conexión distinta y conserva el historial local sin exigir que el teléfono y Windows estén en la misma red.
 
 Solo usa endpoints de lectura de las API oficiales.
 

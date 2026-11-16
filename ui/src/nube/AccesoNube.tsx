@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactElement, type ReactNode } from 'react';
 import { infoPlataforma } from '@/plataforma';
+import { Logo } from '../raiz/Logo';
 import { fijarClienteNativo, fijarModoNube } from './entorno';
 import { leerSesionNativa, type SesionNativa } from './clienteNativo';
 import { AccesoClienteNativo } from './AccesoClienteNativo';
@@ -154,7 +155,7 @@ export function AccesoNube(p: { children: ReactNode }): ReactElement {
   return (
     <main className={css.fondo}>
       <div className={css.marca} aria-label="Corte">
-        <svg width="34" height="38" viewBox="0 0 34 38" fill="none" aria-hidden="true"><rect x="4" y="13" width="26" height="22" rx="4" stroke="currentColor" strokeWidth="2.4"/><path d="M11 14V10a6 6 0 0 1 12 0v4" stroke="currentColor" strokeWidth="2.4"/><path d="m27 5 2-4" stroke="#d81b43" strokeWidth="2.6" strokeLinecap="round"/><path d="m31 9 2-2" stroke="#00b8bd" strokeWidth="2.6" strokeLinecap="round"/></svg>
+        <Logo tamano={32} />
         <span>Corte</span>
       </div>
       <section className={css.panel} aria-labelledby="acceso-titulo" aria-busy={acceso === 'comprobando' || enviando}>

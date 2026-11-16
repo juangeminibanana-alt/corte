@@ -9,8 +9,8 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type * as C from '@/contrato';
 import { navegar, Pantalla, useClaseAncho, usePlataforma } from '@/app';
-import { PestanasMuestras, TarjetaMuestra, columnasMuestras } from '@/bloques';
-import { Boton, CampoTexto, Casilla, ChipFiltro, EncabezadoPantalla, EstadoVacio, Esqueleto, EsqueletoVista, Tabla, useToast } from '@/componentes';
+import { columnasMuestras } from '@/bloques';
+import { Boton, CampoTexto, Casilla, ChipFiltro, EstadoVacio, Esqueleto, EsqueletoVista, Tabla, useToast } from '@/componentes';
 import { consultar, useConsulta, useSync } from '@/datos';
 import { coincide, csvMuestras, formato, hoyLocal } from '@/dominio';
 import { guardarArchivo } from '@/plataforma';
@@ -21,7 +21,9 @@ import { CeldaProductoPlegada } from './CeldaProducto';
 import { columnasTodas, useAncho } from './columnas';
 import { rutaDetalle } from './rutas';
 import { T } from './textos';
-import { cx, pestanasArriba } from './util';
+import { cx } from './util';
+import { CabeceraListado } from './CabeceraListado';
+import { FilaMuestra } from './FilaMuestra';
 import css from './Todas.module.css';
 
 const SIN_PARAMS = {};
@@ -51,7 +53,8 @@ export function PantallaMuestrasTodas(): ReactElement {
   // Producto y del resto, las que quepan; si ni las esenciales caben, tarjetas.
   const [refTabla, anchoTabla] = useAncho<HTMLDivElement>();
   const ajuste = useMemo(() => columnasTodas(columnas, anchoTabla, (m: C.MuestraVista) => <CeldaProductoPlegada m={m} />), [columnas, anchoTabla]);
-  const conTarjetas = movil || !ajuste.caben;
+  const [preferirLista, setPreferirLista] = useState(true);
+  const conTarjetas = movil || preferirLista || !ajuste.caben;
   const [grupos, setGrupos] = useState<C.GrupoMuestra[]>([]);
   const [q, setQ] = useState('');
   const [orden, setOrden] = useState<{ columna: string; direccion: DireccionOrden } | null>(null);
@@ -112,9 +115,6 @@ export function PantallaMuestrasTodas(): ReactElement {
   };
 
   const lista = todas !== undefined;
-  // Igual que Pendientes: ≥ 1180 las pestañas van junto al título (lienzo Muestras.png).
-  const arriba = pestanasArriba(movil, clase);
-  const pestanas = <PestanasMuestras activa="todas" className={cx(arriba ? css.pestanasCabeza : movil ? css.pestanasMovil : css.pestanas)} />;
   const contexto = lista
     ? grupos.length > 0 || q.trim()
       ? T.contextoFiltrado(formato.numero(visibles.length), formato.numero(todas.length))
@@ -160,6 +160,7 @@ export function PantallaMuestrasTodas(): ReactElement {
             ))}
           </div>
           <div className={cx(css.exportar)}>
+            {!movil && ajuste.caben ? <Boton variante="secundario" tamano="sm" alPulsar={() => setPreferirLista(!preferirLista)}>{preferirLista ? 'Ver tabla' : 'Ver lista'}</Boton> : null}
             <Casilla marcada={incluirLocal} alCambiar={setIncluirLocal} etiqueta={T.incluirLocal} />
             <Boton variante="secundario" icono={android ? 'Share2' : 'Download'} cargando={exportando} alPulsar={() => void exportar()}>
               {T.exportarCsv}
@@ -180,7 +181,7 @@ export function PantallaMuestrasTodas(): ReactElement {
                 {visibles.slice(0, limite).map((m) => (
                   <li key={m.application_id} className={cx(css.tarjetaFila)}>
                     {/* Historial ordenado por Solicitada: el Nº de la cola de Pendientes aquí se leía como una numeración rota. */}
-                    <TarjetaMuestra muestra={sinPosicion(m)} variante="lista" conAccion={false} alAbrir={() => navegar(rutaDetalle(m.application_id))} />
+                    <FilaMuestra muestra={sinPosicion(m)} android={android} deslizable={android} conAccion={false} alAbrir={() => navegar(rutaDetalle(m.application_id))} />
                   </li>
                 ))}
               </ol>
@@ -214,8 +215,7 @@ export function PantallaMuestrasTodas(): ReactElement {
 
   return (
     <Pantalla titulo={T.tituloTodas} lista={lista} className={cx(css.pantalla)}>
-      <EncabezadoPantalla titulo={T.titulo} contexto={contexto} {...(arriba ? { acciones: pestanas } : {})} />
-      {arriba ? null : pestanas}
+      <CabeceraListado activa="todas" contexto={contexto} />
       <div className={consulta.refrescando ? css.refrescando : undefined}>{cuerpo}</div>
     </Pantalla>
   );

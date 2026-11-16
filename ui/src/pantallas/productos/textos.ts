@@ -64,8 +64,8 @@ export const T = {
   quitarFiltros: 'Quitar filtros',
   cargando: 'Estamos trayendo tus datos de TikTok Shop…',
   lento: 'Sigue cargando… revisa la conexión con tu PC',
-  necesitaPc: 'Necesita tu PC encendida',
-  necesitaPcTexto: 'Esta vista se arma en Corte de tu PC. Ábrelo y conéctate al mismo Wi‑Fi.',
+  necesitaPc: 'Conéctate para actualizar',
+  necesitaPcTexto: 'Esta ficha todavía no está guardada en este dispositivo. Conéctate para descargarla.',
   errorTitulo: 'No pudimos mostrar tus productos',
   errorDetalleTitulo: 'No pudimos mostrar este producto',
   noExiste: 'No encontramos este producto',
@@ -108,7 +108,7 @@ export const T = {
   unSoloMes: (mes: string, dinero: string, unidades: number): string =>
     `Todas sus ventas son de ${mes} (en curso): ${dinero} de comisión · ${plural(unidades, 'unidad', 'unidades')}.`,
   meses: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'],
-  sinSerie: 'La gráfica por mes necesita tu PC encendida.',
+  sinSerie: 'Conéctate para ver la gráfica completa por mes.',
   videos_: 'Videos que lo venden',
   videosNota: 'Cifras totales de cada video, con todos sus productos.',
   // rev. 5 · Con las métricas de TikTok: vistas y conversión de cada video (del video completo).
@@ -120,7 +120,7 @@ export const T = {
   sinCifrasTikTokAyuda: 'TikTok no da cifras de este video: puede ser privado, estar borrado o ser de otra cuenta.',
   metricasDe: (vistas: string, porMil: string | null): string => `${vistas} vistas${porMil ? `, ${porMil} pedidos por 1,000 vistas` : ''}`,
   videosVacio: 'Ningún video tuyo vende este producto todavía.',
-  listaCorta: (visibles: number, total: number): string => `Mostrando ${n(visibles)} de ${n(total)} · el resto con tu PC encendida`,
+  listaCorta: (visibles: number, total: number): string => `Mostrando ${n(visibles)} de ${n(total)} · conéctate para ver el resto`,
   muestras: 'Muestras de este producto',
   muestrasVacio: 'No pediste muestras de este producto.',
   notas: 'Notas del producto',
@@ -134,8 +134,8 @@ export const T = {
 
   // ------------------------------------------------------------------ ficha completa (contrato rev. 4, 15/11)
   // Galería de tu vitrina
-  galeria: 'Fotos de tu vitrina',
-  galeriaCuenta: (n: number): string => `${plural(n, 'foto', 'fotos')} de tu vitrina`,
+  galeria: 'Fotos del producto',
+  galeriaCuenta: (n: number): string => `${plural(n, 'foto', 'fotos')} del producto`,
   verFoto: (i: number, total: number): string => `Ver la foto ${n(i)} de ${n(total)}`,
   fotoDe: (i: number, total: number, nombre: string): string => `${nombre}, foto ${n(i)} de ${n(total)}`,
 

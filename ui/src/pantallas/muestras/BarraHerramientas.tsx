@@ -39,10 +39,13 @@ export function BarraHerramientas(p: {
   movil: boolean;
   ordenProvisional: boolean;
   selectorVista?: ReactNode;
+  avance?: ReactNode;
+  mostrarAvance?: boolean;
 }): ReactElement {
   const [porQue, setPorQue] = useState(false);
   const [avanzados, setAvanzados] = useState(false);
   const panelId = useId();
+  useEffect(() => { if (p.mostrarAvance) setAvanzados(true); }, [p.mostrarAvance]);
   useEffect(() => {
     if (!p.movil || !avanzados) return undefined;
     return registrarAtras(() => { setAvanzados(false); return true; });
@@ -55,21 +58,44 @@ export function BarraHerramientas(p: {
   const activos = INTERRUPTORES.filter(([clave]) => f[clave]);
   const opcionesOrden: OpcionMenu[] = ORDENES.map((o) => ({ id: o, etiqueta: T.ordenar[o], ...(o === p.prefs.orden ? { icono: 'Check' as const } : {}), alPulsar: () => p.alCambiar({ orden: o }) }));
   const opcionesAgrupar: OpcionMenu[] = AGRUPACIONES.map((a) => ({ id: a, etiqueta: T.agrupar[a], ...(a === p.prefs.agrupar ? { icono: 'Check' as const } : {}), alPulsar: () => p.alCambiar({ agrupar: a }) }));
+  const tiendas = useMemo(() => [...new Map(p.items.map((m) => [m.tienda.tienda_key, m.tienda.nombre])).entries()]
+    .sort((a, b) => a[1].localeCompare(b[1], 'es')), [p.items]);
+  const estados: OpcionMenu[] = [
+    { id: 'todos', etiqueta: 'Todos los estados', alPulsar: () => cambiarFiltros({ ...f, grupos: [] }) },
+    ...GRUPOS_FILTRO.filter((g) => (conteos[g] ?? 0) > 0 || f.grupos.includes(g)).map((g) => ({
+      id: g, etiqueta: `${T.filtroGrupo[g] ?? g} (${conteos[g] ?? 0})`,
+      ...(f.grupos.includes(g) ? { icono: 'Check' as const } : {}),
+      alPulsar: () => cambiarFiltros({ ...f, grupos: f.grupos.includes(g) ? f.grupos.filter((x) => x !== g) : [...f.grupos, g] }),
+    })),
+  ];
 
   return (
     <div className={cx(css.herramientas, css.herramientasSencillas)} data-movil={p.movil ? '' : undefined}>
       <div className={cx(css.filaPrincipalSimple)}>
+        <label className={css.selectorTienda}>
+          <span className={css.soloLectores}>Filtrar por tienda</span>
+          <select value={f.tienda ?? ''} onChange={(e) => cambiarFiltros({ ...f, tienda: e.currentTarget.value })}>
+            <option value="">{p.movil ? 'Tiendas' : 'Todas las tiendas'}</option>
+            {tiendas.map(([key, nombre]) => <option key={key} value={key}>{nombre}</option>)}
+          </select>
+          <Icono nombre="ChevronDown" tamano={16} />
+        </label>
+        <div className={css.selectorEstados}>
+          <Menu etiqueta={f.grupos.length === 0 ? 'Todos los estados' : f.grupos.length === 1 ? T.filtroGrupo[f.grupos[0]!] ?? f.grupos[0]! : `${f.grupos.length} estados`} opciones={estados} disparador="boton" />
+        </div>
+        <div className={css.selectorOrden}>
+          <Menu etiqueta={T.ordenar[p.prefs.orden]} opciones={opcionesOrden} disparador="boton" />
+        </div>
         <CampoTexto etiqueta={T.buscarEtiqueta} etiquetaOculta tipo="search" valor={f.q}
-          placeholder={T.buscarPlaceholder} alCambiar={(q) => cambiarFiltros({ ...f, q })} className={cx(css.busquedaSimple)} />
-        <button type="button" className={cx(css.botonOpciones)} aria-expanded={avanzados} aria-controls={panelId} onClick={() => setAvanzados(!avanzados)}>
+          placeholder="Buscar muestra o tienda" alCambiar={(q) => cambiarFiltros({ ...f, q })} className={cx(css.busquedaSimple)} />
+        <button type="button" className={cx(css.botonOpciones)} aria-label={p.movil ? 'Filtros, vista y avance' : 'Más filtros y vista'} aria-expanded={avanzados} aria-controls={panelId} onClick={() => setAvanzados(!avanzados)}>
           <Icono nombre="ArrowDownUp" tamano={18} />
-          Filtros y vista
-          <Icono nombre={avanzados ? 'ChevronDown' : 'ChevronRight'} tamano={16} />
+          <span>Más filtros y vista</span>
         </button>
       </div>
 
       <div className={cx(css.filtrosVisibles)} role="group" aria-label={T.filtrosEtiqueta}>
-        <Estados filtros={f} conteos={conteos} alCambiar={cambiarFiltros} />
+        {f.grupos.length > 0 ? <Estados filtros={f} conteos={conteos} alCambiar={cambiarFiltros} /> : null}
         {!avanzados ? activos.map(([clave, texto]) => (
           <ChipFiltro key={clave} activo alCambiar={() => cambiarFiltros({ ...f, [clave]: false })}>{texto}</ChipFiltro>
         )) : null}
@@ -81,9 +107,11 @@ export function BarraHerramientas(p: {
       </div>
 
       <div id={panelId} className={cx(css.panelOpciones)} hidden={!avanzados}>
+        {p.avance ? <div className={css.avanceOpciones}>{p.avance}</div> : null}
         <div className={cx(css.grupoOpciones)}>
           <span className={cx(css.rotuloOpciones)}>Filtrar muestras</span>
           <div className={cx(css.chipsFiltro)} role="group" aria-label="Más filtros de muestras">
+            <Estados filtros={f} conteos={conteos} alCambiar={cambiarFiltros} />
             {INTERRUPTORES.map(([clave, texto]) => (
               <ChipFiltro key={clave} activo={f[clave]} alCambiar={(si) => cambiarFiltros({ ...f, [clave]: si })}>{texto}</ChipFiltro>
             ))}

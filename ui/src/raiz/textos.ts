@@ -44,9 +44,9 @@ export const T = {
   sinCelular: 'Sin celular',
   emparejarCelular: 'Emparejar celular',
   cuentaProblema: 'Hay un problema con tu conexión con TikTok',
-  pcSincronizando: (paso: string): string => `Tu PC está sincronizando con TikTok (${paso})…`,
-  pcSincronizandoSinPaso: 'Tu PC está sincronizando con TikTok…',
-  actualizandoDesdePc: 'Actualizando desde tu PC…',
+  pcSincronizando: (paso: string): string => `Sincronizando con TikTok (${paso})…`,
+  pcSincronizandoSinPaso: 'Sincronizando con TikTok…',
+  actualizandoDesdePc: 'Actualizando tus datos…',
   desdeTuPc: 'desde tu PC',
 
   // -------------------------------------------------------------------------------------------- banner (01 §4.16)
@@ -64,8 +64,8 @@ export const T = {
   bannerDatosViejos: (fecha: string): string => `Tus datos son del ${fecha}. Sincroniza para ver lo más reciente.`,
   /** 01 §4.16 en dos renglones: la franja de 02 §7.9 («Sin conexión con tu PC · datos del 12 nov, 6:04 p. m.») y debajo
    *  «Tus cambios se guardan y se enviarán al reconectar.» con los cambios por enviar. */
-  bannerSinPc: (cuando: string): string => `Sin conexión con tu PC · datos del ${cuando}`,
-  bannerSinPcSinFecha: 'Sin conexión con tu PC',
+  bannerSinPc: (cuando: string): string => `Sin conexión · datos del ${cuando}`,
+  bannerSinPcSinFecha: 'Sin conexión',
   bannerSinPcDetalle: 'Tus cambios se guardan y se enviarán al reconectar.',
   cambiosPorEnviar: (n: number): string => (n === 1 ? '1 cambio por enviar' : `${n} cambios por enviar`),
   accReautorizar: 'Reautorizar',
@@ -82,7 +82,7 @@ export const T = {
   paletaPlaceholder: 'Busca muestras, tiendas, productos, videos o acciones',
   paletaSinResultados: (q: string): string => `No encontramos “${q}”. Prueba con el nombre de la tienda o del producto.`,
   paletaCargando: 'Buscando…',
-  paletaNecesitaPc: 'Algunos resultados necesitan tu PC encendida.',
+  paletaNecesitaPc: 'Conéctate para descargar más resultados.',
   paletaCerrar: 'Cerrar la búsqueda',
   paletaAyuda: 'Usa ↑ y ↓ para moverte y Enter para abrir',
   grupoAcciones: 'Acciones',

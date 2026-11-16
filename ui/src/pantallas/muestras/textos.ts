@@ -148,8 +148,8 @@ export const T = {
   reintentar: 'Reintentar',
   errorTitulo: 'No pudimos mostrar tus muestras',
   errorTexto: 'Revisa tu conexión e inténtalo de nuevo.',
-  necesitaPcTitulo: 'Necesita tu PC encendida',
-  necesitaPcTexto: 'Abre Corte en tu PC y conecta este celular al mismo Wi‑Fi para ver esta información.',
+  necesitaPcTitulo: 'Conéctate para actualizar',
+  necesitaPcTexto: 'Esta información todavía no está guardada en este dispositivo. Conéctate para descargarla.',
   cargandoLento: 'Sigue cargando… revisa tu conexión',
 
   // ------------------------------------------------------------------ detalle (01 §4.3)
@@ -206,8 +206,23 @@ export const T = {
   confirmadoTikTok: 'Confirmado por TikTok',
 
   paraTuVideo: 'Para tu video',
-  verDescripcion: 'Ver descripción del producto',
-  ocultarDescripcion: 'Ocultar descripción del producto',
+  fichaProducto: 'Fotos y variantes del producto',
+  tuMuestra: 'Tu muestra',
+  tuMuestraRecibida: 'Tu muestra recibida',
+  varianteNoInformada: 'Variante no informada',
+  comisionNoInformada: 'Comisión no informada',
+  tasaMuestra: (tasa: string): string => `${tasa} de comisión`,
+  verFichaProducto: 'Ver ficha completa',
+  cargandoFichaProducto: 'Consultando las fotos y variantes…',
+  errorFichaProducto: 'No pudimos consultar la ficha ampliada de este producto.',
+  reintentarFichaProducto: 'Reintentar ficha',
+  sinGaleriaProducto: 'La ficha disponible no incluye fotos adicionales.',
+  fichaProductoEnCopia: 'Esta copia conserva la foto principal. Conéctate a internet para consultar la ficha ampliada.',
+  variantesSoloConsulta: (variante: string | null): string => variante
+    ? `Opciones del producto, solo para consultar. Tu variante solicitada sigue siendo ${variante}.`
+    : 'Opciones del producto, solo para consultar. Tu solicitud no se modifica aquí.',
+  verDescripcion: 'Ver título completo del producto',
+  ocultarDescripcion: 'Ocultar título completo del producto',
 
   estaTienda: 'Esta tienda contigo',
   comisionTienda: 'comisión con la tienda',

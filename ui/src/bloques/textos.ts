@@ -109,8 +109,8 @@ export const T = {
   toastImagenCompartida: 'Elige dónde guardar la imagen',
   toastImagenError: 'No pudimos guardar la imagen. Inténtalo de nuevo.',
   /** C26 (BUILD_SPEC §2): gana la versión del hub. */
-  conflicto: 'Esta muestra también se cambió en tu PC mientras estabas sin conexión. Conservamos el cambio de tu PC.',
-  enCola: 'Guardado en este celular · se enviará a tu PC',
+  conflicto: 'Esta muestra también se cambió en otro dispositivo mientras estabas sin conexión. Conservamos el cambio más reciente.',
+  enCola: 'Guardado en este dispositivo · se enviará al reconectar',
   errorGenerico: 'No pudimos guardar el cambio. Inténtalo de nuevo.',
 
   // ------------------------------------------------------------------ hoja Planear / Mover (01 §4.3, §4.4)
@@ -229,7 +229,7 @@ export const T = {
   textoMensaje: 'Texto del mensaje',
   lePrometes: 'Le prometes',
   mensajeEditado: 'Editaste el texto: los datos ya no se actualizan solos.',
-  necesitaPc: 'Necesita tu PC encendida',
+  necesitaPc: 'Conéctate para actualizar',
   cargandoMensaje: 'Preparando el mensaje…',
   cargandoVideos: 'Cargando tus videos…',
   verVistaPrevia: 'Ver vista previa',
@@ -441,7 +441,7 @@ export const T = {
   guardando: 'Guardando…',
   sinNotas: 'Todavía no hay notas.',
   notaFijada: 'Fijada',
-  conflictoNota: 'Esta nota también se cambió en tu PC mientras estabas sin conexión. Conservamos el cambio de tu PC.',
+  conflictoNota: 'Esta nota también se cambió en otro dispositivo mientras estabas sin conexión. Conservamos el cambio más reciente.',
   nuevaNota: 'Nueva nota',
   accionesNota: 'Acciones de la nota',
   listoNota: 'Listo',

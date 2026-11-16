@@ -17,6 +17,7 @@ import { avisarTemaNativo, programarNotificaciones, registrarAtras, type Notific
 import { registrarAtajos } from '../app/atajos';
 import { modoDemo } from '../app/entorno';
 import { atras, fijarParametro, navegar, profundidadHistorial, rutaActual, useRuta } from '../app/navegacion';
+import { resolverRuta } from '../app/tablaRutas';
 import { aplicarAtributos, calcularAtributos, temaVisible, useEntradaAtributos } from '../app/tema';
 import { abrirAtajos, abrirPaleta, alternarPaleta, cerrarPaleta, EVENTO_BUSCAR } from './capasGlobales';
 import { PARAMS_PENDIENTES } from './datosMarco';
@@ -25,9 +26,14 @@ import { T } from './textos';
 // ---------------------------------------------------------------------------------------------- <html> (C48)
 
 export function useAtributosHtml(): void {
+  const ruta = useRuta();
   const entrada = useEntradaAtributos();
   const a = calcularAtributos(entrada);
   const visible = temaVisible(a, entrada.sistemaOscuro);
+  // El contenido claro convive con barras negras. Los iconos del sistema Android
+  // deben seguir el fondo de la navegación, no el color de la página central.
+  const conNavegacion = ruta.ruta !== '/' && !resolverRuta(ruta.ruta).def?.completa;
+  const temaBarras = conNavegacion ? 'oscuro' : visible;
   const firma = [a['data-theme'], a['data-density'], a['data-platform'], a['data-glass'], a['data-reduced-motion'], a['data-motion'], a.guardar].join('|');
   const ultimo = useRef(a);
   ultimo.current = a;
@@ -35,8 +41,8 @@ export function useAtributosHtml(): void {
     aplicarAtributos(document.documentElement, ultimo.current);
   }, [firma]);
   useEffect(() => {
-    avisarTemaNativo(visible);
-  }, [visible]);
+    avisarTemaNativo(temaBarras);
+  }, [temaBarras]);
 }
 
 // ---------------------------------------------------------------------------------------------- Ctrl+Z

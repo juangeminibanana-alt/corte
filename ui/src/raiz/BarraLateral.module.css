@@ -1,5 +1,16 @@
 /* Barra lateral de Windows (02 §7.7, lienzo Main.png). Solo tokens. */
 .barra {
+  --text-1: var(--chrome-fg);
+  --text-2: #e0e0e6;
+  --text-3: var(--chrome-muted);
+  --bg-sunken: var(--chrome-bg);
+  --surface-1: var(--chrome-bg);
+  --surface-hover: var(--chrome-hover);
+  --border-subtle: var(--chrome-border);
+  --border-default: var(--chrome-border);
+  --warn-solid: #35363e;
+  --warn-on-solid: #ffffff;
+  --brand-ink: var(--shop-cyan);
   position: sticky;
   top: 0;
   z-index: var(--z-nav);
@@ -10,14 +21,14 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: var(--bg-sunken);
+  background: var(--chrome-bg);
   border-right: 1px solid var(--border-subtle);
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }
 .lateral {
   width: var(--sidebar-w);
-  padding: 24px 12px 20px;
+  padding: 28px 12px 20px;
 }
 .riel {
   width: var(--rail-w);
@@ -30,14 +41,14 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 12px 36px;
+  padding: 0 10px 38px;
 }
 .riel .marca {
   padding: var(--space-1) 0 var(--space-3);
 }
 .wordmark {
   color: var(--text-1);
-  font-size: 28px;
+  font-size: 30px;
   line-height: 1;
   font-weight: var(--weight-display);
   font-stretch: var(--stretch-brand);
@@ -73,9 +84,12 @@
 
 /* ---------------------------------------------------------------- grupos */
 .grupo + .grupo {
-  margin-top: var(--space-4);
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--chrome-border);
 }
 .overline {
+  display: none;
   margin: 0;
   padding: 0 var(--space-3) var(--space-1-5);
   color: var(--text-3);
@@ -117,7 +131,7 @@
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   color: var(--text-2);
-  font-size: 14px;
+  font-size: calc(15px * var(--fs-lin));
   line-height: var(--text-body-sm-lh);
   font-weight: var(--weight-medium);
   text-decoration: none;
@@ -132,8 +146,8 @@
 }
 .activo,
 .activo:hover {
-  background: var(--brand-subtle);
-  color: var(--brand-ink);
+  background: var(--btn-primary-bg);
+  color: #ffffff;
   font-weight: var(--weight-semibold);
 }
 .icono {
@@ -146,7 +160,7 @@
   color: inherit;
 }
 .activo .icono {
-  color: var(--brand-ink);
+  color: #ffffff;
 }
 .etiqueta {
   flex: 1;

@@ -9,12 +9,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import type * as C from '@/contrato';
 import { navegar, useAtajos, useClaseAncho, useParametro, usePlataforma, useRecorrido, Pantalla } from '@/app';
-import { PestanasMuestras, columnasMuestras, useControlMuestra } from '@/bloques';
-import { BurbujaRecorrido, Boton, EncabezadoPantalla, EstadoVacio, Icono, Segmentado } from '@/componentes';
+import { columnasMuestras, useControlMuestra } from '@/bloques';
+import { BurbujaRecorrido, Boton, EstadoVacio, Icono, Segmentado } from '@/componentes';
 import { useConsulta, useNovedades, useSync } from '@/datos';
 import { ETIQUETA_ETAPA, formato } from '@/dominio';
 import { registrarAtras } from '@/plataforma';
-import { accionPrincipalCola, FILTROS_VACIOS, filtrar, ordenar, seccionar, VISTAS, type Seccion, type VistaCola } from './logica';
+import { FILTROS_VACIOS, filtrar, ordenar, seccionar, VISTAS, type Seccion, type VistaCola } from './logica';
 import { usePreferenciasCola } from './recuerdo';
 import { AJUSTE_PENDIENTES, columnasQueCaben, useAncho } from './columnas';
 import { useCola, useOfertaReordenar } from './useCola';
@@ -28,10 +28,10 @@ import { BarraSeleccion } from './BarraSeleccion';
 import { OfertaReordenar } from './OfertaReordenar';
 import { PanelDetalle } from './PanelDetalle';
 import { useTopeBajoCabeza } from './capas';
-import { Flotante } from './Flotante';
-import { RUTA_AVISOS, RUTA_PLAN, RUTA_SESION, RUTA_TODAS, rutaDetalle } from './rutas';
+import { CabeceraListado } from './CabeceraListado';
+import { RUTA_TODAS, rutaDetalle } from './rutas';
 import { T } from './textos';
-import { cx, pestanasArriba } from './util';
+import { cx } from './util';
 import css from './Muestras.module.css';
 
 const idDe = (m: C.MuestraVista): string => m.application_id;
@@ -179,12 +179,6 @@ export function Pendientes(p: { idAbierto: string | null; conPanel: boolean }): 
   const datos = consulta.datos;
   const lista = datos !== undefined;
   const pendientes = cola.conteos.pendientes;
-  const accion = accionPrincipalCola(cola.plan, cola.conteos.tiendas_por_avisar, pendientes);
-  const irAccion = (a: typeof accion): void => {
-    if (a === 'armar_plan') navegar(RUTA_PLAN);
-    else if (a === 'avisar') navegar(RUTA_AVISOS);
-    else if (a === 'sesion') navegar(RUTA_SESION);
-  };
 
   const contexto = !lista
     ? T.contextoCargando
@@ -200,12 +194,7 @@ export function Pendientes(p: { idAbierto: string | null; conPanel: boolean }): 
           cola.porGrupo.entregada ?? 0,
         );
 
-  // Lienzo Muestras.png: desde 1180 (barra lateral completa) las pestañas Pendientes · Agenda · Todas, con LA acción
-  // principal, van arriba a la derecha junto al título; el selector de vista Lista · Tabla · Tablero baja a la barra de
-  // herramientas, junto al orden. En el riel (600–1179) las pestañas ocupan su propia fila y, en el celular, solo
-  // las pestañas a todo el ancho (la acción va en el botón flotante).
-  const pestanasEnCabeza = pestanasArriba(movil, clase);
-  const pestanas = <PestanasMuestras activa="pendientes" className={cx(pestanasEnCabeza ? css.pestanasCabeza : movil ? css.pestanasMovil : css.pestanas)} />;
+  // El concepto visual conserva las vistas contractuales, con pestañas bajo el título y acción a la vista también en móvil.
   const selectorVista = movil ? null : (
     <Segmentado<VistaCola>
       etiqueta={T.vistaEtiqueta}
@@ -218,7 +207,16 @@ export function Pendientes(p: { idAbierto: string | null; conPanel: boolean }): 
       ]}
     />
   );
-  const encabezado = <EncabezadoPantalla titulo={T.titulo} contexto={contexto} {...(pestanasEnCabeza ? { acciones: pestanas } : {})} />;
+  const encabezado = <CabeceraListado activa="pendientes" contexto={lista ? `${formato.numero(pendientes)} ${pendientes === 1 ? 'pendiente' : 'pendientes'}` : T.contextoCargando} />;
+  const avance = lista && pendientes > 0 ? (
+    <details className={css.resumenAvance} {...(recorrido.visible ? { open: true } : {})}>
+      <summary>Tu avance <span>{formato.numero(cola.conteos.publicadas)} videos publicados</span><Icono nombre="ChevronDown" tamano={16} /></summary>
+      <p className={css.contextoResumen}>{contexto}</p>
+      <BurbujaRecorrido visible={recorrido.visible} texto={recorrido.texto} esUltimo={recorrido.esUltimo} alSiguiente={recorrido.siguiente} alEntendido={recorrido.entendido}>
+        <FranjaProgreso conteos={cola.conteos} plan={cola.plan} movil={movil} programo={preferencias.datos?.programo_mis_videos ?? false} />
+      </BurbujaRecorrido>
+    </details>
+  ) : null;
 
   let cuerpo: ReactElement;
   if (!lista) {
@@ -277,6 +275,8 @@ export function Pendientes(p: { idAbierto: string | null; conPanel: boolean }): 
           movil={movil}
           ordenProvisional={cola.ordenProvisional}
           selectorVista={selectorVista}
+          avance={movil ? avance : null}
+          mostrarAvance={movil && recorrido.visible}
         />
         {cola.hayOrdenNuevo && !oferta.visible ? (
           <div ref={setPildoraOrden} className={cx(css.ordenNuevo)} role="status">
@@ -311,23 +311,11 @@ export function Pendientes(p: { idAbierto: string | null; conPanel: boolean }): 
   return (
     <Pantalla titulo={T.titulo} lista={lista} className={cx(css.pantalla)}>
       {encabezado}
-      {pestanasEnCabeza ? null : pestanas}
       {lista && consulta.error ? <BannerCache fechaAt={cola.ultimaSyncAt} alReintentar={() => void consulta.refrescar()} /> : null}
       {oferta.visible ? <OfertaReordenar alReordenar={() => void oferta.reordenar()} alDejar={oferta.dejarAsi} /> : null}
-      {lista && pendientes > 0 ? (
-        <BurbujaRecorrido visible={recorrido.visible} texto={recorrido.texto} esUltimo={recorrido.esUltimo} alSiguiente={recorrido.siguiente} alEntendido={recorrido.entendido}>
-          <FranjaProgreso conteos={cola.conteos} plan={cola.plan} movil={movil} programo={preferencias.datos?.programo_mis_videos ?? false} />
-        </BurbujaRecorrido>
-      ) : null}
+      {movil ? null : avance}
       <div className={cx(css.cuerpoVista, consulta.refrescando && css.refrescando)}>{cuerpo}</div>
       {conBarraSel ? <BarraSeleccion muestras={elegidas} todas={cola.items} hoy={cola.hoy} movil={movil} alQuitar={quitarSeleccion} /> : null}
-      {movil && accion && lista && !conBarraSel ? (
-        <Flotante className={cx(css.fab)} alTaparse="ocultar">
-          <Boton variante="primario" tamano="lg" icono={accion === 'armar_plan' ? 'CalendarDays' : accion === 'avisar' ? 'MessageCircle' : 'Clapperboard'} alPulsar={() => irAccion(accion)}>
-            {accion === 'armar_plan' ? T.armarPlan : accion === 'avisar' ? T.avisarTiendas : T.sesionCorta}
-          </Boton>
-        </Flotante>
-      ) : null}
     </Pantalla>
   );
 }

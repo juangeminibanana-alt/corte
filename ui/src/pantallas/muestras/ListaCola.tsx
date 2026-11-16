@@ -6,7 +6,8 @@
  */
 import { useRef, useState, type FocusEvent, type PointerEvent, type ReactElement } from 'react';
 import type * as C from '@/contrato';
-import { TarjetaMuestra, useControlMuestra } from '@/bloques';
+import { useControlMuestra } from '@/bloques';
+import { FilaMuestra } from './FilaMuestra';
 import { Boton, BotonIcono } from '@/componentes';
 import { formato } from '@/dominio';
 import { vibrar } from '@/plataforma';
@@ -86,9 +87,9 @@ function FilaCola(p: {
   return (
     <li className={cx(p.movil ? css.filaMovil : css.fila)} data-muestra={m.application_id} data-seleccionada={p.seleccionada ? '' : undefined} {...mantener} {...alrededor}>
       <div className={cx(css.tarjetaCelda)}>
-        <TarjetaMuestra
+        <FilaMuestra
           muestra={m}
-          variante="lista"
+          android={p.android}
           seleccionada={p.seleccionada}
           marcable={marcable}
           marcada={p.marcada}
@@ -97,7 +98,6 @@ function FilaCola(p: {
           esNueva={p.esNueva}
           conAccion={!informativa && !p.modoSeleccion}
           deslizable={p.android && !p.modoSeleccion && !informativa}
-          className={cx(css.tarjeta)}
         />
         {p.seccion.tipo === 'etiquetar' ? (
           <div className={cx(css.filaExtra)}>

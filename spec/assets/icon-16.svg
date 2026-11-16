@@ -1,1 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Corte"><rect width="1024" height="1024" rx="232" fill="#121513"/><path d="M751.01 311.45A312 312 0 1 0 751.01 712.55L606.99 591.71A124 124 0 1 1 606.99 432.29Z" fill="#C8F23C" transform="translate(18 0)"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="16" height="16" role="img" aria-label="Corte">
+  <title>Corte</title>
+  <rect width="40" height="40" rx="9" fill="#08090B"/>
+  <g transform="translate(4 4) scale(0.8)" fill="none" stroke-width="7" stroke-linecap="round">
+    <path d="M5 32L22 8" stroke="#FE2C55"/>
+    <path d="M18 32L35 8" stroke="#25F4EE"/>
+  </g>
+</svg>

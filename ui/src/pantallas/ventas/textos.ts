@@ -8,7 +8,7 @@ export const T = {
   titulo: 'Ventas',
   contexto: (rango: string): string => `${rango} · por fecha del pedido · hora de la Ciudad de México · montos en MXN`,
   cargando: 'Cargando tus ventas…',
-  lento: 'Sigue cargando… revisa la conexión con tu PC',
+  lento: 'Sigue cargando… revisa tu conexión',
 
   periodo: {
     etiqueta: 'Periodo',
@@ -187,9 +187,9 @@ export const T = {
     trayendoSinSemana: 'Todavía estamos trayendo tus pedidos. Las cifras pueden cambiar.',
     errorTitulo: 'No pudimos cargar tus ventas',
     reintentar: 'Reintentar',
-    necesitaPc: 'Necesita tu PC encendida',
-    necesitaPcTexto: 'Este periodo no está en la copia de tu celular. Abre Corte en tu PC y conéctate a la misma red, o elige 30 días o Todo.',
-    necesitaPcSeccion: 'Abre Corte en tu PC y conéctate a la misma red para ver esta sección.',
+    necesitaPc: 'Conéctate para actualizar',
+    necesitaPcTexto: 'Este periodo no está en tu copia. Conéctate para descargarlo, o elige 30 días o Todo.',
+    necesitaPcSeccion: 'Esta sección no está guardada en este dispositivo. Conéctate para descargarla.',
     errorSeccion: 'No pudimos cargar esta sección.',
   },
 } as const;

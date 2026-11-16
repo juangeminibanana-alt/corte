@@ -32,7 +32,7 @@ export function leerPreferencias(): PreferenciasCola {
       agrupar: esUno(AGRUPACIONES, o['agrupar']) ? o['agrupar'] : 'prioridad',
       orden: esUno(ORDENES, o['orden']) ? o['orden'] : 'sugerido',
       // La búsqueda no se recuerda: al volver se ve toda la cola.
-      filtros: { ...FILTROS_VACIOS, grupos, yaLoVendo: f['yaLoVendo'] === true, etiquetable: f['etiquetable'] === true, conPromesa: f['conPromesa'] === true, fijadas: f['fijadas'] === true },
+      filtros: { ...FILTROS_VACIOS, grupos, ...(typeof f['tienda'] === 'string' ? { tienda: f['tienda'] } : {}), yaLoVendo: f['yaLoVendo'] === true, etiquetable: f['etiquetable'] === true, conPromesa: f['conPromesa'] === true, fijadas: f['fijadas'] === true },
     };
   } catch {
     return PREFERENCIAS_INICIALES;

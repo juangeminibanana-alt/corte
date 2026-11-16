@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { accionNativa, leerSesionNativa, type SesionNativa } from './clienteNativo';
+import { Logo } from '../raiz/Logo';
 import css from './AccesoNube.module.css';
 import nativo from './AccesoClienteNativo.module.css';
 
@@ -40,7 +41,7 @@ export function AccesoClienteNativo(p: { inicial: SesionNativa; children: ReactN
   if (sesion.authenticated && !sesion.migration_pending) return <>{p.children}</>;
   const migrar = sesion.authenticated && sesion.migration_pending;
   return <main className={css.fondo}>
-    <div className={css.marca}>Corte <span className={nativo.plataforma}>{sesion.platform === 'windows' ? 'Windows' : 'Android'}</span></div>
+    <div className={css.marca}><Logo tamano={32} />Corte <span className={nativo.plataforma}>{sesion.platform === 'windows' ? 'Windows' : 'Android'}</span></div>
     <section className={css.panel} aria-labelledby="acceso-nativo" aria-busy={ocupado}>
       <h1 id="acceso-nativo">{migrar ? 'Recupera tu organización' : 'Tu espacio, conectado'}</h1>
       {migrar ? <>

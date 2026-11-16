@@ -134,7 +134,7 @@ export function BarraLateral(p: {
           </span>
           {riel ? null : (
             <>
-              <span className={css.etiqueta}>{cuenta ? `@${cuenta.username}` : T.ajustes}</span>
+              <span className={css.etiqueta}>{T.ajustes}</span>
               {cuenta ? <Icono nombre="Settings" tamano={18} className={cx(css.engrane)} /> : null}
             </>
           )}

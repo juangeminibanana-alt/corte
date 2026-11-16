@@ -18,7 +18,7 @@ export const T = {
   sincronizar: 'Sincronizar ahora',
   trayendo: 'Estamos trayendo tus datos de TikTok Shop. Lo que llegue se mostrará al instante.',
   cargando: 'Cargando tu inicio…',
-  lento: 'Sigue cargando… revisa la conexión con tu PC',
+  lento: 'Sigue cargando… revisa tu conexión',
 
   heroe: {
     region: 'Ponte al día',
@@ -158,8 +158,8 @@ export const T = {
   pie: (momento: string): string => `Datos de TikTok Shop · última sincronización ${momento}`,
 
   seccion: {
-    necesitaPc: 'Necesita tu PC encendida',
-    necesitaPcTexto: 'Abre Corte en tu PC y conéctate a la misma red para ver esta sección.',
+    necesitaPc: 'Conéctate para actualizar',
+    necesitaPcTexto: 'Esta sección no está guardada en este dispositivo. Conéctate para descargarla.',
     error: 'No pudimos cargar esta sección.',
     reintentar: 'Reintentar',
   },

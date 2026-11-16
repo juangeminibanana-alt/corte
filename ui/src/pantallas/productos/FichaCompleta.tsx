@@ -76,44 +76,48 @@ export interface GaleriaProductoProps {
   tienda: string | null;
   categoria: string | null;
   resumen: C.ProductoResumen | null;
+  guardar?: boolean;
 }
 
-/** Foto grande (la del producto o la de la vitrina que elegiste) y la tira de fotos de tu vitrina. */
+/** La galería de la vitrina es la colección; la foto principal sirve de respaldo si no hay galería. */
 export function GaleriaProducto(p: GaleriaProductoProps): ReactElement {
-  const [elegida, setElegida] = useState<number | null>(null);
-  const total = p.fotos.length;
-  const indice = elegida !== null && elegida < total ? elegida : null;
-  const actual = indice !== null ? (p.fotos[indice] ?? p.principal) : p.principal;
-  const alt = indice !== null ? T.fotoDe(indice + 1, total, p.nombre) : p.nombre;
-  const nombreArchivo = indice !== null ? `${p.nombre} ${indice + 1}.jpg` : `${p.nombre}.jpg`;
+  const [seleccion, setSeleccion] = useState<{ productoId: string; url: C.UrlImagen }>({ productoId: p.productoId, url: '' });
+  const galeria = [...new Set(p.fotos.filter((url): url is C.UrlImagen => !!url))];
+  const fotos = galeria.length ? galeria : p.principal ? [p.principal] : [];
+  const total = fotos.length;
+  const elegida = seleccion.productoId === p.productoId && fotos.includes(seleccion.url) ? seleccion.url : null;
+  const actual = elegida ?? fotos[0] ?? null;
+  const indice = actual ? fotos.indexOf(actual) : -1;
+  const alt = indice >= 0 ? T.fotoDe(indice + 1, total, p.nombre) : p.nombre;
+  const nombreArchivo = indice >= 0 ? `${p.nombre} ${indice + 1}.jpg` : `${p.nombre}.jpg`;
   return (
-    <div className={cx(css.heroeFoto)}>
-      <Foto
+    <div className={cx(css.heroeFoto)} data-galeria-producto="" data-compacta={p.compacta ? '' : undefined}>
+      <div className={css.marcoFotoPrincipal}>
+        <Foto
         url={actual}
         alt={alt}
         anchoCss={p.compacta ? 360 : 340}
-        proporcion={p.compacta ? '4:5' : '1:1'}
+        proporcion="1:1"
         radio="xl"
         prioridad="alta"
         tienda={p.tienda}
         categoria={p.categoria}
         arrastrable={{ nombreArchivo }}
-      />
+        className={cx(css.fotoPrincipal)}
+        />
+        {total > 1 ? <span className={css.contadorFoto} aria-hidden="true">{indice + 1} / {total}</span> : null}
+      </div>
       {total > 1 ? (
         <div className={cx(css.galeria)} data-galeria="">
-          <p className={cx(css.galeriaCuenta)}>
-            <Icono nombre="Image" tamano={14} />
-            <span>{T.galeriaCuenta(total)}</span>
-          </p>
           <ul className={cx(css.tira)} role="list" aria-label={T.galeria}>
-            {p.fotos.map((u, i) => (
+            {fotos.map((u, i) => (
               <li key={`${p.productoId}-${i}`} className={cx(css.tiraElemento)}>
                 <button
                   type="button"
                   className={cx(css.miniFoto)}
                   aria-pressed={indice === i}
                   aria-label={T.verFoto(i + 1, total)}
-                  onClick={() => setElegida(i)}
+                  onClick={() => setSeleccion({ productoId: p.productoId, url: u })}
                 >
                   <Foto url={u} alt="" anchoCss={p.compacta ? 64 : 56} radio="md" tienda={p.tienda} categoria={p.categoria} className={cx(css.miniFotoImagen)} />
                 </button>
@@ -122,7 +126,7 @@ export function GaleriaProducto(p: GaleriaProductoProps): ReactElement {
           </ul>
         </div>
       ) : null}
-      {p.resumen && actual ? <BotonGuardarImagen producto={{ ...p.resumen, imagen: actual }} className={cx(css.guardar)} /> : null}
+      {p.guardar !== false && p.resumen && actual ? <BotonGuardarImagen producto={{ ...p.resumen, imagen: actual }} className={cx(css.guardar)} /> : null}
     </div>
   );
 }
@@ -253,7 +257,7 @@ export function SeccionPrecio(p: { d: C.ProductoDetalleResponse }): ReactElement
 
 // ---------------------------------------------------------------------------------------------- muestra
 
-function ListaSkus(p: { skus: readonly C.SkuMuestra[] }): ReactElement {
+export function ListaSkus(p: { skus: readonly C.SkuMuestra[] }): ReactElement {
   const [todas, setTodas] = useState(false);
   const visibles = todas ? p.skus : p.skus.slice(0, MAX_SKUS);
   const { disponibles, total } = resumenSkus(p.skus);
@@ -268,7 +272,7 @@ function ListaSkus(p: { skus: readonly C.SkuMuestra[] }): ReactElement {
           const estilo = estiloSku(s);
           return (
             <li key={s.sku_id} className={cx(css.sku)} data-disponible={s.disponible === false ? 'no' : 'si'}>
-              <span className={cx(css.skuVariante)}>{s.variante ?? T.unica}</span>
+              <span className={cx(css.skuVariante)}>{s.propiedades.map((p) => `${p.nombre}: ${p.valor}`).join(' · ') || s.variante || T.unica}</span>
               {s.precio_centavos !== null ? <span className={cx(css.skuPrecio)}>{formato.dinero(s.precio_centavos)}</span> : null}
               <span className={cx(css.skuEstado)}>
                 {estilo ? (

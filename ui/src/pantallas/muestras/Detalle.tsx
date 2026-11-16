@@ -22,6 +22,7 @@ import { abrirExterno, abrirTikTok, copiarTexto, guardarImagen } from '@/platafo
 import { avisosEnviados, nombreDe, pasosAvance, pendientesDeTienda, planVivo, recibidaAprox } from './logica';
 import { rutaDetalle, rutaTienda } from './rutas';
 import { T } from './textos';
+import { FichaProductoMuestra } from './FichaProductoMuestra';
 import { cx } from './util';
 import css from './Detalle.module.css';
 
@@ -130,7 +131,7 @@ export function Rotulo(p: { m: C.MuestraVista; conTienda: boolean }): ReactEleme
 }
 
 /** Título (H2) con ✎ «Editar nombre corto» y «Ver título completo» (01 §4.3 punto 1). */
-export function TituloEditable(p: { m: C.MuestraVista; detalle: C.MuestraDetalleResponse | undefined; nivel: 'h1' | 'h2'; alConflicto: (r: { estado: string; objeto: unknown }) => boolean }): ReactElement {
+export function TituloEditable(p: { m: C.MuestraVista; detalle: C.MuestraDetalleResponse | undefined; nivel: 'h1' | 'h2'; compacto?: boolean; alConflicto: (r: { estado: string; objeto: unknown }) => boolean }): ReactElement {
   const acciones = useAcciones();
   const toast = useToast();
   const [editando, setEditando] = useState(false);
@@ -177,7 +178,7 @@ export function TituloEditable(p: { m: C.MuestraVista; detalle: C.MuestraDetalle
         </div>
       ) : (
         <div className={cx(css.tituloFila)}>
-          <Etiqueta className={cx(css.tituloTexto)}>{nombre}</Etiqueta>
+          <Etiqueta className={cx(css.tituloTexto, p.compacto && css.tituloTextoCompacto)}>{nombre}</Etiqueta>
           <BotonIcono
             icono="Pencil"
             etiqueta={T.editarNombre}
@@ -189,7 +190,7 @@ export function TituloEditable(p: { m: C.MuestraVista; detalle: C.MuestraDetalle
           />
         </div>
       )}
-      {tituloLargo && tituloLargo !== nombre ? (
+      {tituloLargo && (tituloLargo !== nombre || p.compacto) ? (
         <>
           <button type="button" className={cx(css.enlaceTexto)} aria-expanded={completo} onClick={() => setCompleto((c) => !c)}>
             {completo ? T.ocultarTituloCompleto : T.verTituloCompleto}
@@ -201,13 +202,13 @@ export function TituloEditable(p: { m: C.MuestraVista; detalle: C.MuestraDetalle
   );
 }
 
-export function LineaTienda(p: { m: C.MuestraVista }): ReactElement {
+export function LineaTienda(p: { m: C.MuestraVista; conVariante?: boolean }): ReactElement {
   return (
     <p className={cx(css.lineaTienda)}>
       <EnlaceRuta a={rutaTienda(p.m.tienda.tienda_key)} className={cx(css.enlaceTienda)}>
         {p.m.tienda.nombre}
       </EnlaceRuta>
-      {p.m.variante ? <span className={cx(css.atenuado)}> · {p.m.variante}</span> : null}
+      {p.conVariante !== false && p.m.variante ? <span className={cx(css.atenuado)}> · {p.m.variante}</span> : null}
     </p>
   );
 }
@@ -683,6 +684,7 @@ export interface CuerpoDetalleProps {
   accionesAvance?: ReactNode;
   /** Celular: el chip «TikTok:» ya va sobre la foto (lienzo MovilMuestra.png); en el resto encabeza la fila de chips. */
   tiktokEnFoto?: boolean;
+  galeriaEnCabecera?: boolean;
   alConflicto: (r: { estado: string; objeto: unknown }) => boolean;
 }
 
@@ -701,6 +703,7 @@ export function CuerpoDetalle(p: CuerpoDetalleProps): ReactElement {
         <ChipsRazones muestra={m} maximo={2} />
       </div>
       <Cifras m={m} />
+      <FichaProductoMuestra key={`${m.application_id}:${m.producto.product_id}`} muestra={m} compacta modo={p.galeriaEnCabecera ? 'opciones' : 'completo'} />
       <TuAvance m={m} detalle={detalle} programo={programo}>
         {p.accionesAvance}
       </TuAvance>

@@ -65,11 +65,12 @@ export type ModoNav = 'lateral' | 'riel' | 'inferior' | 'ninguna';
 /**
  * C5 · compacta < 600 → barra inferior; media 600–1179 → riel de 80; expandida y amplia → lateral de 248. Android
  * siempre barra inferior en teléfono (C41: la tableta, de 600 a 1279, usa el riel). Las pantallas completas
- * (Bienvenida, Emparejar) van sin navegación; el detalle de muestra en Android trae su propia barra de acciones.
+ * (Bienvenida, Emparejar) van sin navegación. El detalle de muestra conserva la navegación y presenta sus acciones
+ * dentro del contenido, como la dirección visual A elegida por el usuario.
  */
 export function modoNav(e: { plataforma: PlataformaUi; clase: ClaseAncho; completa: boolean; detalleMuestra: boolean }): ModoNav {
   if (e.completa) return 'ninguna';
-  if (e.clase === 'compacta') return e.plataforma === 'android' && e.detalleMuestra ? 'ninguna' : 'inferior';
+  if (e.clase === 'compacta') return 'inferior';
   if (e.clase === 'media') return 'riel';
   return e.plataforma === 'android' ? 'riel' : 'lateral';
 }

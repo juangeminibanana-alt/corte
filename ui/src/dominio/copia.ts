@@ -533,6 +533,7 @@ const ARMADORES: Armadores = {
     if (fila === null && ms.length === 0) return null;
     const ficha = ms[0] !== undefined && (fila === null || fila.con_ficha) ? ms[0].producto : null;
     const cids = videosPorProducto(copia).get(p.id) ?? new Set<string>();
+    const extendido = copia.extras?.productos?.[p.id];
     return conMeta<C.ProductoDetalleResponse>({
       product_id: p.id,
       ficha,
@@ -544,6 +545,7 @@ const ARMADORES: Armadores = {
       videos: copia.videos.filter((v) => cids.has(v.content_id)),
       muestras: ms,
       notas: copia.local.notas.filter((n) => n.entidad === 'producto' && n.entidad_id === p.id),
+      ...(extendido ? { extendido } : {}),
     }, copia);
   },
   ordenes: (p, copia) => ordenes(p, copia),

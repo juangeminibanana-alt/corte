@@ -8,18 +8,19 @@
  */
 import type { ReactElement } from 'react';
 import type * as C from '@/contrato';
-import { atras, navegar, Pantalla, useClaseAncho, usePlataforma } from '@/app';
-import { BotonAccionMuestra, ChipTikTok, useControlMuestra } from '@/bloques';
-import { Boton, BotonIcono, EncabezadoPantalla, EstadoVacio, Esqueleto, EsqueletoVista, Foto, Icono, Menu } from '@/componentes';
-import { useConsulta, useMetaImagen } from '@/datos';
+import { atras, EnlaceRuta, navegar, Pantalla, useClaseAncho, usePlataforma } from '@/app';
+import { BotonAccionMuestra, useControlMuestra } from '@/bloques';
+import { Boton, BotonIcono, EncabezadoPantalla, EstadoVacio, Esqueleto, EsqueletoVista, Icono, Menu } from '@/componentes';
+import { useConsulta } from '@/datos';
 import { formato } from '@/dominio';
 import { AvisoConflicto, CuerpoDetalle, LineaTienda, Rotulo, TituloEditable, nombreVisible, useAtajosDetalle, useConflicto, useMenuMuestra } from './Detalle';
 import { NecesitaPc } from './Estados';
-import { Flotante } from './Flotante';
+import { FichaProductoMuestra } from './FichaProductoMuestra';
+import { ResumenMuestra } from './ResumenMuestra';
 import { PARAMS_PENDIENTES } from './useCola';
 import { RUTA_PENDIENTES } from './rutas';
 import { T } from './textos';
-import { cx, rgbDeHex, vars } from './util';
+import { cx } from './util';
 import css from './Detalle.module.css';
 
 function volver(): void {
@@ -36,8 +37,6 @@ function Contenido(p: { m: C.MuestraVista; detalle: C.MuestraDetalleResponse | u
   const { m, detalle } = p;
   const control = useControlMuestra();
   const conflicto = useConflicto();
-  const meta = useMetaImagen(m.producto.imagen);
-  const halo = rgbDeHex(meta?.color);
   const nombre = nombreVisible(m, detalle);
   const menu = useMenuMuestra(m, irANotas);
   const pendientes = useConsulta('muestras', PARAMS_PENDIENTES);
@@ -45,12 +44,16 @@ function Contenido(p: { m: C.MuestraVista; detalle: C.MuestraDetalleResponse | u
   useAtajosDetalle(m, nombre, irANotas, !p.movil);
 
   const copia = p.fuente === 'copia' && p.copiaAt !== null ? <p className={cx(css.copia)}>{T.datosCopia(`${formato.fechaCorta(p.copiaAt)}, ${formato.hora(p.copiaAt)}`)}</p> : null;
-  const acciones = (
-    <div className={cx(css.accionesFila)}>
-      {/* Acción principal de la vista: botón primario (en las listas, BotonAccionMuestra es secundario). */}
-      <span className={cx(css.accionAncha)}>
-        <BotonAccionMuestra muestra={m} tamano="md" anchoCompleto />
-      </span>
+  const principal = (
+    <div className={css.accionesProducto}>
+      <BotonAccionMuestra muestra={m} tamano="lg" anchoCompleto className={cx(css.detallePrincipal)} />
+      <EnlaceRuta a={`/productos/${encodeURIComponent(m.producto.product_id)}`} className={cx(css.fichaCompleta)}>
+        {T.verFichaProducto}<Icono nombre="ChevronRight" tamano={20} />
+      </EnlaceRuta>
+    </div>
+  );
+  const secundarias = (
+    <div className={css.accionesSecundarias}>
       <Boton variante="secundario" icono="MessageCircle" alPulsar={() => control.abrirMensaje({ solicitud: m.application_id })}>
         {T.avisarTienda}
       </Boton>
@@ -61,34 +64,22 @@ function Contenido(p: { m: C.MuestraVista; detalle: C.MuestraDetalleResponse | u
   if (p.movil) {
     return (
       <div className={cx(css.completoMovil)} data-detalle-muestra={m.application_id}>
-        <div className={cx(css.heroe)}>
-          <Foto url={m.producto.imagen} alt={nombre} anchoCss={420} proporcion="1:1" tienda={m.tienda.nombre} categoria={m.producto.categoria} radio="xs" prioridad="alta" className={cx(css.heroeFoto)} />
-          <span className={cx(css.heroeVelo)} aria-hidden="true" />
-          <button type="button" className={cx(css.heroeAtras)} aria-label={T.atras} onClick={volver}>
-            <Icono nombre="ChevronLeft" tamano={22} />
-          </button>
-          {/* Lienzo MovilMuestra.png: el estado de TikTok arriba a la derecha, sobre un fondo oscuro para que se lea. */}
-          <span className={cx(css.heroeChip)}>
-            <ChipTikTok muestra={m} />
-          </span>
+        <button type="button" className={css.volverMuestras} aria-label={T.volverMuestras} onClick={volver}>
+          <Icono nombre="ChevronLeft" tamano={20} /><span>{T.titulo}</span>
+        </button>
+        <div className={cx(css.encabezadoTexto)}>
+          <TituloEditable m={m} detalle={detalle} nivel="h1" compacto alConflicto={conflicto.anotar} />
+          <LineaTienda m={m} conVariante={false} />
+          {copia}
         </div>
-        <div className={cx(css.completoMovilCuerpo)}>
-          {conflicto.vigente ? <AvisoConflicto vigente={conflicto.vigente} alCerrar={conflicto.limpiar} /> : null}
-          <div className={cx(css.encabezadoTexto)}>
-            <Rotulo m={m} conTienda={false} />
-            <TituloEditable m={m} detalle={detalle} nivel="h1" alConflicto={conflicto.anotar} />
-            <LineaTienda m={m} />
-            {copia}
-          </div>
-          <CuerpoDetalle m={m} detalle={detalle} modo="completo" cola={cola} tiktokEnFoto alConflicto={conflicto.anotar} />
+        <FichaProductoMuestra muestra={m} compacta modo="fotos" />
+        <ResumenMuestra muestra={m} />
+        {principal}
+        {conflicto.vigente ? <AvisoConflicto vigente={conflicto.vigente} alCerrar={conflicto.limpiar} /> : null}
+        <div className={css.detalleContinuacion}>
+          {secundarias}
+          <CuerpoDetalle m={m} detalle={detalle} modo="completo" cola={cola} galeriaEnCabecera alConflicto={conflicto.anotar} />
         </div>
-        <Flotante className={cx(css.barraAcciones, 'glass')} role="toolbar" aria-label={T.accionesMuestra}>
-          <BotonAccionMuestra muestra={m} tamano="lg" anchoCompleto className={cx(css.barraPrincipal)} />
-          <Boton variante="secundario" tamano="lg" alPulsar={() => control.abrirMensaje({ solicitud: m.application_id })}>
-            {T.avisar}
-          </Boton>
-          <Menu etiqueta={T.masAcciones} opciones={menu} className={cx(css.barraMas)} />
-        </Flotante>
       </div>
     );
   }
@@ -96,19 +87,7 @@ function Contenido(p: { m: C.MuestraVista; detalle: C.MuestraDetalleResponse | u
   return (
     <div className={cx(css.completoAncho)} data-detalle-muestra={m.application_id}>
       <div className={cx(css.columnaFoto)}>
-        <div className={cx(css.fotoAncha)} style={halo ? vars({ '--halo': halo }) : undefined} data-halo={halo ? '' : undefined}>
-          <Foto
-            url={m.producto.imagen}
-            alt={nombre}
-            anchoCss={360}
-            proporcion="4:5"
-            tienda={m.tienda.nombre}
-            categoria={m.producto.categoria}
-            radio="xl"
-            prioridad="alta"
-            arrastrable={{ nombreArchivo: `${nombre}.jpg` }}
-          />
-        </div>
+        <FichaProductoMuestra muestra={m} compacta={false} modo="fotos" />
       </div>
       <div className={cx(css.columnaDatos)}>
         {conflicto.vigente ? <AvisoConflicto vigente={conflicto.vigente} alCerrar={conflicto.limpiar} /> : null}
@@ -116,11 +95,13 @@ function Contenido(p: { m: C.MuestraVista; detalle: C.MuestraDetalleResponse | u
         <div className={cx(css.encabezadoTexto)}>
           <Rotulo m={m} conTienda />
           <TituloEditable m={m} detalle={detalle} nivel="h2" alConflicto={conflicto.anotar} />
-          <LineaTienda m={m} />
+          <LineaTienda m={m} conVariante={false} />
           {copia}
         </div>
-        {acciones}
-        <CuerpoDetalle m={m} detalle={detalle} modo="completo" cola={cola} alConflicto={conflicto.anotar} />
+        <ResumenMuestra muestra={m} />
+        {principal}
+        {secundarias}
+        <CuerpoDetalle m={m} detalle={detalle} modo="completo" cola={cola} galeriaEnCabecera alConflicto={conflicto.anotar} />
       </div>
     </div>
   );

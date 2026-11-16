@@ -561,6 +561,34 @@ a.tienda:focus-visible {
   scroll-snap-align: start;
 }
 
+/* Galería compartida con el detalle de muestra: fotos contenidas, selección coral. */
+.heroeFoto[data-galeria-producto] { gap: 10px; }
+.marcoFotoPrincipal { position: relative; min-width: 0; width: 100%; }
+.fotoPrincipal { width: 100%; border-radius: 14px; overflow: hidden; background: var(--media-bg); }
+.fotoPrincipal img { object-fit: contain; }
+.heroeFoto[data-compacta] .marcoFotoPrincipal { max-width: 400px; align-self: center; }
+.heroeFoto[data-compacta] .fotoPrincipal { aspect-ratio: 4 / 3; max-height: 300px; }
+.contadorFoto { position: absolute; right: 12px; bottom: 12px; padding: 5px 10px; border-radius: 20px; background: rgb(0 0 0 / 0.68); color: #fff; font-size: 13px; line-height: 1.15; font-weight: 700; pointer-events: none; }
+.heroeFoto[data-galeria-producto] .tira { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; margin: -4px; padding: 4px; scrollbar-width: thin; }
+.heroeFoto[data-galeria-producto] .tiraElemento { flex: 0 0 72px; scroll-snap-align: start; }
+.heroeFoto[data-galeria-producto] .miniFotoImagen { width: 72px; height: 62px; aspect-ratio: 72 / 62; border-radius: 9px; }
+.heroeFoto[data-galeria-producto] .miniFoto { opacity: 0.88; border-radius: 10px; }
+.heroeFoto[data-galeria-producto] .miniFoto[aria-pressed='true'] { opacity: 1; box-shadow: 0 0 0 2px var(--brand); }
+.heroeFoto[data-galeria-producto] .galeriaCuenta { font-size: 12px; color: var(--text-2); }
+.tienda { padding-left: 10px; border-left: 3px solid #25f4ee; border-radius: 0; font-size: 15px; color: var(--text-1); }
+.tituloCompleto { font-size: 24px; line-height: 1.22; font-weight: 800; letter-spacing: -0.6px; }
+.detalle[data-compacta] .heroe { display: flex; flex-direction: column; gap: 14px; }
+.detalle[data-compacta] .heroeTexto { display: contents; }
+.detalle[data-compacta] .tituloCompleto { order: 0; }
+.detalle[data-compacta] .tienda { order: 1; }
+.detalle[data-compacta] .heroeFoto { order: 2; width: 100%; }
+.detalle[data-compacta] .ficha,
+.detalle[data-compacta] .sinFicha { order: 3; }
+.detalle[data-compacta] .ficha { padding: 16px; border: 0; border-radius: 14px; background: var(--brand-subtle); }
+.detalle[data-compacta] .acciones { order: 4; width: 100%; }
+.detalle[data-compacta] .acciones > button { width: 100%; min-height: 46px; border-radius: 12px; background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 750; }
+.detalle[data-compacta] .id { order: 5; }
+
 /* ---- Comisión y Precio: lado a lado desde 900 (Comisión trae más: 3/5 del ancho), apiladas debajo. */
 .dosTarjetas {
   display: grid;

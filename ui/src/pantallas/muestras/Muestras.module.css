@@ -3,13 +3,13 @@
 .pantalla {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: 20px;
   min-width: 0;
   padding-bottom: var(--space-12);
 }
 :global([data-platform='android']) .pantalla {
   /* Espacio para el botón flotante y la barra de selección sobre la barra inferior. */
-  padding-bottom: calc(var(--space-24) + var(--inset-bottom));
+  padding-bottom: calc(var(--space-8) + var(--inset-bottom));
   /* Celular: bloques un poco más juntos para que la primera tarjeta (con su foto) suba hacia el primer pliegue. */
   gap: var(--space-4);
 }
@@ -143,17 +143,37 @@
 
 /* ------------------------------------------------------------------ barra de herramientas */
 .herramientas {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   min-width: 0;
 }
 .herramientasSencillas { gap: 12px; }
-.filaPrincipalSimple { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
-.busquedaSimple { flex: 1; max-width: 460px; min-width: 0; }
+.filaPrincipalSimple { position: relative; display: grid; grid-template-columns: minmax(140px, .75fr) minmax(140px, .75fr) minmax(150px, .8fr) minmax(180px, 1.1fr) 44px; align-items: center; gap: 12px; min-width: 0; }
+.busquedaSimple { width: 100%; min-width: 0; }
 .botonOpciones { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; min-height: 44px; padding: 8px 14px; border: 1px solid var(--border-default); border-radius: 6px; background: var(--surface-1); color: var(--text-1); font: inherit; font-size: 14px; font-weight: var(--weight-medium); cursor: pointer; }
 .botonOpciones:hover { background: var(--surface-hover); }
 .botonOpciones[aria-expanded='true'] { border-color: var(--brand-ink); }
+.botonOpciones { width: 44px; padding: 8px; }
+.botonOpciones > span { display: none; }
+.selectorTienda { position: relative; display: flex; align-items: center; min-width: 0; }
+.selectorTienda > svg { position: absolute; right: 12px; pointer-events: none; color: var(--text-1); }
+.selectorTienda select { appearance: none; width: 100%; min-width: 0; min-height: 42px; padding: 9px 34px 9px 13px; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-2); color: var(--text-1); font: inherit; font-size: 14px; text-overflow: ellipsis; cursor: pointer; }
+.selectorTienda select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.selectorEstados, .selectorOrden { min-width: 0; }
+.selectorEstados > button, .selectorOrden > button { width: 100%; min-width: 0; justify-content: space-between; min-height: 42px; padding: 9px 12px; border: 1px solid var(--border-subtle); background: var(--surface-2); color: var(--text-1); font-size: 14px; overflow: hidden; }
+.selectorEstados > button > span, .selectorOrden > button > span { width: 100%; justify-content: space-between; }
+.selectorEstados > button > span > span, .selectorOrden > button > span > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.soloLectores { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.resumenAvance { border-bottom: 1px solid var(--border-subtle); min-width: 0; padding-bottom: 9px; margin-top: -9px; }
+.resumenAvance > summary { display: flex; align-items: center; gap: 10px; color: var(--text-2); list-style: none; cursor: pointer; font-size: 13px; line-height: 1.4; min-height: 32px; font-weight: 600; }
+.resumenAvance > summary::-webkit-details-marker { display: none; }
+.resumenAvance > summary span { margin-left: auto; font-size: 12px; font-weight: 450; }
+.resumenAvance[open] > summary svg { transform: rotate(180deg); }
+.resumenAvance > summary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.contextoResumen { color: var(--text-2); margin: 8px 0 14px; font-size: 13px; line-height: 1.5; }
+.avanceOpciones { flex-basis: 100%; width: 100%; min-width: 0; }
 .filtrosVisibles { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .filtrosVisibles:empty { display: none; }
 .panelOpciones { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 20px 28px; padding: 20px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--surface-1); }
@@ -161,7 +181,7 @@
 .grupoOpciones { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; gap: 8px; }
 .rotuloOpciones { color: var(--text-2); font-size: 13px; line-height: 1.5; font-weight: var(--weight-medium); }
 .selectorSimple { max-width: 100%; min-width: 0; }
-.herramientasSencillas[data-movil] .filaPrincipalSimple { align-items: stretch; flex-wrap: wrap; }
+.herramientasSencillas[data-movil] .filaPrincipalSimple { align-items: stretch; }
 .herramientasSencillas[data-movil] .busquedaSimple { flex-basis: 100%; max-width: none; }
 .herramientasSencillas[data-movil] button,
 .herramientasSencillas[data-movil] input { min-height: 44px; }
@@ -422,7 +442,7 @@
 .lista {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--space-2) + var(--space-0-5));
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -722,3 +742,27 @@
   font-size: var(--text-body-size);
   line-height: var(--text-body-lh);
 }
+
+@container (max-width: 900px) {
+  .filaPrincipalSimple { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .busquedaSimple { grid-column: 1 / -1; grid-row: 1; width: calc(100% - 54px); }
+  .botonOpciones { position: absolute; right: 0; top: 0; height: 42px; }
+  .selectorTienda, .selectorEstados, .selectorOrden { grid-row: 2; }
+}
+@container (max-width: 520px) {
+  .filaPrincipalSimple { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .selectorEstados { display: none; }
+  .selectorTienda { grid-column: 1; }
+  .selectorOrden { grid-column: 2; }
+  .selectorTienda select, .selectorOrden > button { font-size: 13px; }
+}
+@media (max-width: 599px) {
+  .pantalla { gap: 12px; }
+  .cuerpoVista { gap: 6px; }
+  .seccion { gap: 0; }
+  .seccionCabeza { position: relative; min-height: 26px; padding: 0; border-bottom: 0; }
+  .seccionTitulo { padding-right: 44px; font-size: 13px; }
+  .seccionCabeza > button { position: absolute; right: 0; top: -9px; min-height: 44px; width: 44px; }
+}
+:global([data-platform='android']) .pantalla { gap: 12px; }
+:global([data-platform='android']) .cuerpoVista { gap: 6px; }

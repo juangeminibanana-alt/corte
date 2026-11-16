@@ -180,7 +180,7 @@ interface Deslizar {
   };
 }
 
-function useDeslizar(m: C.MuestraVista, activo: boolean): Deslizar {
+export function useDeslizar(m: C.MuestraVista, activo: boolean): Deslizar {
   const control = useControlMuestra();
   const [estado, setEstado] = useState<EstadoArrastre | null>(null);
   const ref = useRef<EstadoArrastre | null>(null);

@@ -21,6 +21,7 @@ export const GRUPOS_FILTRO: readonly C.GrupoMuestra[] = ['por_vencer', 'vencida'
 
 export interface FiltrosCola {
   q: string;
+  tienda?: string;
   grupos: C.GrupoMuestra[];
   yaLoVendo: boolean;
   etiquetable: boolean;
@@ -31,7 +32,7 @@ export const FILTROS_VACIOS: FiltrosCola = { q: '', grupos: [], yaLoVendo: false
 
 /** Cuántos filtros hay activos (la búsqueda cuenta como uno). */
 export function contarFiltros(f: FiltrosCola): number {
-  return (f.q.trim() ? 1 : 0) + (f.grupos.length > 0 ? 1 : 0) + [f.yaLoVendo, f.etiquetable, f.conPromesa, f.fijadas].filter(Boolean).length;
+  return (f.q.trim() ? 1 : 0) + (f.tienda ? 1 : 0) + (f.grupos.length > 0 ? 1 : 0) + [f.yaLoVendo, f.etiquetable, f.conPromesa, f.fijadas].filter(Boolean).length;
 }
 
 export function nombreDe(m: Pick<C.MuestraVista, 'producto'>): string {
@@ -41,6 +42,7 @@ export function nombreDe(m: Pick<C.MuestraVista, 'producto'>): string {
 export function filtrar(muestras: readonly C.MuestraVista[], f: FiltrosCola): C.MuestraVista[] {
   const q = f.q.trim();
   return muestras.filter((m) => {
+    if (f.tienda && m.tienda.tienda_key !== f.tienda) return false;
     if (q && !coincide(q, m.producto.titulo_corto, m.producto.titulo, m.tienda.nombre, m.variante)) return false;
     if (f.grupos.length > 0 && !f.grupos.includes(m.grupo)) return false;
     if (f.yaLoVendo && !m.razones.includes('ya_lo_vendes') && m.ventas_producto.pedidos_validos <= 0) return false;

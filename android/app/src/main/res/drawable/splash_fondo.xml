@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Splash de Android 8–11 (04 §B.10): lienzo oscuro + símbolo de Corte al centro. -->
+<!-- Android 8-11: fondo negro y los cortes coral/cian de la marca aprobada. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/fondo" />
+    <item android:drawable="@color/icono_fondo" />
     <item android:drawable="@drawable/ic_launcher_frente"
         android:gravity="center" android:width="192dp" android:height="192dp" />
 </layer-list>
