@@ -59,7 +59,7 @@ class SettingsPage extends StatelessWidget {
               ),
               const SectionHeading('TikTok Shop'),
               ApiData(
-                path: '/api/sesion',
+                path: '/api/session',
                 padding: EdgeInsets.zero,
                 builder: (context, data) {
                   final account = mapOf(data['cuenta']);

@@ -180,7 +180,7 @@ class _CorteShellState extends State<CorteShell> {
                     _SidebarItem(
                       destination: (
                         '/ajustes',
-                        'Configuración',
+                        'Ajustes',
                         Icons.settings_outlined,
                       ),
                       active: root == 'ajustes',
@@ -409,6 +409,8 @@ class _SidebarItem extends StatelessWidget {
                       Expanded(
                         child: Text(
                           destination.$2,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 15,

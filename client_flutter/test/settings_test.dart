@@ -43,7 +43,7 @@ class Fixture {
   final notes = <JsonMap>[];
   Future<http.Response> handle(http.Request request) async {
     switch (request.url.path) {
-      case '/api/sesion':
+      case '/api/session':
         return response({
           'cuenta': {'username': 'synthetic_creator'},
           'conexion': {'estado': 'conectada'},
@@ -146,6 +146,7 @@ void main() {
     (tester) async {
       final fixture = Fixture();
       await mount(tester, fixture, const SettingsPage());
+      expect(find.text('@synthetic_creator'), findsOneWidget);
       final signature = find.byType(TextFormField);
       await tester.ensureVisible(signature);
       await tester.enterText(signature, 'Mi firma pendiente');
