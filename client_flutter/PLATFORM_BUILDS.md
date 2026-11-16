@@ -10,7 +10,7 @@ El análisis conserva errores y advertencias como fallos. Los avisos informativo
 
 ## Windows
 
-`tool/package_windows.ps1` compila el runner nativo y empaqueta `CreatorHub.exe` junto con sus DLL y la carpeta `data`. El ejecutable aislado no contiene todo el runtime. El nombre técnico permite mantener la continuidad con la instalación histórica; el producto visible es Corte. El ZIP incluye un informe SHA-256. No altera la instalación ni los datos existentes.
+`tool/package_windows.ps1` compila el runner nativo y empaqueta `CreatorHub.exe` junto con sus DLL y la carpeta `data`. El ejecutable aislado no contiene todo el runtime. El nombre técnico permite mantener la continuidad con la instalación histórica; el producto visible es Corte. El artefacto de CI incluye un informe SHA-256 junto al ZIP. No altera la instalación ni los datos existentes.
 
 Esta computadora no tiene Visual Studio C++/Windows SDK detectables. El runner estándar `windows-2025` se usa para compilar; no se instalará aquí un workload de varios GB sin espacio suficiente.
 

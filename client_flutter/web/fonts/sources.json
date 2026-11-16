@@ -1,0 +1,129 @@
+{
+  "flutter": "3.50.0",
+  "engine": "371f77202a",
+  "source": "Flutter SDK lib/ui/src/engine/font_fallback_data.dart",
+  "files": [
+    {
+      "path": "licenses/Apache-2.0-Roboto.txt",
+      "source": "https://raw.githubusercontent.com/googlefonts/roboto/main/LICENSE",
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "path": "licenses/OFL-NotoColorEmoji.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/notocoloremoji/OFL.txt",
+      "bytes": 4386,
+      "sha256": "ac564676d10054a8445923dfc2dfb13c042d97888bd27c1b6ec6dfe89a9d8d62"
+    },
+    {
+      "path": "licenses/OFL-NotoSansSymbols2.txt",
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssymbols2/OFL.txt",
+      "bytes": 4382,
+      "sha256": "e87c2ed7ff174c637d55fa381939ebb96f43f0415ad94605a37589228f4cbf4f",
+      "upstream_sha256": "b118dd41337806a5d4797052c77caf3bd096aed783e5eb21b4d11154351e1ac0",
+      "normalization": "Removed trailing whitespace from the upstream license; license terms unchanged."
+    },
+    {
+      "path": "notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.0.woff2",
+      "source": "https://fonts.gstatic.com/s/notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.0.woff2",
+      "bytes": 709628,
+      "sha256": "1ea085e149cb9e5f1ac086f0580f7dc10d6cc06cb2e29caa8a7360064a7eadd6"
+    },
+    {
+      "path": "notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.1.woff2",
+      "source": "https://fonts.gstatic.com/s/notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.1.woff2",
+      "bytes": 14812,
+      "sha256": "c87e948953bc90e38ba25d711f65377a62aef4e4a7cce272e1c6d8c315e4da41"
+    },
+    {
+      "path": "notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.2.woff2",
+      "source": "https://fonts.gstatic.com/s/notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.2.woff2",
+      "bytes": 64244,
+      "sha256": "d500497beb107cb122df6b65452c8bd9699c9078b9ae5f35bb82696a8cce6f60"
+    },
+    {
+      "path": "notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.3.woff2",
+      "source": "https://fonts.gstatic.com/s/notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.3.woff2",
+      "bytes": 164600,
+      "sha256": "33d863891fc666d3bcd03700f344ef50da89cf005b10d0022b5d196ac18b3596"
+    },
+    {
+      "path": "notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.4.woff2",
+      "source": "https://fonts.gstatic.com/s/notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.4.woff2",
+      "bytes": 99672,
+      "sha256": "f7848ab453b11441c20792f91c202ee98bcdcc223609e8cda6930d5f947c3d68"
+    },
+    {
+      "path": "notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.5.woff2",
+      "source": "https://fonts.gstatic.com/s/notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.5.woff2",
+      "bytes": 118504,
+      "sha256": "59ec028a34d2c3cb6e670d4fd231d7d61895b560738daa6ff4b956643ffe4aac"
+    },
+    {
+      "path": "notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.6.woff2",
+      "source": "https://fonts.gstatic.com/s/notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.6.woff2",
+      "bytes": 123212,
+      "sha256": "732541f93fcf33bb4919aa42f865f242a1d3f3428fd68c659774ad8bdefd5c87"
+    },
+    {
+      "path": "notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.7.woff2",
+      "source": "https://fonts.gstatic.com/s/notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.7.woff2",
+      "bytes": 210912,
+      "sha256": "d1f87d46c80af676a0099def081fffea41f85bc62dc0957405f2ff9a33f18c4d"
+    },
+    {
+      "path": "notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.8.woff2",
+      "source": "https://fonts.gstatic.com/s/notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.8.woff2",
+      "bytes": 414684,
+      "sha256": "2583da22e236b9b53d85d7a9dcb3f18cb4bca92277ea26cf53ada69c63ac8278"
+    },
+    {
+      "path": "notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.9.woff2",
+      "source": "https://fonts.gstatic.com/s/notocoloremoji/v39/Yq6P-KqIXTD0t4D9z1ESnKM3-HpFabsE4tq3luCC7p-aXxcn.9.woff2",
+      "bytes": 137732,
+      "sha256": "a50590a80ba6589388f4a51d463f853ef382dcbeb1e3b022dc6ed60147676ca2"
+    },
+    {
+      "path": "notosanssymbols2/v25/I_uyMoGduATTei9eI8daxVHDyfisHr71-gTBWXPM4Q.woff2",
+      "source": "https://fonts.gstatic.com/s/notosanssymbols2/v25/I_uyMoGduATTei9eI8daxVHDyfisHr71-gTBWXPM4Q.woff2",
+      "bytes": 3576,
+      "sha256": "b0d885dae11e7fb260ce06cb94af4b7c865acbaf692b7f80eb23b0fb3d68153c"
+    },
+    {
+      "path": "notosanssymbols2/v25/I_uyMoGduATTei9eI8daxVHDyfisHr71-jrBWXPM4Q.woff2",
+      "source": "https://fonts.gstatic.com/s/notosanssymbols2/v25/I_uyMoGduATTei9eI8daxVHDyfisHr71-jrBWXPM4Q.woff2",
+      "bytes": 5620,
+      "sha256": "5824d50a6e4eca33bc2aca4fc61ceca9dd518bfe7d4b8c75adad3a8064d0d3a1"
+    },
+    {
+      "path": "notosanssymbols2/v25/I_uyMoGduATTei9eI8daxVHDyfisHr71-prgfE71.woff2",
+      "source": "https://fonts.gstatic.com/s/notosanssymbols2/v25/I_uyMoGduATTei9eI8daxVHDyfisHr71-prgfE71.woff2",
+      "bytes": 10124,
+      "sha256": "97f469061805041dfda672e164eca7384f01e74ea1362a3aa91cf993be9a1579"
+    },
+    {
+      "path": "notosanssymbols2/v25/I_uyMoGduATTei9eI8daxVHDyfisHr71-pTgfA.woff2",
+      "source": "https://fonts.gstatic.com/s/notosanssymbols2/v25/I_uyMoGduATTei9eI8daxVHDyfisHr71-pTgfA.woff2",
+      "bytes": 15824,
+      "sha256": "076185b66a4070d41cc0e52cdad03c00b30084a7438d3e52f2a47cf5e2d1eb01"
+    },
+    {
+      "path": "notosanssymbols2/v25/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2",
+      "source": "https://fonts.gstatic.com/s/notosanssymbols2/v25/I_uyMoGduATTei9eI8daxVHDyfisHr71-ujgfE71.woff2",
+      "bytes": 12748,
+      "sha256": "2eb49cfc40ca8a57d17e621471a4a2d583f7602676f583459f1dfc733fb94e1d"
+    },
+    {
+      "path": "notosanssymbols2/v25/I_uyMoGduATTei9eI8daxVHDyfisHr71-vrgfE71.woff2",
+      "source": "https://fonts.gstatic.com/s/notosanssymbols2/v25/I_uyMoGduATTei9eI8daxVHDyfisHr71-vrgfE71.woff2",
+      "bytes": 382424,
+      "sha256": "9c07d511848c274b5430c75bf98d1f2582680ef5f967947bfbdd06b75ca177c2"
+    },
+    {
+      "path": "roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2",
+      "source": "https://fonts.gstatic.com/s/roboto/v32/KFOmCnqEu92Fr1Me4GZLCzYlKw.woff2",
+      "bytes": 63464,
+      "sha256": "35b02ca266b79eb4996590f15817425a1ce9ebf48f84471843233ff614656bf2"
+    }
+  ]
+}

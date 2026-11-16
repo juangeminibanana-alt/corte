@@ -5,6 +5,7 @@ Cliente compartido para Android, Windows y web. iOS está fuera de esta entrega 
 ## Decisiones
 
 - Diseño aprobado Contraste TikTok Shop: navegación negra, superficies blancas, coral y cian. Fuente Mona Sans local y con licencia incluida. Listas de trabajo con fotos, acciones y estados separados.
+- Emojis y símbolos de los títulos utilizan fuentes locales de Google bajo `web/fonts`, con sus licencias y manifiesto SHA-256. El motor web se configura con `fontFallbackBaseUrl`; no se amplió la CSP para depender de fuentes externas.
 - Muestras y sus variantes recibidas no se modifican al explorar colores o tallas. La galería utiliza las fotografías devueltas por la ficha del mismo producto. Las portadas de videos deben pertenecer al mismo content_id; nunca se sustituyen por fotos del producto.
 - Android y Windows usan autorización Google mediante el navegador del sistema y el broker HTTPS existente. Las credenciales permanecen en Keystore/DPAPI. La web usa Firebase Authentication y la cookie de sesión del mismo origen.
 - La copia y la cola se vinculan a una identidad opaca de propietario y creador. El servidor comprueba esa vinculación antes de aplicar operaciones. Los rechazos conservan el cambio y la revisión del servidor para resolverlos.
@@ -34,3 +35,5 @@ El bundle web utiliza la versión de Firebase fijada en `../ui/package-lock.json
 La primera revisión se publica en `/flutter/` del sitio Firebase existente, manteniendo la aplicación publicada en la raíz y sus descargas. La política CSP de Flutter admite su motor WebAssembly sólo en esa ruta. La promoción a la raíz debe seguir a la comprobación visual y funcional con los datos reales del propietario.
 
 No se considera validación visual una compilación correcta ni el arranque de un emulador sin pantalla. Las comprobaciones de cada entrega deben registrar por separado pruebas automáticas, compilación, revisión de interfaz y verificación en los dispositivos disponibles.
+
+La entrega, sus descargas y los límites comprobados están registrados en [DELIVERY_2_0.md](DELIVERY_2_0.md).
