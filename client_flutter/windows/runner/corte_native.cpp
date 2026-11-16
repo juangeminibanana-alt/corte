@@ -35,6 +35,10 @@ using Bytes = std::vector<uint8_t>;
 using winrt::Windows::Data::Json::JsonObject;
 using winrt::Windows::Data::Json::JsonValue;
 namespace fs = std::filesystem;
+std::string Utf8Path(const fs::path& path) {
+  const auto value = path.u8string();
+  return std::string(reinterpret_cast<const char*>(value.data()), value.size());
+}
 constexpr size_t kMax = 20 * 1024 * 1024;
 const std::map<std::string, std::wstring> kKeys = {
  {"corte.nube.dispositivo.v1", L"device"},
@@ -106,7 +110,7 @@ struct Database {
   Database() {
     const auto path = LegacyRoot() / L"datos" / L"cliente_nube.sqlite";
     Require(fs::is_regular_file(path));
-    if (sqlite3_open_v2(path.u8string().c_str(), &db, 1, nullptr) != 0) {
+    if (sqlite3_open_v2(Utf8Path(path).c_str(), &db, 1, nullptr) != 0) {
       if (db) sqlite3_close(db); db = nullptr; Require(false);
     }
     sqlite3_busy_timeout(db, 2000);
@@ -186,11 +190,11 @@ CorteNativeChannel::CorteNativeChannel(flutter::BinaryMessenger* messenger) {
       const Map empty; const auto* args = call.arguments() ? std::get_if<Map>(call.arguments()) : nullptr;
       if (!args) args = &empty;
       const auto& method = call.method_name();
-      if (method == "dataRoot") { result->Success(Value(DataRoot().u8string())); return; }
+      if (method == "dataRoot") { result->Success(Value(Utf8Path(DataRoot()))); return; }
       if (method == "legacyInfo") {
         const bool exists = fs::is_regular_file(LegacyRoot() / L"datos" / L"cliente_nube.sqlite");
-        Map info{{Value("platform"), Value("windows")}, {Value("dataRoot"), Value(DataRoot().u8string())},
-          {Value("legacyRoot"), Value(LegacyRoot().u8string())}, {Value("hasSnapshot"), Value(exists)},
+        Map info{{Value("platform"), Value("windows")}, {Value("dataRoot"), Value(Utf8Path(DataRoot()))},
+          {Value("legacyRoot"), Value(Utf8Path(LegacyRoot()))}, {Value("hasSnapshot"), Value(exists)},
           {Value("hasMeta"), Value(exists)}, {Value("hasOutbox"), Value(exists)},
           {Value("hasArchiveSnapshot"), Value(false)}, {Value("hasArchiveOutbox"), Value(false)}};
         result->Success(Value(info)); return;
