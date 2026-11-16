@@ -110,6 +110,7 @@ class CorteUiController extends ChangeNotifier {
   late final CorteRepository repo;
   String location = '/inicio';
   final _history = <String>[];
+  bool _receivedRoute = false;
   int revision = 0;
   bool storageAvailable = true;
   bool _closed = false;
@@ -143,6 +144,17 @@ class CorteUiController extends ChangeNotifier {
   void replace(String value) {
     location = value;
     notifyListeners();
+  }
+
+  void restoreRoute(String value) {
+    if (!value.startsWith('/') || value.startsWith('//')) value = '/inicio';
+    if (_receivedRoute && value != location) {
+      final previous = _history.lastIndexOf(value);
+      if (previous >= 0) _history.removeRange(previous, _history.length);
+      else _history.add(location);
+    }
+    _receivedRoute = true;
+    replace(value);
   }
 
   bool back() {
@@ -319,7 +331,7 @@ class CorteRouter extends RouterDelegate<String>
   String get currentConfiguration => ui.location;
   @override
   Future<void> setNewRoutePath(String configuration) async {
-    ui.location = configuration;
+    ui.restoreRoute(configuration);
   }
 
   @override

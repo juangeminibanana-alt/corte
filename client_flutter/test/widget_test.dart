@@ -12,6 +12,22 @@ import 'package:corte/ui/widgets.dart';
 import 'package:corte/ui/theme.dart';
 
 void main() {
+  testWidgets('browser back and forward restore content and application history', (tester) async {
+    final auth = CorteAuthController(runtime: CorteRuntime(platform: 'web', baseUri: Uri.parse(corteCloudOrigin)), client: MockClient((_) async => http.Response('', 404)));
+    final ui = CorteUiController(auth: auth);
+    final delegate = CorteRouter(ui);
+    await delegate.setNewRoutePath('/inicio');
+    ui.go('/muestras'); ui.go('/productos/synthetic-product');
+    var updates = 0;
+    ui.addListener(() { updates++; });
+    await delegate.setNewRoutePath('/muestras');
+    expect(ui.location, '/muestras'); expect(updates, greaterThan(0));
+    await delegate.setNewRoutePath('/productos/synthetic-product');
+    expect(ui.location, '/productos/synthetic-product');
+    expect(ui.back(), isTrue); expect(ui.location, '/muestras');
+    expect(ui.back(), isTrue); expect(ui.location, '/inicio');
+    delegate.dispose(); ui.dispose(); auth.dispose();
+  });
   test('a product photo never becomes a video cover', () {
     expect(
       videoCover({
