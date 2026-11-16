@@ -1,0 +1,26 @@
+# Creator Hub · entorno del hub (Python 3.12, Windows x64). Versiones EXACTAS, también las transitivas.
+# Se instala con scripts\preparar_entorno.ps1 (crea .venv-hub si falta, instala, pip check, comprueba importaciones).
+# Sin dependencias criptográficas: TLS, AES-GCM y DPAPI van con stdlib + CNG/crypt32 por ctypes (spec 04 §0.2).
+
+# --- entran en CreatorHub.exe
+pywebview==6.2.1
+proxy_tools==0.1.0
+bottle==0.13.4
+typing_extensions==4.16.0
+pythonnet==3.2.1
+clr_loader==0.3.1
+cffi==2.1.1
+pycparser==3.12
+qrcode==8.2
+colorama==0.4.6
+pypng==0.20220715.0          # OBLIGATORIO: qrcode>=8 ya no lo trae y qr_png usa qrcode.image.pure.PyPNGImage
+pillow==13.0.0               # BUILD C3: entra al exe (imagenes/ y demo/, import perezoso) y hace el .ico al compilar
+
+# --- solo para compilar (excluidos del exe en CreatorHub.spec)
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.10
+altgraph==0.17.5
+pefile==2024.8.26
+pywin32-ctypes==0.2.3
+packaging==26.3
+setuptools==84.2.1

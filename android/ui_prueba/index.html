@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Corte · interfaz de prueba</title>
+  <!-- Interfaz mínima de android-shell (solo pruebas: -PchUiDist=../ui_prueba). Sin CSP en meta: la pone
+       ServidorAssets como cabecera (BUILD_SPEC §6.4). Sin scripts en línea (script-src 'self'). -->
+  <link rel="stylesheet" href="/assets/estilos.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <h1>corte</h1>
+    <p class="nota">Interfaz de prueba de la app de Android. La interfaz real se compila en ui/ y reemplaza esta.</p>
+    <section>
+      <h2>Conexión con tu PC</h2>
+      <pre id="estado">Cargando…</pre>
+      <div class="fila">
+        <button id="actualizar" type="button">Actualizar ahora</button>
+        <button id="buscar" type="button">Buscar mi PC</button>
+        <button id="olvidar" type="button">Olvidar esta PC</button>
+      </div>
+    </section>
+    <section>
+      <h2>Emparejar con mi PC</h2>
+      <label>Código del QR (creatorhub://pair?…)<input id="qr" autocomplete="off"></label>
+      <button id="emparejar-qr" type="button">Emparejar con el QR</button>
+      <label>Código de 12 caracteres<input id="codigo" placeholder="K7QM-3XRA-9TPF" autocomplete="off"></label>
+      <label>Dirección de la PC (opcional)<input id="ip" placeholder="192.168.1.20" autocomplete="off"></label>
+      <button id="emparejar-codigo" type="button">Emparejar con el código</button>
+      <pre id="emparejamiento"></pre>
+    </section>
+    <section>
+      <h2>Autoprueba</h2>
+      <pre id="autoprueba">Corriendo…</pre>
+    </section>
+  </main>
+</body>
+</html>

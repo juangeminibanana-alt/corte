@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Exactamente 5 permisos (04 §B.11, BUILD_SPEC §7.1); scripts\build_android.ps1 falla si aparece otro. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Solo para leer el QR de emparejamiento con getUserMedia; se pide en el momento de usarla. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
+    <!-- abrirTikTok: saber si la app de TikTok está instalada (visibilidad de paquetes, API 30+). -->
+    <queries>
+        <package android:name="com.zhiliaoapp.musically" />
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/reglas_extraccion"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:usesCleartextTraffic="false"
+        android:supportsRtl="true"
+        android:theme="@style/Tema.Corte"
+        android:enableOnBackInvokedCallback="true">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density|fontScale"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- QR leído con la cámara del sistema: creatorhub://pair?v=1&... (nunca empareja solo). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="creatorhub" android:host="pair" />
+            </intent-filter>
+        </activity>
+
+        <!-- Recordatorios locales (AlarmManager) y reprogramación al encender el teléfono. -->
+        <receiver android:name=".sistema.Recordatorios$Alarma" android:exported="false" />
+        <receiver android:name=".sistema.ReceptorArranque" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Compartir imagen / CSV (C21): proveedor propio, solo lectura y con permisos por URI. -->
+        <provider
+            android:name=".sistema.ProveedorArchivos"
+            android:authorities="${applicationId}.archivos"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+    </application>
+</manifest>

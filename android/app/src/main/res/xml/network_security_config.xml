@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sin texto plano en ningún caso (04 §B.7). La conexión con el hub de la PC es HTTPS con certificado autofirmado
+  FIJADO por huella (red/TlsFijado + red/ProtocoloLan), que no depende de estas anclas. network-security-config no
+  admite rangos CIDR, así que permitir HTTP "a la LAN" obligaría a abrir texto plano para todo.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

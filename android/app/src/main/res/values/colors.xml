@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- tokens.css 1.1.1: lienzo oscuro (grafito 50) y marca (lima 400). -->
+    <color name="fondo">#0C0F0D</color>
+    <color name="acento">#C8F23C</color>
+    <color name="icono_fondo">#181C1A</color>
+</resources>

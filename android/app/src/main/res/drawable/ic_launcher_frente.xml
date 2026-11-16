@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Primer plano del ícono adaptativo = spec/assets/icon-capa-frontal.svg (escala 0.8 al centro; cabe en la zona
+     segura de 66 dp). Arco lima con degradado #D2F85A → #BDE82C y arco claro #F0F3F1. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="1024" android:viewportHeight="1024">
+    <group android:pivotX="512" android:pivotY="512" android:scaleX="0.8" android:scaleY="0.8">
+        <group android:translateX="18" android:translateY="-6">
+            <path android:pathData="M741.81,319.16A300,300 0,0 0,278.45 700.29L398.82,579.93A132,132 0,0 1,613.12 427.15Z">
+                <aapt:attr name="android:fillColor">
+                    <gradient android:type="linear"
+                        android:startX="0" android:startY="212" android:endX="0" android:endY="700.29"
+                        android:startColor="#FFD2F85A" android:endColor="#FFBDE82C" />
+                </aapt:attr>
+            </path>
+            <group android:translateX="-15.56" android:translateY="15.56">
+                <path android:fillColor="#FFF0F3F1"
+                    android:pathData="M323.71,745.55A300,300 0,0 0,741.81 704.84L613.12,596.85A132,132 0,0 1,444.07 625.18Z" />
+            </group>
+        </group>
+    </group>
+</vector>

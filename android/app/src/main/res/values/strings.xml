@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Corte</string>
+    <string name="canal_recordatorios">Recordatorios</string>
+    <string name="canal_recordatorios_desc">Avisos de tu plan de videos y de tus muestras.</string>
+    <string name="webview_vieja_titulo">Actualiza Android System WebView</string>
+    <string name="webview_vieja_texto">Corte necesita una versión más nueva de Android System WebView para mostrarse bien. Actualízala desde Google Play.</string>
+    <string name="webview_vieja_si">Actualizar</string>
+    <string name="webview_vieja_no">Ahora no</string>
+    <string name="compartir_titulo">Compartir</string>
+</resources>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Capa de fondo del ícono adaptativo, derivada a mano de spec/assets/icon.svg (04 §A.11): degradado vertical
+     #1B1F1C → #0A0D0B y el brillo radial lima al 10 %. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="1024" android:viewportHeight="1024">
+    <path android:pathData="M0,0h1024v1024h-1024z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear"
+                android:startX="0" android:startY="0" android:endX="0" android:endY="1024"
+                android:startColor="#FF1B1F1C" android:endColor="#FF0A0D0B" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M0,0h1024v1024h-1024z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial"
+                android:centerX="368.6" android:centerY="348.2" android:gradientRadius="634.9"
+                android:startColor="#1AC8F23C" android:endColor="#00C8F23C" />
+        </aapt:attr>
+    </path>
+</vector>

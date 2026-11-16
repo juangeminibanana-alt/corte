@@ -1,0 +1,18 @@
+/* Interfaz de prueba de android-shell: usa las variables que inyecta Java (02 §11.2, tokens.css). */
+:root { color-scheme: dark; --fondo: #0c0f0d; --texto: #eceeec; --marca: #c8f23c; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--fondo); color: var(--texto); font: calc(15px * var(--fs, 1)) / 1.45 system-ui, sans-serif; }
+main {
+  padding: calc(16px + var(--native-inset-top, 0px)) calc(16px + var(--native-inset-right, 0px))
+           calc(16px + var(--native-inset-bottom, 0px) + var(--native-ime, 0px)) calc(16px + var(--native-inset-left, 0px));
+  max-width: 720px; margin: 0 auto;
+}
+h1 { color: var(--marca); font-size: 28px; margin: 0 0 4px; letter-spacing: -0.02em; }
+h2 { font-size: 17px; margin: 20px 0 8px; }
+.nota { opacity: 0.7; margin: 0; }
+section { border-top: 1px solid #2a2f2c; padding-top: 4px; }
+pre { white-space: pre-wrap; word-break: break-word; background: #141815; padding: 10px; border-radius: 8px; font-size: 12px; min-height: 2em; }
+label { display: block; margin: 10px 0 4px; }
+input { display: block; width: 100%; margin-top: 4px; padding: 12px; min-height: 48px; border-radius: 8px; border: 1px solid #3a403c; background: #181c1a; color: inherit; font: inherit; }
+button { min-height: 48px; padding: 0 16px; margin: 8px 8px 0 0; border-radius: 999px; border: 0; background: var(--marca); color: #0c0f0d; font: inherit; font-weight: 600; }
+.fila { display: flex; flex-wrap: wrap; }

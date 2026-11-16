@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 8–11: el splash es el fondo de la ventana (color + logo) mientras carga la WebView (04 §B.10). -->
+    <style name="Tema.Corte" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_fondo</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:colorAccent">@color/acento</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>

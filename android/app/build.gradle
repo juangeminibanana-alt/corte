@@ -1,0 +1,43 @@
+plugins { id 'com.android.application' }
+def chVersionName = providers.gradleProperty('chVersionName').getOrElse('0.0.0')
+def chVersionCode = providers.gradleProperty('chVersionCode').getOrElse('1').toInteger()
+// BUILD_SPEC §7.1: la carpeta de la interfaz es configurable (ruta relativa a android/app o absoluta) para que
+// android-shell pruebe con su interfaz mínima (-PchUiDist=../ui_prueba). Por omisión, el dist real de Vite.
+def chUiDist = providers.gradleProperty('chUiDist').getOrElse('../../ui/dist')
+
+android {
+    namespace 'app.creatorhub'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+    defaultConfig {
+        applicationId 'app.creatorhub'
+        minSdk 26
+        targetSdk 35
+        versionCode chVersionCode
+        versionName chVersionName
+    }
+    buildTypes {
+        debug { applicationIdSuffix '.dev'; versionNameSuffix '-dev'; debuggable true }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug          // CONTEXTO: llave de depuración estándar
+        }
+    }
+    buildFeatures { buildConfig true }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    androidResources { noCompress += ['webp', 'woff2'] }
+    lint { abortOnError true; checkReleaseBuilds true }
+}
+
+dependencies { }   // cero dependencias: compila con --offline (ver §B.2)
+
+tasks.register('syncWebAssets', Sync) {
+    from(chUiDist) { exclude '**/*.map' }
+    into 'src/main/assets/web'
+    doFirst {
+        if (!file("${chUiDist}/index.html").exists()) throw new GradleException('Primero compila la interfaz (npm run build en ui/).')
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'syncWebAssets' }

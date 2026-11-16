@@ -1,0 +1,62 @@
+{
+  "formato": "plantillas-corte",
+  "version": 1,
+  "fuente": "01_ux §4.8 (texto exacto de spec/verificacion/ux_reglas.PLANTILLAS)",
+  "plantillas": [
+    {
+      "id": "disculpa_y_fecha",
+      "nombre": "Disculpa y fecha",
+      "cuerpo": "Hola, equipo de {tienda}. Gracias por enviarme la muestra de {producto}. {agradecimiento_socio}Me retrasé con el video y me hago responsable. Ya lo tengo agendado y lo publico a más tardar el {fecha_compromiso}, etiquetando su producto. Si quieren que destaque algo en especial, díganme y lo incluyo. ¡Gracias por la confianza!{firma}"
+    },
+    {
+      "id": "varias_muestras",
+      "nombre": "Varias muestras",
+      "cuerpo": "Hola, equipo de {tienda}. Gracias por las muestras que me enviaron:\n{lista_productos}\n{agradecimiento_socio}Me atrasé con los videos y me hago responsable. Ya los tengo agendados:\n{lista_fechas}\nLes aviso en cuanto estén publicados. ¡Gracias por la confianza!{firma}"
+    },
+    {
+      "id": "nueva_fecha",
+      "nombre": "Nueva fecha",
+      "cuerpo": "Hola, equipo de {tienda}. Les dije que publicaba el video de {producto} el {fecha_anterior} y no lo cumplí; una disculpa. Ya lo tengo para el {fecha_compromiso}. Gracias por la paciencia.{firma}"
+    },
+    {
+      "id": "ya_publique",
+      "nombre": "Ya publiqué",
+      "cuerpo": "Hola, equipo de {tienda}. Ya publiqué el video de {producto}: {link_video} Gracias por la paciencia. Si les sirve, con gusto hago otro video con un enfoque distinto. ¡Saludos!{firma}"
+    },
+    {
+      "id": "ya_tengo_video",
+      "nombre": "Ya tengo video",
+      "cuerpo": "Hola, equipo de {tienda}. Gracias por la muestra de {producto}. Ya tengo un video con su producto: {link_video} ¿Les sirve o prefieren que haga uno nuevo? Con gusto lo hago.{firma}"
+    },
+    {
+      "id": "producto_no_disponible",
+      "nombre": "Producto no disponible",
+      "cuerpo": "Hola, equipo de {tienda}. Quería hacer el video de {producto}, pero el producto aparece como no disponible en TikTok Shop y no puedo etiquetarlo. ¿Me dicen si lo van a reactivar o si prefieren que etiquete otro de sus productos? Gracias.{firma}"
+    },
+    {
+      "id": "no_me_llego_completa",
+      "nombre": "No me llegó completa",
+      "cuerpo": "Hola, equipo de {tienda}. Me aparece como entregada la muestra de {producto}, pero {problema_envio}. ¿Me ayudan a revisarlo?{firma}"
+    },
+    {
+      "id": "prefiero_otro_producto",
+      "nombre": "Prefiero otro producto",
+      "cuerpo": "Hola, equipo de {tienda}. Gracias por la muestra de {producto}. No encaja con mi contenido de moda para hombre y no quiero hacer un video que no les funcione. ¿Les sirve que haga el video de otro de sus productos?{firma}"
+    },
+    {
+      "id": "disculpa_sin_fecha",
+      "nombre": "Disculpa sin fecha",
+      "cuerpo": "Hola, equipo de {tienda}. Gracias por la muestra de {producto}. No voy a poder hacer el video como lo teníamos previsto y quería decírselo directamente; una disculpa. ¿Les puedo proponer otra opción?{firma}"
+    },
+    {
+      "id": "ya_la_recibi",
+      "nombre": "Ya la recibí",
+      "cuerpo": "Hola, equipo de {tienda}. Ya recibí {producto}, ¡gracias! Tengo el video agendado para publicarlo a más tardar el {fecha_compromiso}. Les aviso cuando esté publicado.{firma}"
+    },
+    {
+      "id": "gracias_por_las_ventas",
+      "nombre": "Gracias por las ventas",
+      "cuerpo": "Hola, equipo de {tienda}. Quería agradecerles: sus productos han funcionado muy bien con mi audiencia. Me encantaría seguir colaborando; si tienen productos nuevos, con gusto los pruebo.{firma}"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícono pequeño de las notificaciones: silueta blanca del símbolo de Corte (el sistema solo usa el alfa). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="1024" android:viewportHeight="1024">
+    <group android:pivotX="512" android:pivotY="512" android:scaleX="1.5" android:scaleY="1.5">
+        <group android:translateX="0" android:translateY="0">
+            <path android:fillColor="#FFFFFFFF"
+                android:pathData="M741.81,319.16A300,300 0,0 0,278.45 700.29L398.82,579.93A132,132 0,0 1,613.12 427.15Z" />
+            <group android:translateX="-15.56" android:translateY="15.56">
+                <path android:fillColor="#FFFFFFFF"
+                    android:pathData="M323.71,745.55A300,300 0,0 0,741.81 704.84L613.12,596.85A132,132 0,0 1,444.07 625.18Z" />
+            </group>
+        </group>
+    </group>
+</vector>

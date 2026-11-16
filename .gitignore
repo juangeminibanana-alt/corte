@@ -1,0 +1,74 @@
+﻿# ---------------------------------------------------------------------------
+# Dependencias, entornos y salidas de compilación
+# ---------------------------------------------------------------------------
+node_modules/
+.venv*/
+vendor/wheels/
+__pycache__/
+*.py[cod]
+build/
+dist/
+ui/dist/
+*.apk
+*.aab
+*.log
+
+# Android
+local.properties
+.gradle/
+.cxx/
+android/app/src/main/assets/web/
+
+# ---------------------------------------------------------------------------
+# Secretos y datos locales (nunca al repositorio)
+# ---------------------------------------------------------------------------
+secrets/
+*.keystore
+*.jks
+*.pem
+*.dpapi
+*.sqlite*
+config.json
+.env*
+!ui/.env.demo
+
+# ---------------------------------------------------------------------------
+# Datos reales de la cuenta y material interno de desarrollo (no se publican)
+# ---------------------------------------------------------------------------
+research/datos-reales/
+research/referencia/
+research/tiktok-docs/
+research/CONTEXTO.md
+notas/
+PENDIENTES.md
+ui/fixtures/
+ui/capturas/
+hub/herramientas/
+spec/verificacion/
+spec/diseno_aprobado/
+spec/pruebas/
+spec/assets/lamina/
+spec/assets/muestra-visual.html
+spec/01_ux.md
+spec/02_visual.md
+spec/03_datos_api.md
+spec/04_plataformas.md
+spec/BUILD_SPEC.md
+spec/paquetes_trabajo.json
+
+# Pruebas, galerías y depuración que usan datos reales (no se publican)
+hub/pruebas/
+pruebas/
+*.test.ts
+*.test.tsx
+*.check.ts
+ui/src/bloques/galeria/
+ui/src/componentes/galeria/
+android/app/src/debug/
+android/pruebas_tls/
+
+# Editores y sistema
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
