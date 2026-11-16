@@ -24,11 +24,13 @@ El [manifiesto de descarga](https://corte-e-book-21589.web.app/descargas/Corte-2
 
 - 77 pruebas de Flutter aprobadas: autenticación, transporte, copia y cola, imágenes, planificación, formularios, conflictos, historial del navegador y tamaños de pantalla.
 - 118 pruebas del backend aprobadas. El despliegue `5519910` cambió únicamente las referencias de las dos imágenes existentes; el plan final de Terraform no contiene cambios pendientes.
-- Web revisada con los datos reales del propietario en teléfono y escritorio: 104 muestras, 33 pendientes, galería de nueve fotos, colores/tallas y portadas de videos. Abrir y cancelar formularios no modificó datos de negocio. Atrás actualiza la pantalla y conserva el historial.
+- Web revisada con los datos reales del propietario en teléfono y escritorio: listas de muestras, galería de nueve fotos, colores/tallas y portadas de videos. Abrir y cancelar formularios no modificó datos de negocio. Atrás actualiza la pantalla y conserva el historial.
 - Android: actualización en emulador mediante `install -r -t`, conservando UID, directorio de datos y fecha de instalación original. Paquete Release sin `debuggable`, con R8, tres ABI y firma V2 histórica. El primer arranque superó el límite de 14 segundos; después se comprobó la actividad reanudada, ventana dibujada y ausencia de errores fatales/Flutter. La segunda apertura reutilizó esa instancia y devolvió `Status ok`.
 - Windows: compilación remota real en runner estándar, paquete PE x64/AOT, runtime y CRT completos, icono correcto y ZIP íntegro. El arranque nativo mostró la pantalla de acceso a Google. La sesión autenticada y las fotografías no se comprobaron dentro del ejecutable nativo.
 
 No se verificó un teléfono físico ni se aprobaron nuevas autorizaciones de dispositivos durante estas comprobaciones. Las notificaciones del sistema Windows todavía no tienen proveedor nativo; los recordatorios y su gestión están disponibles en la aplicación. La integración actual de Creator no proporciona reseñas ni fotografías de compradores; no se sustituyeron por imágenes de producto.
+
+Los títulos de videos mostraron sus emojis tras servir las fuentes desde el mismo origen. Permanece un aviso genérico del motor sobre caracteres sin fuente; es compatible con selectores Unicode de presentación sin glifo propio, aunque el aviso no identifica el carácter exacto. No hubo errores HTTP de fuentes en esa revisión.
 
 ## Compilación Android en Windows
 
