@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { Boton, Modal, useToast } from '@/componentes';
 import { invalidar } from '@/datos';
 import { expirarSesionNube } from '../../nube/entorno';
+import { fetchCorte } from '../../nube/servicio';
 import { Aviso, Fila, Grupo } from './piezas';
 import { tamano } from './logica';
 import css from './ajustes.module.css';
@@ -9,7 +10,7 @@ import css from './ajustes.module.css';
 interface Respaldo { id: string; created_at: string | number; size_bytes: number }
 
 async function peticion(ruta: string, cuerpo?: unknown): Promise<unknown> {
-  const r = await fetch(`/api/cloud/storage${ruta}`, { credentials: 'same-origin', cache: 'no-store', method: cuerpo === undefined ? 'GET' : 'POST', headers: { Accept: 'application/json', ...(cuerpo === undefined ? {} : { 'Content-Type': 'application/json', 'X-CH-Hub': '1' }) }, ...(cuerpo === undefined ? {} : { body: JSON.stringify(cuerpo) }) });
+  const r = await fetchCorte(`/api/cloud/storage${ruta}`, { credentials: 'same-origin', cache: 'no-store', method: cuerpo === undefined ? 'GET' : 'POST', headers: { Accept: 'application/json', ...(cuerpo === undefined ? {} : { 'Content-Type': 'application/json', 'X-CH-Hub': '1' }) }, ...(cuerpo === undefined ? {} : { body: JSON.stringify(cuerpo) }) });
   if (r.status === 401) expirarSesionNube();
   if (!r.ok) throw new Error('No pudimos completar la operación con el almacenamiento. Inténtalo de nuevo.');
   return r.json();

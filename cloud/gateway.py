@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 from flask import Flask, Response, jsonify, request, stream_with_context
 import requests
 from urllib3.exceptions import HTTPError as UpstreamHTTPError
+from cloud.native_auth import BEARER_RE
 
 MAX_BYTES = 20 * 1024 * 1024
 HOP_HEADERS = frozenset({'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
@@ -74,6 +75,9 @@ def create_app(settings: GatewaySettings | None = None, transport=None) -> Flask
         if not request.path.startswith(('/api/', '/img/', '/oauth/')) or '\\' in request.path:
             return failure('No encontramos esa ruta.', 404)
         headers = {key: value for key, value in request.headers.items() if key.lower() in FORWARD_HEADERS}
+        authorization = request.headers.get('Authorization', '')
+        if BEARER_RE.fullmatch(authorization):
+            headers['Authorization'] = authorization
         headers['Host'] = upstream_host
         headers['X-Forwarded-Proto'] = 'https'
         # Never trust client-supplied Forwarded/X-Forwarded-* values. Pass exactly

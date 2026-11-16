@@ -18,7 +18,7 @@ import { Aviso, CargandoGrupo, Dato, ErrorCarga, FilaLibre, Grupo, Seccion } fro
 import { T } from './textos';
 import css from './ajustes.module.css';
 import { cx } from './clases';
-import { esNube } from '../../nube/entorno';
+import { esClienteNativo, esNube } from '../../nube/entorno';
 
 const OPCIONES_INTERVALO: { valor: ValorIntervalo; etiqueta: string }[] = [
   { valor: '15', etiqueta: T.sync.opciones['15'] },
@@ -170,11 +170,12 @@ function SincronizacionAndroid(): ReactElement {
 
 export function SeccionSincronizacion(): ReactElement {
   const android = usePlataforma() === 'android';
-  if (android) return <SincronizacionAndroid />;
+  if (android && !esNube()) return <SincronizacionAndroid />;
   return <SincronizacionWindows />;
 }
 
 function SincronizacionWindows(): ReactElement {
+  const android = usePlataforma() === 'android';
   const cap = useCapacidades();
   const toast = useToast();
   const sesion = useSesion();
@@ -278,7 +279,7 @@ function SincronizacionWindows(): ReactElement {
             />
             {intervalo !== '30' ? <span className={cx(css.notaChica)}>{T.sync.recomendado}</span> : null}
           </FilaLibre>
-          {!esNube() ? <><FilaLibre>
+          {!esNube() || (esClienteNativo() && !android) ? <><FilaLibre>
             <Interruptor
               etiqueta={T.sync.segundoPlano}
               descripcion={a.segundo_plano === null ? T.sync.segundoPlanoSinElegir : T.sync.segundoPlanoDesc}

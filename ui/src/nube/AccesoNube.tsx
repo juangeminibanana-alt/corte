@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactElement, type ReactNode } from 'react';
 import { infoPlataforma } from '@/plataforma';
-import { fijarModoNube } from './entorno';
+import { fijarClienteNativo, fijarModoNube } from './entorno';
+import { leerSesionNativa, type SesionNativa } from './clienteNativo';
+import { AccesoClienteNativo } from './AccesoClienteNativo';
 import { clienteFirebase, errorGoogle, type ConfigFirebase } from './firebase';
 import css from './AccesoNube.module.css';
 
@@ -25,9 +27,10 @@ export function AccesoNube(p: { children: ReactNode }): ReactElement {
   const [enviando, setEnviando] = useState(false);
   const [config, setConfig] = useState<ConfigAcceso | null>(null);
   const [puedeRedirigir, setPuedeRedirigir] = useState(false);
+  const [nativa, setNativa] = useState<SesionNativa | null>(null);
 
   useEffect(() => {
-    if (infoPlataforma().tiene_puente || (import.meta.env.DEV && import.meta.env.VITE_DEMO === '1')) {
+    if (import.meta.env.DEV && import.meta.env.VITE_DEMO === '1') {
       setAcceso('local');
       return undefined;
     }
@@ -36,6 +39,17 @@ export function AccesoNube(p: { children: ReactNode }): ReactElement {
     const tiempo = window.setTimeout(() => c.abort(), 15000);
     void (async () => {
       try {
+        if (infoPlataforma().plataforma !== 'navegador') {
+          const s = await leerSesionNativa(c.signal);
+          if (s) {
+            fijarClienteNativo(true); fijarModoNube(true);
+            if (vivo) setNativa(s);
+            return;
+          }
+          fijarModoNube(false);
+          if (vivo) setAcceso('local');
+          return;
+        }
         const r = await fetch('/api/cloud/session', { credentials: 'same-origin', cache: 'no-store', signal: c.signal, headers: { Accept: 'application/json' } });
         const local = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
         if (r.status === 404 && local) {
@@ -135,6 +149,7 @@ export function AccesoNube(p: { children: ReactNode }): ReactElement {
     finally { setEnviando(false); }
   };
 
+  if (nativa) return <AccesoClienteNativo inicial={nativa}>{p.children}</AccesoClienteNativo>;
   if (acceso === 'local' || acceso === 'autorizado') return <>{p.children}</>;
   return (
     <main className={css.fondo}>

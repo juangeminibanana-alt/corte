@@ -539,7 +539,7 @@ export function DialogoReautorizar(): ReactElement | null {
   const abierto = param === '1';
   if (!abierto) return null;
   const cerrar = (): void => setParam(null, { reemplazar: true });
-  const soloLectura = android || (!cap.auth && sesion.datos?.plataforma === 'android');
+  const soloLectura = !esNube() && (android || (!cap.auth && sesion.datos?.plataforma === 'android'));
   const reautorizar = sesion.datos?.conexion.estado === 'reautorizar';
   return (
     // Diálogo de 560 (01 §5.4 A). Su contenido es corto en los 3 pasos, así que en compacta tampoco va a pantalla

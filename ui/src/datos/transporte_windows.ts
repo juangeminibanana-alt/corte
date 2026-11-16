@@ -12,11 +12,13 @@ import type { ClaveConsulta, ParamsDe } from '@firmas/datos';
 import { ErrorHub, TEXTO_CONFLICTO, comoErrorHub, errorDeRed, errorDesdeRespuesta, esObjetoLocal } from './errores';
 import { rutaDeConsulta, urlDe } from './rutas';
 import { esNube, expirarSesionNube } from '../nube/entorno';
+import { dom, registrarMetaDe } from './dominio';
 import type { Lectura, MetodoMutacion, ResultadoOpTransporte, SumideroEventos, Transporte } from './transporte';
 
 const MAX_ETAGS = 200;
 /** Tope de OpsRequest (contrato: «máx. 200 por lote»). */
 export const MAX_OPS_POR_LOTE = 200;
+const esWindowsNativo = (): boolean => typeof window !== 'undefined' && 'pywebview' in window;
 
 interface Guardado {
   etag: string;
@@ -114,6 +116,7 @@ function esOpsResponse(v: unknown): v is C.OpsResponse {
 
 export function crearTransporteWindows(): Transporte {
   const etags = new Map<string, Guardado>();
+  const fuentes = new Map<string, { copia: boolean; at: number | null }>();
   let revisarNube: (() => void) | null = null;
 
   async function getJson(url: string): Promise<unknown> {
@@ -129,6 +132,8 @@ export function crearTransporteWindows(): Transporte {
     if (resp.status === 304 && previo) return previo.cuerpo;
     if (resp.status === 401 && esNube()) expirarSesionNube();
     if (!resp.ok) throw await errorDesdeRespuesta(resp);
+    fuentes.set(url, { copia: resp.headers.get('X-CH-Fuente') === 'copia',
+      at: Number(resp.headers.get('X-CH-Copia-At')) || null });
     const cuerpo = await leerCuerpo(resp);
     const etag = resp.headers.get('ETag');
     if (etag) {
@@ -180,8 +185,25 @@ export function crearTransporteWindows(): Transporte {
     tipo: 'windows',
 
     async leer<K extends ClaveConsulta>(clave: K, params: ParamsDe<K>): Promise<Lectura> {
-      const datos = await getJson(urlDe(rutaDeConsulta(clave, params)));
-      return { datos, fuente: 'hub', copia_at: null, con_cambios_pendientes: false };
+      const url = urlDe(rutaDeConsulta(clave, params));
+      try {
+        const datos = await getJson(url);
+        const fuente = fuentes.get(url);
+        return { datos, fuente: fuente?.copia ? 'copia' : 'hub', copia_at: fuente?.at ?? null,
+          con_cambios_pendientes: false };
+      } catch (e) {
+        if (!esWindowsNativo() || (e instanceof ErrorHub && e.http === 401)) throw e;
+        // The same bounded offline contract as Android, backed by native SQLite.
+        const copia = await getJson('/api/snapshot') as C.SnapshotResponse;
+        if (copia?.version_esquema !== 1) throw e;
+        const cola = await getJson('/api/native/ops') as { ops: C.OpLocal[] };
+        const ops = Array.isArray(cola.ops) ? cola.ops : [];
+        const hoy = dom.hoyLocal();
+        const datos = dom.deCopia(clave, params, dom.aplicarOpsACopia(copia, ops, hoy), hoy);
+        if (datos === null) throw e;
+        registrarMetaDe(copia);
+        return { datos, fuente: 'copia', copia_at: copia.generado_at, con_cambios_pendientes: ops.length > 0 };
+      }
     },
 
     obtener(ruta: string): Promise<unknown> {
@@ -193,6 +215,27 @@ export function crearTransporteWindows(): Transporte {
     },
 
     async aplicarOps(ops: C.OpLocal[], modo: 'individual' | 'lote'): Promise<ResultadoOpTransporte[]> {
+      if (esWindowsNativo()) {
+        const salida: ResultadoOpTransporte[] = [];
+        let tramo: C.OpLocal[] = [];
+        const enviar = async (): Promise<void> => {
+          const r = await mutar('POST', '/api/native/ops', { ops: tramo }) as C.OpsResponse & { en_cola: string[] };
+          const cola = new Set(r.en_cola ?? []);
+          for (const x of r.resultados) {
+            const resultado = desdeOpsResultado(x);
+            salida.push(cola.has(x.op_id) ? { ...resultado, estado: 'en_cola', estado_hub: null } : resultado);
+          }
+          tramo = [];
+        };
+        for (const op of ops) {
+          if (tramo.length && (tramo.length >= 200
+            || new TextEncoder().encode(JSON.stringify({ ops: [...tramo, op] })).length > 224 * 1024)) await enviar();
+          tramo.push(op);
+        }
+        if (tramo.length) await enviar();
+        revisarNube?.();
+        return salida;
+      }
       if (modo === 'individual') {
         const salida: ResultadoOpTransporte[] = [];
         for (const op of ops) salida.push(await aplicarUna(op));
@@ -224,7 +267,7 @@ export function crearTransporteWindows(): Transporte {
     },
 
     conectarEventos(sumidero: SumideroEventos): () => void {
-      if (esNube()) {
+      if (esNube() || esWindowsNativo()) {
         // Las peticiones cortas dejan al gateway escalar a cero entre lecturas.
         // El escritorio conserva SSE; la web no mantiene una instancia ocupada al dejar la pestaña abierta.
         let activo = true;
@@ -355,7 +398,7 @@ export function crearTransporteWindows(): Transporte {
     },
 
     vigilarSync(): void {
-      if (esNube()) revisarNube?.();
+      if (esNube() || esWindowsNativo()) revisarNube?.();
       /* Windows recibe sync.progreso / sync.fin por SSE. */
     },
   };

@@ -1,4 +1,5 @@
 import { expirarSesionNube } from '../../nube/entorno';
+import { fetchCorte } from '../../nube/servicio';
 
 export interface IntegracionTikTokGuardada {
   app_key: string;
@@ -36,7 +37,7 @@ export async function importarConexionAnteriorTikTok(configuracion: Record<strin
   try {
     const cuerpo = JSON.stringify(configuracion);
     if (new TextEncoder().encode(cuerpo).length > 64 * 1024) throw new ErrorIntegracionTikTok('archivo_invalido', 'El archivo contiene demasiados datos de conexión. Elige el archivo original de tu panel anterior.');
-    const respuesta = await fetch('/api/cloud/tiktok/import', {
+    const respuesta = await fetchCorte('/api/cloud/tiktok/import', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CH-Hub': '1' },
       body: cuerpo, signal: controlador.signal,
@@ -73,7 +74,7 @@ export async function guardarIntegracionTikTok(credenciales: { app_key: string; 
   const controlador = new AbortController();
   const limite = setTimeout(() => controlador.abort(), 20_000);
   try {
-    const respuesta = await fetch('/api/cloud/tiktok/credentials', {
+    const respuesta = await fetchCorte('/api/cloud/tiktok/credentials', {
       method: 'PUT', credentials: 'same-origin', cache: 'no-store',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CH-Hub': '1' },
       body: JSON.stringify(credenciales), signal: controlador.signal,

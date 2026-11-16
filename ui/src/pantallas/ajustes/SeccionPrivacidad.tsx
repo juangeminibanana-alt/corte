@@ -20,7 +20,9 @@ import { Aviso, CargandoGrupo, ErrorCarga, Fila, Grupo, Seccion } from './piezas
 import { T } from './textos';
 import css from './ajustes.module.css';
 import { cx } from './clases';
-import { esNube, expirarSesionNube } from '../../nube/entorno';
+import { esClienteNativo, esNube, expirarSesionNube } from '../../nube/entorno';
+import { fetchCorte } from '../../nube/servicio';
+import { DispositivoNativo } from './DispositivoNativo';
 import { RespaldoNube } from './RespaldoNube';
 
 function mensaje(e: unknown): string {
@@ -144,6 +146,7 @@ function PrivacidadAndroid(): ReactElement {
 
 export function SeccionPrivacidad(): ReactElement {
   const android = usePlataforma() === 'android';
+  if (android && esClienteNativo()) return <Seccion titulo="Privacidad y datos" id="datos"><DispositivoNativo /><RespaldoNube /></Seccion>;
   if (android) return <PrivacidadAndroid />;
   return <PrivacidadWindows />;
 }
@@ -171,7 +174,7 @@ function PrivacidadWindows(): ReactElement {
   };
 
   const importar = async (): Promise<void> => {
-    if (esNube()) { archivo.current?.click(); return; }
+    if (esNube() && !esClienteNativo()) { archivo.current?.click(); return; }
     const ruta = await elegirArchivo(T.datos.tituloElegir, ['json']);
     if (!ruta) return;
     setTrabajando('importar');
@@ -193,7 +196,7 @@ function PrivacidadWindows(): ReactElement {
     setTrabajando('importar');
     try {
       const datos: unknown = JSON.parse(await elegido.text());
-      const r = await fetch('/api/cloud/import', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-CH-Hub': '1', Accept: 'application/json' }, body: JSON.stringify(datos) });
+      const r = await fetchCorte('/api/cloud/import', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-CH-Hub': '1', Accept: 'application/json' }, body: JSON.stringify(datos) });
       if (r.status === 401) expirarSesionNube();
       if (!r.ok) throw new Error('El archivo no pudo importarse. Comprueba que sea una exportación de Corte.');
       invalidar();

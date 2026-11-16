@@ -25,10 +25,13 @@ import { escucharAndroid, nuevoIdPedido, puenteAndroidDatos } from './puente';
 import { CLAVES_LOCALES, TODAS_LAS_CLAVES, clavesDeSecciones, rutaDeConsulta, urlDe } from './rutas';
 import type { Lectura, MetodoMutacion, ResultadoOpTransporte, SumideroEventos, Transporte } from './transporte';
 import { desdeOpsResultado } from './transporte_windows';
+import { esNube } from '../nube/entorno';
 
 export const INTERVALO_SYNC_MS = 1500;
 export const ESPERA_OPS_MS = 2000;
 const TOPE_PETICION_MS = 30_000;
+const textoRedAndroid = (): string => esNube() ? 'No pudimos conectar con Corte. Revisa tu conexión a internet. Tu copia y tus cambios siguen guardados.' : TEXTO_RED_ANDROID;
+const sinConexionAndroid = (): ErrorHub => esNube() ? new ErrorHub('sin_internet', 'No hay conexión a internet y esta información aún no está en tu copia guardada.') : necesitaPc();
 const TIPOS_OP: ReadonlySet<string> = new Set<C.OpLocal['tipo']>([
   'plan.crear', 'plan.editar', 'plan.borrar', 'nota.crear', 'nota.editar', 'nota.borrar', 'recordatorio.crear',
   'recordatorio.editar', 'recordatorio.borrar', 'aviso.crear', 'aviso.editar', 'plantilla.editar', 'preferencias.editar',
@@ -171,11 +174,11 @@ export function crearTransporteAndroid(): Transporte {
 
   async function desdeCopia<K extends ClaveConsulta>(clave: K, params: ParamsDe<K>, pendientes: C.OpLocal[]): Promise<Lectura> {
     const c = await obtenerCopia();
-    if (!c) throw necesitaPc();
+    if (!c) throw sinConexionAndroid();
     const hoy = dom.hoyLocal();
     const conOps = pendientes.length > 0 ? dom.aplicarOpsACopia(c, pendientes, hoy) : c;
     const armada = dom.deCopia(clave, params, conOps, hoy);
-    if (armada === null) throw necesitaPc();
+    if (armada === null) throw sinConexionAndroid();
     return { datos: armada, fuente: 'copia', copia_at: c.generado_at, con_cambios_pendientes: pendientes.length > 0 };
   }
 
@@ -193,7 +196,8 @@ export function crearTransporteAndroid(): Transporte {
   }
 
   async function peticion(metodo: string, ruta: string, cuerpo: unknown): Promise<unknown> {
-    if (!conectado()) throw necesitaPc();
+    const controlNativo = metodo === 'POST' && (ruta === '/api/native/connect' || ruta === '/api/native/logout' || ruta === '/api/native/migrate');
+    if (!controlNativo && !conectado()) throw sinConexionAndroid();
     const p = puenteObligatorio();
     const id = nuevoIdPedido();
     const respuesta = await new Promise<{ status: number; cuerpo: string } | null>((resolve) => {
@@ -210,14 +214,14 @@ export function crearTransporteAndroid(): Transporte {
         (d) => (d['id'] === id && typeof d['status'] === 'number' ? { status: d['status'], cuerpo: typeof d['cuerpo'] === 'string' ? d['cuerpo'] : '' } : null),
         fin,
       );
-      const t = setTimeout(() => fin(null), TOPE_PETICION_MS);
+      const t = setTimeout(() => fin(null), ruta === '/api/native/migrate' ? 90_000 : TOPE_PETICION_MS);
       try {
         p.peticion(metodo, ruta, cuerpo === undefined ? '' : JSON.stringify(cuerpo), id);
       } catch {
         fin(null);
       }
     });
-    if (!respuesta || respuesta.status === 0) throw new ErrorHub('red', TEXTO_RED_ANDROID, 0);
+    if (!respuesta || respuesta.status === 0) throw new ErrorHub('red', textoRedAndroid(), 0);
     if (respuesta.status >= 200 && respuesta.status < 300) {
       if (respuesta.cuerpo === '') return null;
       try {
@@ -229,7 +233,10 @@ export function crearTransporteAndroid(): Transporte {
     }
     const error = errorDesdeCuerpo(respuesta.status, respuesta.cuerpo);
     // 503 de la capa nativa sin conexión con la PC.
-    if (respuesta.status === 503 && (error.codigo === 'error_interno' || error.codigo === 'sin_internet')) throw necesitaPc();
+    if (respuesta.status === 503 && (error.codigo === 'error_interno' || error.codigo === 'sin_internet')) {
+      if (controlNativo) throw error;
+      throw sinConexionAndroid();
+    }
     throw error;
   }
 
@@ -288,7 +295,7 @@ export function crearTransporteAndroid(): Transporte {
 
     async leer<K extends ClaveConsulta>(clave: K, params: ParamsDe<K>): Promise<Lectura> {
       // rev. 5 · /api/display/* es solo de la ventana de Windows (por la LAN es 404): ni se intenta.
-      if (clave === 'display') throw soloEnPc();
+      if (clave === 'display' && !esNube()) throw soloEnPc();
       const pendientes = leerPendientes();
       const { resp, sinConexion } = await getHub(urlDe(rutaDeConsulta(clave, params)));
       if (!resp || sinConexion) return desdeCopia(clave, params, pendientes);
@@ -297,7 +304,7 @@ export function crearTransporteAndroid(): Transporte {
       try {
         datos = await resp.json();
       } catch {
-        throw new ErrorHub('error_interno', 'Tu PC respondió algo que no esperábamos. Inténtalo de nuevo.', resp.status);
+        throw new ErrorHub('error_interno', 'Corte respondió algo que no esperábamos. Inténtalo de nuevo.', resp.status);
       }
       const desdeArchivo = resp.headers.get('X-CH-Fuente') === 'copia';
       const copiaAtCabecera = Number(resp.headers.get('X-CH-Copia-At'));
@@ -325,16 +332,16 @@ export function crearTransporteAndroid(): Transporte {
       // Los GET que no son consultas son de hub.* (portapapeles, emparejar, firewall, exportar): rutas solo locales
       // (§5) que en Android fallan con solo_en_pc sin salir a la red (firma de AccionesHub). Solo el estado de la
       // sincronización se consulta por la LAN.
-      if (ruta !== '/api/sync/estado') throw soloEnPc();
+      if (ruta !== '/api/sync/estado' && !(esNube() && ruta.startsWith('/api/') && !ruta.startsWith('/api/native/'))) throw soloEnPc();
       const { resp, sinConexion } = await getHub(ruta);
-      if (!resp || sinConexion) throw necesitaPc();
+      if (!resp || sinConexion) throw sinConexionAndroid();
       if (!resp.ok) throw await errorDesdeRespuesta(resp);
       const v: unknown = await resp.json();
       return v;
     },
 
     async pedir(metodo: MetodoMutacion, ruta: string, cuerpo?: unknown): Promise<unknown> {
-      const permitida = metodo === 'POST' && (ruta === '/api/sync' || /^\/api\/plantillas\/[^/]+\/restaurar$/.test(ruta));
+      const permitida = (esNube() && ruta.startsWith('/api/') && !ruta.startsWith('/api/native/')) || (metodo === 'POST' && (ruta === '/api/sync' || ruta === '/api/native/connect' || ruta === '/api/native/logout' || ruta === '/api/native/migrate' || /^\/api\/plantillas\/[^/]+\/restaurar$/.test(ruta)));
       if (!permitida) throw soloEnPc();
       return peticion(metodo, ruta, cuerpo);
     },

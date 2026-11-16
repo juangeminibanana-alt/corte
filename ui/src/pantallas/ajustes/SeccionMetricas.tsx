@@ -26,7 +26,7 @@ import { Aviso, CargandoGrupo, Dato, ErrorCarga, Fila, Grupo, ListaChequeo, Secc
 import { T } from './textos';
 import css from './ajustes.module.css';
 import { cx } from './clases';
-import { abrirAutorizacionNube, esNube } from '../../nube/entorno';
+import { abrirAutorizacionNube, esNube, origenNube } from '../../nube/entorno';
 
 const M = T.metricas;
 
@@ -148,7 +148,7 @@ export function FormularioApp(p: { alGuardado: () => void; autoFoco?: boolean; p
 /** Pasos para crear la app en TikTok for Developers (plegados), con la dirección de regreso copiable. */
 function ComoCrear(): ReactElement {
   const toast = useToast();
-  const redirect = esNube() ? `${window.location.origin}/oauth/tiktok` : M.redirect;
+  const redirect = esNube() ? `${origenNube()}/oauth/tiktok` : M.redirect;
   const pasos = esNube() ? [
     'Crea o configura tu app en TikTok for Developers y activa Login Kit para web.',
     'Agrega los permisos user.info.basic, user.info.profile, user.info.stats y video.list.',

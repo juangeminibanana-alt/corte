@@ -13,7 +13,8 @@ import { Aviso, Dato, Grupo, Seccion } from './piezas';
 import { T } from './textos';
 import css from './ajustes.module.css';
 import { cx } from './clases';
-import { esNube } from '../../nube/entorno';
+import { esClienteNativo, esNube } from '../../nube/entorno';
+import { DispositivoNativo } from './DispositivoNativo';
 
 /** Logotipo: ícono C con el corte a 45° + «corte» (02 §2.2). Colores de tokens. */
 export function Logotipo(p: { tamano?: number }): ReactElement {
@@ -78,7 +79,7 @@ export function SeccionAcerca(): ReactElement {
 
       <Grupo titulo={T.acerca.grupoTecnico}>
         <Dato etiqueta={T.acerca.versionEtiqueta} valor={version} mono />
-        <Dato etiqueta={T.acerca.plataforma} valor={esNube() ? 'Web' : T.acerca.plataformas[plataforma] ?? plataforma} />
+        <Dato etiqueta={T.acerca.plataforma} valor={esNube() && !esClienteNativo() ? 'Web' : T.acerca.plataformas[plataforma] ?? plataforma} />
         {!esNube() && servidor ? <Dato etiqueta={T.acerca.puerto} valor={`127.0.0.1:${servidor.puerto_ui}`} mono /> : null}
       </Grupo>
       {!esNube() && servidor?.puerto_respaldo ? (
@@ -87,6 +88,7 @@ export function SeccionAcerca(): ReactElement {
         </Aviso>
       ) : null}
 
+      {esClienteNativo() ? <DispositivoNativo /> : null}
       <Grupo titulo={T.acerca.licencias}>
         {lic.tipo === 'cargando' ? (
           <p className={cx(css.vacioGrupo)}>{T.acerca.licenciasCargando}</p>

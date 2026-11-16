@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import atexit
 import collections
+import gzip
 import hashlib
 import hmac
 import json
@@ -19,7 +20,7 @@ import time
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from flask import Flask, Response, g, jsonify, redirect, request, send_file, session, stream_with_context
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -35,6 +36,7 @@ from creatorhub.api.sse import formatear
 from creatorhub.errores import ErrorDominio
 from creatorhub.interfaces import CTX_UI, OpcionesHub
 from creatorhub.tiktok_dev.servicio import pagina_html
+from cloud.native_auth import BEARER_RE, NativeAuth, NativeAuthError
 
 
 @dataclass(frozen=True)
@@ -129,6 +131,36 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
     streams = threading.BoundedSemaphore(8)
     auth_version = hashlib.sha256(settings.password_hash.encode('utf-8')).hexdigest()
 
+    def native_owner(uid: str, email: str, auth_time: int) -> dict[str, Any] | None:
+        if settings.auth_provider != 'firebase':
+            return None
+        try:
+            user = firebase.auth.get_user(uid, app=firebase.app)
+        except Exception as exc:
+            not_found = getattr(firebase.auth, 'UserNotFoundError', None)
+            if isinstance(not_found, type) and isinstance(exc, not_found):
+                return None
+            # A temporary provider outage must not look like a revoked device:
+            # clients keep their encrypted credential and retry on 503.
+            raise NativeAuthError('identidad_no_disponible',
+                                  'No pudimos comprobar tu cuenta. Conserva la conexión y vuelve a intentarlo.', 503) from None
+        try:
+            if (user.disabled or not user.email_verified or not isinstance(user.email, str)
+                    or user.email.lower() != email.lower()
+                    or user.tokens_valid_after_timestamp / 1000 > auth_time
+                    or not any(p.provider_id == 'google.com' for p in user.provider_data)):
+                return None
+            claims = {'uid': uid, 'sub': uid, 'email': user.email, 'email_verified': True,
+                      'auth_time': auth_time, 'firebase': {'sign_in_provider': 'google.com'}}
+            return claims if firebase.allowed(claims) else None
+        except Exception:
+            # Malformed identity records fail closed, without upstream details.
+            return None
+
+    native = NativeAuth(str(Path(settings.data_dir) / 'native.sqlite'), settings.session_secret,
+                        settings.public_url, native_owner) if settings.auth_provider == 'firebase' else None
+    app.extensions['corte_native'] = native
+
     def authenticated() -> bool:
         if settings.auth_provider == 'firebase':
             if not hasattr(g, 'firebase_claims'):
@@ -144,6 +176,8 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
     @app.before_request
     def protect() -> Any:
         request.max_content_length = 20 * 1024 * 1024 if request.path == '/api/cloud/import' else 256 * 1024
+        if request.path.startswith('/api/native/'):
+            request.max_content_length = 4096
         # Private readiness checks use HTTP to the backend with the configured domain Host.
         # This endpoint exposes only readiness; private API routes still require HTTPS/auth.
         if request.path == '/api/health' and request.method in ('GET', 'HEAD'):
@@ -152,15 +186,103 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
             return error('origen_invalido', 'Esta dirección no corresponde a Corte.', 421)
         if not settings.allow_http and not request.is_secure:
             return error('https_requerido', 'Abre Corte con su dirección HTTPS.', 400)
+        g.native_actor = None
+        authorization = request.headers.get('Authorization')
+        if authorization:
+            match = BEARER_RE.fullmatch(authorization)
+            actor = native.authenticate(match[1]) if match and native else None
+            if actor is None:
+                return error('sesion_nativa_invalida', 'Vuelve a conectar esta app con tu cuenta de Corte.', 401)
+            if (request.path in ('/api/cloud/login', '/api/cloud/logout', '/api/cloud/session', '/api/cloud/config')
+                    or request.path.startswith('/api/native/') and request.path not in
+                    ('/api/native/session', '/api/native/devices/self/revoke')):
+                return error('solo_navegador', 'Administra las autorizaciones desde tu navegador.', 403)
+            g.native_actor, g.firebase_claims = actor, actor['claims']
         if request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
             if request.headers.get('Origin') != settings.public_url or request.headers.get('X-CH-Hub') != '1':
                 return error('origen_invalido', 'La solicitud debe venir de Corte.', 403)
             if request.data and request.mimetype != 'application/json':
                 return error('formato_invalido', 'Envía los datos en formato JSON.', 415)
-        public_paths = ('/api/cloud/session', '/api/cloud/config', '/api/cloud/login', '/api/health')
+        public_paths = ('/api/cloud/session', '/api/cloud/config', '/api/cloud/login', '/api/health',
+                        '/api/native/auth/start', '/api/native/auth/poll')
         if (request.path.startswith(('/api/', '/img/', '/oauth/')) and request.path not in public_paths
                 and not authenticated()):
+            if (native and request.method == 'GET' and request.path in ('/oauth/shop', '/oauth/tiktok')
+                    and len(request.args) <= 16 and len(request.args.getlist('state')) == 1):
+                claims = native.callback_owner(request.args.get('state', ''), request.path)
+                if claims is not None:
+                    g.firebase_claims = claims
+                    return None
             return error('sesion_requerida', 'Inicia sesión para continuar.', 401)
+
+    @app.errorhandler(NativeAuthError)
+    def native_error(exc: NativeAuthError) -> Any:
+        response, status = error(exc.code, exc.message, exc.status)
+        if exc.retry_after:
+            response.headers['Retry-After'] = str(exc.retry_after)
+        return response, status
+
+    def require_native_service() -> NativeAuth:
+        if native is None:
+            raise NativeAuthError('no_disponible', 'El acceso de dispositivos requiere Google en Corte Cloud.', 409)
+        return native
+
+    @app.post('/api/native/auth/start')
+    def native_start() -> Any:
+        service = require_native_service()
+        service.limit('start', request.remote_addr or 'unknown')
+        return jsonify(service.start(request.get_json()))
+
+    @app.post('/api/native/auth/poll')
+    def native_poll() -> Any:
+        service = require_native_service()
+        service.limit('poll', request.remote_addr or 'unknown')
+        result, status = service.poll(request.get_json())
+        return jsonify(result), status
+
+    @app.get('/api/native/auth/request')
+    def native_request() -> Any:
+        service = require_native_service()
+        service.limit('owner', request.remote_addr or 'unknown')
+        return jsonify(service.describe(request.args.get('codigo')))
+
+    @app.post('/api/native/auth/approve')
+    @app.post('/api/native/auth/deny')
+    def native_decide() -> Any:
+        service = require_native_service()
+        service.limit('owner', request.remote_addr or 'unknown')
+        return jsonify(service.decide(request.get_json(), g.firebase_claims, request.path.endswith('/approve')))
+
+    @app.get('/api/native/session')
+    def native_session() -> Any:
+        actor = g.native_actor
+        if actor is None:
+            return error('sesion_nativa_requerida', 'Abre este acceso desde la app de Corte.', 401)
+        # Native broker uses the provider's stable identity to guard optional
+        # legacy-data migration. It must never forward this identity to JS.
+        stored = hub.boveda.leer()
+        account = hub.auth.cuenta()
+        identity = stored.get('open_id') if isinstance(stored, dict) else None
+        username = account.get('username') if isinstance(account, dict) else None
+        return jsonify(authenticated=True, device_id=actor['device_id'], expires_at=actor['expires_at'],
+                       owner={'uid': actor['claims']['uid'], 'email': actor['claims']['email']},
+                       **({'tiktok_open_id': identity} if isinstance(identity, str) and identity else {}),
+                       **({'username': username} if isinstance(username, str) and username else {}))
+
+    @app.get('/api/native/devices')
+    def native_devices() -> Any:
+        return jsonify(devices=require_native_service().devices(g.firebase_claims['uid']))
+
+    @app.post('/api/native/devices/<device_id>/revoke')
+    def native_revoke(device_id: str) -> Any:
+        service = require_native_service()
+        if device_id == 'self':
+            if not g.native_actor:
+                return error('sesion_nativa_requerida', 'Abre este acceso desde la app de Corte.', 401)
+            device_id = g.native_actor['device_id']
+        if not service.revoke(g.firebase_claims['uid'], device_id):
+            return error('no_encontrado', 'No encontramos ese dispositivo.', 404)
+        return jsonify(revoked=True)
 
     @app.after_request
     def headers(response: Response) -> Response:
@@ -424,8 +546,19 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
         if any(route == item or route.startswith(item + '/') for item in disabled):
             return error('no_disponible_en_nube', 'Esta función pertenece a la aplicación de escritorio.', 410)
         dispatcher = display if es_ruta_display(route) else hub.despachador
+        business_headers = {key: value for key, value in request.headers.items() if key.lower() != 'authorization'}
         result = dispatcher.despachar(request.method, route, request.query_string.decode('utf-8', errors='replace'),
-                                      dict(request.headers), request.get_data(), CTX_UI)
+                                      business_headers, request.get_data(), CTX_UI)
+        if (g.native_actor and request.method == 'POST' and result.status == 200
+                and route in ('/api/auth/link', '/api/display/conectar')):
+            try:
+                compressed = any(key.lower() == 'content-encoding' and value == 'gzip' for key, value in result.cabeceras)
+                payload = json.loads(gzip.decompress(result.cuerpo) if compressed else result.cuerpo)
+                state = parse_qs(urlsplit(payload['url']).query, max_num_fields=16)['state'][0]
+                native.register_callback(state, '/oauth/shop' if route == '/api/auth/link' else '/oauth/tiktok',
+                                         g.native_actor['device_id'])
+            except (ValueError, KeyError, TypeError):
+                return error('conexion_no_disponible', 'No pudimos preparar el regreso del navegador. Inténtalo de nuevo.', 503)
         response = send_file(result.archivo) if result.archivo else Response(result.cuerpo, status=result.status)
         response.status_code = result.status
         for name, value in result.cabeceras:

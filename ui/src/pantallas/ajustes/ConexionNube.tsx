@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactElement } from 'react';
 import { Boton, CampoTexto, Chip, Modal, useToast } from '@/componentes';
 import { ErrorHub, hub, invalidar, useConsulta, useSesion, useSync } from '@/datos';
-import { abrirAutorizacionNube } from '../../nube/entorno';
+import { abrirAutorizacionNube, origenNube } from '../../nube/entorno';
 import { Aviso, CargandoGrupo, Dato, ErrorCarga, Fila, Grupo, Seccion } from './piezas';
 import css from './ajustes.module.css';
 import {
@@ -61,7 +61,7 @@ export function FormularioIntegracionTikTokNube(p: { alGuardada: (datos: Integra
   const [errorSecret, setErrorSecret] = useState('');
   const [error, setError] = useState('');
   const enviando = useRef(false);
-  const callback = `${window.location.origin}/oauth/shop`;
+  const callback = `${origenNube()}/oauth/shop`;
 
   const guardar = async (): Promise<void> => {
     if (enviando.current) return;

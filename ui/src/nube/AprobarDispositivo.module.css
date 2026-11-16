@@ -1,0 +1,28 @@
+.fondo { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; color: var(--text-1); background: var(--surface-canvas, #f7f7f8); }
+.marca { margin-bottom: 28px; font-size: 30px; font-weight: 750; letter-spacing: -1px; }
+.panel { width: 100%; max-width: 500px; border: 1px solid var(--border-default); border-radius: 10px; padding: 36px; background: var(--surface-1); }
+.etiqueta { color: var(--text-2); font-size: 12px; font-weight: 650; letter-spacing: .8px; }
+.panel h1 { margin: 12px 0; font-size: 28px; line-height: 1.2; font-weight: 750; letter-spacing: -.8px; }
+.panel p { margin: 12px 0 0; font-size: 15px; color: var(--text-2); line-height: 1.6; }
+.formulario { display: flex; flex-direction: column; margin-top: 24px; gap: 8px; }
+.formulario label { font-size: 14px; font-weight: 600; }
+.formulario input { min-height: 48px; padding: 10px 14px; border: 1px solid var(--border-default); border-radius: 6px; color: var(--text-1); background: var(--surface-1); font-size: 20px; letter-spacing: 2px; }
+.ayuda { font-size: 13px; line-height: 1.5; color: var(--text-2); }
+.detalles { margin: 24px 0; padding: 8px 0; border-block: 1px solid var(--border-default); }
+.detalles > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 16px; padding: 10px 0; font-size: 14px; line-height: 1.5; }
+.detalles dt { color: var(--text-2); }
+.detalles dd { margin: 0; overflow-wrap: anywhere; font-weight: 600; }
+.codigo { letter-spacing: 1.5px; }
+.panel p.aviso { font-size: 13px; }
+.acciones { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
+.principal, .secundario { display: flex; align-items: center; justify-content: center; min-height: 46px; padding: 11px 18px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.principal { color: #fff; background: #d81b43; border: 1px solid #d81b43; }
+.formulario .principal { margin-top: 12px; }
+.principal:hover { background: #bd1237; }
+.secundario { color: var(--text-1); background: var(--surface-1); border: 1px solid var(--border-default); }
+.secundario:hover { background: var(--surface-2); }
+.principal:disabled, .secundario:disabled { opacity: .65; cursor: wait; }
+.principal:focus-visible, .secundario:focus-visible, .formulario input:focus-visible, .volver:focus-visible { outline: 3px solid #ea7590; outline-offset: 3px; }
+.panel p.error { color: var(--danger-ink, #b71939); font-size: 14px; }
+.volver { padding: 12px; margin-top: 16px; min-height: 44px; color: var(--brand-ink); font-size: 14px; text-underline-offset: 3px; }
+@media (max-width: 520px) { .fondo { padding: 28px 20px; } .panel { padding: 28px 24px; } .panel h1 { font-size: 25px; } .detalles > div { grid-template-columns: 80px minmax(0, 1fr); gap: 12px; } }

@@ -6,8 +6,9 @@ import './estilos/shop.css';
 import { createRoot } from 'react-dom/client';
 import { App } from '@/raiz';
 import { AccesoNube } from './nube/AccesoNube';
+import { AprobarDispositivo } from './nube/AprobarDispositivo';
 
 const contenedor = document.getElementById('raiz');
 if (!contenedor) throw new Error('Falta el contenedor #raiz en index.html');
 
-createRoot(contenedor).render(<AccesoNube><App /></AccesoNube>);
+createRoot(contenedor).render(<AccesoNube>{window.location.pathname === '/conectar-dispositivo' ? <AprobarDispositivo /> : <App />}</AccesoNube>);
