@@ -101,6 +101,11 @@ class ServicioAuthReal:
         self._pp_cache: tuple[int, Json] | None = None       # (número de secuencia, respuesta)
         self._pp_pendiente: dict[str, Any] | None = None     # {'seq', 'code', 'state'}: solo en memoria
         self._cambio_pendiente: dict[str, Any] | None = None  # tokens de otra cuenta a la espera de confirmación
+        self.host_retorno = HOST_RETORNO
+        self.ruta_retorno: str | None = None
+        self.esquema_retorno = 'https'
+        self.puerto_retorno: int | None = 443
+        self.nube = False
 
     # ================================================================ utilidades
     def _ahora_tokens(self) -> int:
@@ -172,7 +177,7 @@ class ServicioAuthReal:
             fila = cx.leer_fila(c)
             importado_at = cx.meta_entero(c, 'legado_importado_at')
         origen = d.get('origen') or (fila or {}).get('origen')
-        if self.modo == 'real':
+        if self.modo == 'real' and not self.nube:
             ruta = importador_legado.ruta_por_omision(self._candidatos())
             disponible = os.path.isfile(ruta)
         else:
@@ -238,6 +243,8 @@ class ServicioAuthReal:
 
     def link(self, abrir_navegador: bool) -> Json:
         self._exigir_real()
+        if self.nube:
+            abrir_navegador = False
         d = self.boveda.leer()
         if not d.get('app_secret'):
             raise ErrorDominio('sin_credenciales', MSG_FALTA_CLAVE, http=409)
@@ -354,24 +361,26 @@ class ServicioAuthReal:
             _log.info('No se pudo vaciar el portapapeles (%s)', type(e).__name__)
 
     # ================================================================ canje
-    @staticmethod
-    def _analizar_entrada(texto: str) -> tuple[str, str | None]:
+    def _analizar_entrada(self, texto: str) -> tuple[str, str | None]:
         """(code, state | None) de la URL pegada o del code suelto. Lanza ErrorDominio con el texto de 01 §5.4."""
         t = texto.strip()
         if not t or len(t) > 4096:
             raise ErrorDominio('parametros_invalidos', MSG_NO_ES_URL, http=400)
-        parece_url = '://' in t or t.lower().startswith(HOST_RETORNO) or '?' in t or '=' in t
+        parece_url = '://' in t or t.lower().startswith(self.host_retorno) or '?' in t or '=' in t
         if not parece_url:
             if len(t) < 6 or any(ch not in _RE_CODE_SUELTO for ch in t):
                 raise ErrorDominio('parametros_invalidos', MSG_NO_ES_URL, http=400)
             return t, None
-        if t.lower().startswith(HOST_RETORNO):
+        if t.lower().startswith(self.host_retorno):
             t = 'https://' + t
         try:
             u = urllib.parse.urlsplit(t)
+            puerto = u.port
         except ValueError:
             raise ErrorDominio('parametros_invalidos', MSG_NO_ES_URL, http=400) from None
-        if u.scheme.lower() != 'https' or (u.hostname or '').lower() != HOST_RETORNO or u.username or u.password:
+        if (u.scheme.lower() != self.esquema_retorno or (u.hostname or '').lower() != self.host_retorno
+                or u.username or u.password or puerto not in (None, self.puerto_retorno)
+                or (self.ruta_retorno is not None and u.path != self.ruta_retorno)):
             raise ErrorDominio('parametros_invalidos', MSG_NO_ES_URL, http=400)
         q = urllib.parse.parse_qs(u.query)
         if q.get('error'):

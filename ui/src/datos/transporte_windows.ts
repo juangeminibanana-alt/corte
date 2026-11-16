@@ -11,6 +11,7 @@ import type * as C from '@/contrato';
 import type { ClaveConsulta, ParamsDe } from '@firmas/datos';
 import { ErrorHub, TEXTO_CONFLICTO, comoErrorHub, errorDeRed, errorDesdeRespuesta, esObjetoLocal } from './errores';
 import { rutaDeConsulta, urlDe } from './rutas';
+import { esNube, expirarSesionNube } from '../nube/entorno';
 import type { Lectura, MetodoMutacion, ResultadoOpTransporte, SumideroEventos, Transporte } from './transporte';
 
 const MAX_ETAGS = 200;
@@ -113,6 +114,7 @@ function esOpsResponse(v: unknown): v is C.OpsResponse {
 
 export function crearTransporteWindows(): Transporte {
   const etags = new Map<string, Guardado>();
+  let revisarNube: (() => void) | null = null;
 
   async function getJson(url: string): Promise<unknown> {
     const previo = etags.get(url);
@@ -125,6 +127,7 @@ export function crearTransporteWindows(): Transporte {
       throw errorDeRed();
     }
     if (resp.status === 304 && previo) return previo.cuerpo;
+    if (resp.status === 401 && esNube()) expirarSesionNube();
     if (!resp.ok) throw await errorDesdeRespuesta(resp);
     const cuerpo = await leerCuerpo(resp);
     const etag = resp.headers.get('ETag');
@@ -154,6 +157,7 @@ export function crearTransporteWindows(): Transporte {
     } catch {
       throw errorDeRed();
     }
+    if (resp.status === 401 && esNube()) expirarSesionNube();
     if (!resp.ok) throw await errorDesdeRespuesta(resp);
     return leerCuerpo(resp);
   }
@@ -220,6 +224,105 @@ export function crearTransporteWindows(): Transporte {
     },
 
     conectarEventos(sumidero: SumideroEventos): () => void {
+      if (esNube()) {
+        // Las peticiones cortas dejan al gateway escalar a cero entre lecturas.
+        // El escritorio conserva SSE; la web no mantiene una instancia ocupada al dejar la pestaña abierta.
+        let activo = true;
+        let temporizador: ReturnType<typeof setTimeout> | null = null;
+        let solicitud: AbortController | null = null;
+        let volverAhora = false;
+        let espera = 15_000;
+        let revision: string | null = null;
+        let firmaSync: string | null = null;
+        let ultimoSync: C.SyncEstado | null = null;
+
+        const limpiarTemporizador = (): void => {
+          if (temporizador !== null) clearTimeout(temporizador);
+          temporizador = null;
+        };
+        const programar = (demora: number): void => {
+          limpiarTemporizador();
+          if (!activo || document.hidden) return;
+          temporizador = setTimeout(() => {
+            temporizador = null;
+            void consultarRevision();
+          }, demora);
+        };
+        const consultarRevision = async (): Promise<void> => {
+          if (!activo || document.hidden) return;
+          if (solicitud !== null) { volverAhora = true; return; }
+          const controlador = new AbortController();
+          solicitud = controlador;
+          const limite = setTimeout(() => controlador.abort(), 10_000);
+          try {
+            const resp = await fetch('/api/cloud/revision', {
+              method: 'GET', credentials: 'same-origin', cache: 'no-store',
+              headers: { Accept: 'application/json' }, signal: controlador.signal,
+            });
+            if (!activo || document.hidden || controlador.signal.aborted) return;
+            if (resp.status === 401) {
+              activo = false;
+              expirarSesionNube();
+              return;
+            }
+            if (!resp.ok) throw new Error('revision_no_disponible');
+            const datos: unknown = await resp.json();
+            if (!activo || document.hidden || controlador.signal.aborted) return;
+            if (datos === null || typeof datos !== 'object' || Array.isArray(datos)
+              || !('revision' in datos) || typeof datos.revision !== 'string' || !datos.revision
+              || !('sync' in datos) || datos.sync === null || typeof datos.sync !== 'object'
+              || !('en_curso' in datos.sync) || typeof datos.sync.en_curso !== 'boolean'
+              || !('progreso' in datos.sync) || typeof datos.sync.progreso !== 'number' || !Number.isFinite(datos.sync.progreso)
+              || !('texto' in datos.sync) || typeof datos.sync.texto !== 'string'
+              || !('pasos' in datos.sync) || !Array.isArray(datos.sync.pasos)) throw new Error('revision_invalida');
+            const estado = datos.sync as C.SyncEstado;
+            espera = estado.en_curso ? 3_000 : 15_000;
+            if (revision !== null && revision !== datos.revision) sumidero.invalidar([]);
+            revision = datos.revision;
+            const firma = JSON.stringify(estado);
+            if (firmaSync !== firma) {
+              const termino = ultimoSync !== null && !estado.en_curso
+                && (ultimoSync.en_curso || (estado.sync_id !== null && estado.sync_id !== ultimoSync.sync_id));
+              sumidero.evento({ tipo: termino ? 'sync.fin' : 'sync.progreso', estado });
+              firmaSync = firma;
+              ultimoSync = estado;
+            }
+          } catch {
+            // Red o servidor temporalmente indisponible: conserva la copia visible y reintenta sin errores sin manejar.
+            espera = 15_000;
+          } finally {
+            clearTimeout(limite);
+            if (solicitud === controlador) solicitud = null;
+            const demora = volverAhora ? 0 : espera;
+            volverAhora = false;
+            programar(demora);
+          }
+        };
+        const despertar = (): void => {
+          espera = 3_000;
+          if (solicitud !== null) volverAhora = true;
+          else programar(0);
+        };
+        const alVisibilidad = (): void => {
+          if (document.hidden) {
+            limpiarTemporizador();
+            solicitud?.abort();
+          } else {
+            sumidero.invalidar([]);
+            despertar();
+          }
+        };
+        revisarNube = despertar;
+        document.addEventListener('visibilitychange', alVisibilidad);
+        programar(0);
+        return () => {
+          activo = false;
+          limpiarTemporizador();
+          solicitud?.abort();
+          document.removeEventListener('visibilitychange', alVisibilidad);
+          if (revisarNube === despertar) revisarNube = null;
+        };
+      }
       if (typeof EventSource === 'undefined') return () => undefined;
       const fuente = new EventSource('/api/events');
       let huboCorte = false;
@@ -252,6 +355,7 @@ export function crearTransporteWindows(): Transporte {
     },
 
     vigilarSync(): void {
+      if (esNube()) revisarNube?.();
       /* Windows recibe sync.progreso / sync.fin por SSE. */
     },
   };

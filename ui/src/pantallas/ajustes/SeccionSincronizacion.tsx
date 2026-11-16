@@ -18,6 +18,7 @@ import { Aviso, CargandoGrupo, Dato, ErrorCarga, FilaLibre, Grupo, Seccion } fro
 import { T } from './textos';
 import css from './ajustes.module.css';
 import { cx } from './clases';
+import { esNube } from '../../nube/entorno';
 
 const OPCIONES_INTERVALO: { valor: ValorIntervalo; etiqueta: string }[] = [
   { valor: '15', etiqueta: T.sync.opciones['15'] },
@@ -277,7 +278,7 @@ function SincronizacionWindows(): ReactElement {
             />
             {intervalo !== '30' ? <span className={cx(css.notaChica)}>{T.sync.recomendado}</span> : null}
           </FilaLibre>
-          <FilaLibre>
+          {!esNube() ? <><FilaLibre>
             <Interruptor
               etiqueta={T.sync.segundoPlano}
               descripcion={a.segundo_plano === null ? T.sync.segundoPlanoSinElegir : T.sync.segundoPlanoDesc}
@@ -294,7 +295,7 @@ function SincronizacionWindows(): ReactElement {
               deshabilitado={a.iniciar_con_windows_bloqueado || guardando === 'iniciar_con_windows'}
               alCambiar={(v) => void cambiar({ iniciar_con_windows: v, ...(v && a.segundo_plano !== true ? { segundo_plano: true } : {}) }, 'iniciar_con_windows')}
             />
-          </FilaLibre>
+          </FilaLibre></> : null}
         </Grupo>
       )}
 

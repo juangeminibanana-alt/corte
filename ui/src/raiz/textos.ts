@@ -16,7 +16,7 @@ export const T = {
   videos: 'Videos',
   productos: 'Productos',
   mas: 'Más',
-  ajustes: 'Conexión y ajustes',
+  ajustes: 'Configuración',
   marca: 'Corte',
   demo: 'Datos de demostración',
   demoCorto: 'Demo',

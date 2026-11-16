@@ -26,6 +26,7 @@ import { Aviso, CargandoGrupo, Dato, ErrorCarga, Fila, Grupo, ListaChequeo, Secc
 import { T } from './textos';
 import css from './ajustes.module.css';
 import { cx } from './clases';
+import { abrirAutorizacionNube, esNube } from '../../nube/entorno';
 
 const M = T.metricas;
 
@@ -121,7 +122,7 @@ export function FormularioApp(p: { alGuardado: () => void; autoFoco?: boolean; p
           secreto.current = v;
         }}
         tipo="password"
-        ayuda={M.clientSecretAyuda}
+        ayuda={esNube() ? 'Se guarda cifrado en el servidor y nunca vuelve a mostrarse.' : M.clientSecretAyuda}
         error={errorSecreto}
         monoespaciado
         maximo={128}
@@ -147,6 +148,13 @@ export function FormularioApp(p: { alGuardado: () => void; autoFoco?: boolean; p
 /** Pasos para crear la app en TikTok for Developers (plegados), con la dirección de regreso copiable. */
 function ComoCrear(): ReactElement {
   const toast = useToast();
+  const redirect = esNube() ? `${window.location.origin}/oauth/tiktok` : M.redirect;
+  const pasos = esNube() ? [
+    'Crea o configura tu app en TikTok for Developers y activa Login Kit para web.',
+    'Agrega los permisos user.info.basic, user.info.profile, user.info.stats y video.list.',
+    'Registra exactamente la dirección HTTPS de regreso que aparece abajo.',
+    'Guarda el Client key y el Client secret de tu app en Corte.',
+  ] : M.pasos;
   return (
     <details className={cx(css.tecnicos)}>
       <summary className={cx(css.tecnicosResumen)}>
@@ -155,13 +163,13 @@ function ComoCrear(): ReactElement {
       </summary>
       <div className={cx(css.tecnicosCuerpo)}>
         <ol className={cx(css.pasosApp)}>
-          {M.pasos.map((x) => (
+          {pasos.map((x) => (
             <li key={x}>{x}</li>
           ))}
         </ol>
         <p className={cx(css.redirect)}>
-          <code className={cx(css.mono)}>{M.redirect}</code>
-          <BotonIcono icono="Copy" etiqueta={M.copiarRedirect} tamano="sm" alPulsar={() => void copiarTexto(M.redirect).then((ok) => ok && toast.mostrar({ texto: M.redirectCopiado, tono: 'ok' }))} />
+          <code className={cx(css.mono)}>{redirect}</code>
+          <BotonIcono icono="Copy" etiqueta={M.copiarRedirect} tamano="sm" alPulsar={() => void copiarTexto(redirect).then((ok) => ok && toast.mostrar({ texto: M.redirectCopiado, tono: 'ok' }))} />
         </p>
       </div>
     </details>
@@ -369,6 +377,7 @@ function SeccionWindows(): ReactElement {
     setNoAbrio(false);
     try {
       const r = await hub.displayConectar({});
+      if (esNube()) { abrirAutorizacionNube(r.url); return; }
       setIgnorarPendiente(false);
       setPendiente({ url: r.url, expira: r.expira_at });
       setAhora(ahoraS());

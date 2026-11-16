@@ -118,3 +118,36 @@
 .saltar:focus-visible {
   transform: none;
 }
+
+/* Barra superior compartida, con búsqueda funcional y acceso compacto. */
+.cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+  padding: 12px var(--content-pad-x);
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.espacio { font-size: 15px; font-weight: 650; color: var(--text-1); }
+.herramientas { display: flex; align-items: center; gap: 12px; }
+.buscar {
+  display: flex; align-items: center; gap: 10px;
+  width: 240px; min-height: 40px; padding: 8px 12px;
+  border: 1px solid var(--border-default); border-radius: 6px;
+  background: var(--surface-1); color: var(--text-2); font-size: 14px;
+}
+.buscar:hover { border-color: var(--border-control); }
+.buscar kbd { margin-left: auto; font-family: inherit; font-size: 12px; background: var(--surface-2); padding: 2px 5px; border-radius: 3px; }
+.salir { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 6px; color: var(--text-2); }
+.salir:hover { background: var(--surface-hover); }
+.marcaMovil { display: none; align-items: center; gap: 6px; color: var(--text-1); font-size: 22px; font-weight: 750; text-decoration: none; }
+@media (max-width: 599px) {
+  .marcaMovil { display: flex; }
+  .espacio { display: none; }
+  .buscar { width: 40px; padding: 0; justify-content: center; }
+  .buscar span, .buscar kbd { display: none; }
+  .cabecera { padding: 12px 16px; }
+  .inferior .contenido { padding-top: 24px; }
+}

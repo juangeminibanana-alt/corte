@@ -43,6 +43,7 @@ class OpcionesHub:
     fuente_demo: FuenteDemo = 'sinteticos'   # 'fixtures_reales' (lee research/datos-reales) → ValueError si sys.frozen
     sync_al_iniciar: bool = True        # False en --medir y --autoprueba
     retraso_sync_s: float = 5.0         # 60 con --inicio-windows y segundo plano
+    nube: bool = False                 # Web privada: sin shell, listener local ni emparejamiento LAN.
 
 
 @dataclass(frozen=True)

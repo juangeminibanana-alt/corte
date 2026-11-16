@@ -17,6 +17,7 @@ import { cx } from '../app/clases';
 import { useAhora } from './datosMarco';
 import { vistaIndicador } from './indicador';
 import { T } from './textos';
+import { esNube } from '../nube/entorno';
 import css from './IndicadorSync.module.css';
 
 function textoCelular(n: number): string {
@@ -90,7 +91,7 @@ export function IndicadorSync(p: { variante: 'lateral' | 'riel' | 'franja'; andr
             </span>
           </button>,
         )}
-        {p.android ? null : (
+        {p.android || esNube() ? null : (
           <button type="button" className={css.botonRiel} onClick={() => navegar('/ajustes/celular')} aria-label={textoCelular(dispositivos)} title={textoCelular(dispositivos)}>
             <Icono nombre="Smartphone" tamano={20} />
             {dispositivos > 0 ? <span className={css.marcaCelular} aria-hidden="true" /> : null}
@@ -121,10 +122,10 @@ export function IndicadorSync(p: { variante: 'lateral' | 'riel' | 'franja'; andr
           </span>
         </>
       ) : null}
-      <button type="button" className={css.filaCelular} onClick={() => navegar('/ajustes/celular')} aria-label={`${textoCelular(dispositivos)}. ${dispositivos > 0 ? T.verCelulares : T.emparejarCelular}`}>
+      {esNube() ? null : <button type="button" className={css.filaCelular} onClick={() => navegar('/ajustes/celular')} aria-label={`${textoCelular(dispositivos)}. ${dispositivos > 0 ? T.verCelulares : T.emparejarCelular}`}>
         <Icono nombre="Smartphone" tamano={14} />
         <span>{textoCelular(dispositivos)}</span>
-      </button>
+      </button>}
     </div>,
   );
 }

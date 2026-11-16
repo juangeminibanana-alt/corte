@@ -22,6 +22,8 @@ import { ListaChequeo } from './piezas';
 import { T } from './textos';
 import css from './ajustes.module.css';
 import { cx } from './clases';
+import { esNube } from '../../nube/entorno';
+import { ConectarTikTokNube } from './ConexionNube';
 
 /** Cada cuánto se revisa el portapapeles mientras el diálogo está en el paso 2 (03 §2.2). */
 export const INTERVALO_PORTAPAPELES_MS = 1500;
@@ -543,7 +545,7 @@ export function DialogoReautorizar(): ReactElement | null {
     // Diálogo de 560 (01 §5.4 A). Su contenido es corto en los 3 pasos, así que en compacta tampoco va a pantalla
     // completa (eso queda para los flujos largos, como Armar mi plan): se ve como tarjeta centrada sin hueco abajo.
     <Modal abierto titulo={soloLectura ? T.reauth.android : reautorizar ? T.reauth.tituloReautorizar : T.reauth.titulo} ancho={560} alCerrar={cerrar}>
-      {soloLectura ? <ContenidoAndroid alCerrar={cerrar} /> : <ContenidoReautorizar alCerrar={cerrar} />}
+      {esNube() ? <ConectarTikTokNube alConectada={cerrar} /> : soloLectura ? <ContenidoAndroid alCerrar={cerrar} /> : <ContenidoReautorizar alCerrar={cerrar} />}
     </Modal>
   );
 }

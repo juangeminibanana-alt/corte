@@ -74,7 +74,7 @@ export function calcularAtributos(e: EntradaAtributos): AtributosHtml {
   let tema: AtributosHtml['data-theme'];
   let guardar: AtributosHtml['guardar'];
   if (e.preferencia === null) {
-    tema = e.temaGuardado === 'dark' || e.temaGuardado === 'light' || e.temaGuardado === 'system' ? e.temaGuardado : 'system';
+    tema = e.temaGuardado === 'dark' || e.temaGuardado === 'light' || e.temaGuardado === 'system' ? e.temaGuardado : 'light';
     guardar = null;
   } else if (e.preferencia === 'sistema') {
     tema = temaDeSistema(e.sistemaOscuro);
@@ -164,8 +164,8 @@ export function useEntradaAtributos(): EntradaAtributos {
   let preferencia: PreferenciaTema | null = null;
   const temaPedido = PREFERENCIAS.find((t) => t === temaDev);
   if (temaPedido) preferencia = temaPedido;
-  else if (preferencias.datos) preferencia = preferencias.datos.tema ?? 'sistema';
-  else if (preferencias.error) preferencia = 'sistema';
+  else if (preferencias.datos) preferencia = preferencias.datos.tema ?? 'claro';
+  else if (preferencias.error) preferencia = 'claro';
 
   const densidadPedida = DENSIDADES.find((d) => d === densidadDev);
   const densidad: Densidad = plataforma === 'android' ? 'tactil' : (densidadPedida ?? ajustes.datos?.densidad ?? 'comoda');

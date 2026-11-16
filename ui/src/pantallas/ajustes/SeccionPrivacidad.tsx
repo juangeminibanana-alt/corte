@@ -8,18 +8,20 @@
  * - [Borrar datos de TikTok de este equipo] y [Borrar todo y desconectar] (activo solo al escribir BORRAR).
  * - Android: aviso de la copia y [Borrar la copia de este celular].
  */
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 import type * as C from '@/contrato';
 import { navegar, useCapacidades, usePlataforma } from '@/app';
 import { BarraApilada, Boton, CampoTexto, Modal, useToast } from '@/componentes';
 import { hoyLocal } from '@/dominio';
-import { ErrorHub, hub, useConexionPc, useConsulta } from '@/datos';
+import { ErrorHub, hub, invalidar, useConexionPc, useConsulta } from '@/datos';
 import { elegirArchivo, guardarArchivo, olvidarPc } from '@/plataforma';
 import { nombreExportacion, rutaAmigable, tamano } from './logica';
 import { Aviso, CargandoGrupo, ErrorCarga, Fila, Grupo, Seccion } from './piezas';
 import { T } from './textos';
 import css from './ajustes.module.css';
 import { cx } from './clases';
+import { esNube, expirarSesionNube } from '../../nube/entorno';
+import { RespaldoNube } from './RespaldoNube';
 
 function mensaje(e: unknown): string {
   return e instanceof ErrorHub ? e.mensaje : e instanceof Error ? e.message : T.errorGenerico;
@@ -147,6 +149,7 @@ export function SeccionPrivacidad(): ReactElement {
 }
 
 function PrivacidadWindows(): ReactElement {
+  const archivo = useRef<HTMLInputElement>(null);
   const cap = useCapacidades();
   const toast = useToast();
   const [confirmar, setConfirmar] = useState<Confirmar>(null);
@@ -168,6 +171,7 @@ function PrivacidadWindows(): ReactElement {
   };
 
   const importar = async (): Promise<void> => {
+    if (esNube()) { archivo.current?.click(); return; }
     const ruta = await elegirArchivo(T.datos.tituloElegir, ['json']);
     if (!ruta) return;
     setTrabajando('importar');
@@ -181,6 +185,21 @@ function PrivacidadWindows(): ReactElement {
     } finally {
       setTrabajando(null);
     }
+  };
+
+  const importarWeb = async (elegido: File | undefined): Promise<void> => {
+    if (!elegido) return;
+    if (elegido.size > 20 * 1024 * 1024) { toast.mostrar({ texto: 'El archivo supera el límite de 20 MB.', tono: 'error' }); return; }
+    setTrabajando('importar');
+    try {
+      const datos: unknown = JSON.parse(await elegido.text());
+      const r = await fetch('/api/cloud/import', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-CH-Hub': '1', Accept: 'application/json' }, body: JSON.stringify(datos) });
+      if (r.status === 401) expirarSesionNube();
+      if (!r.ok) throw new Error('El archivo no pudo importarse. Comprueba que sea una exportación de Corte.');
+      invalidar();
+      toast.mostrar({ texto: 'Importamos tu archivo de Corte.', tono: 'ok' });
+    } catch (e) { toast.mostrar({ texto: e instanceof SyntaxError ? 'El archivo no contiene un JSON válido.' : mensaje(e), tono: 'error' }); }
+    finally { setTrabajando(null); if (archivo.current) archivo.current.value = ''; }
   };
 
   const borrar = async (alcance: C.BorrarDatosRequest['alcance']): Promise<void> => {
@@ -206,6 +225,7 @@ function PrivacidadWindows(): ReactElement {
 
   return (
     <Seccion titulo={T.secciones.datos.titulo} id="datos">
+      {esNube() ? <input ref={archivo} type="file" accept=".json,application/json" hidden onChange={(e) => void importarWeb(e.target.files?.[0])} /> : null}
       <div className={cx(css.privacidad)}>
         <p className={cx(css.privacidadTexto)} data-texto-c10="">
           {T.datos.privacidad}
@@ -227,7 +247,7 @@ function PrivacidadWindows(): ReactElement {
         </Fila>
       </Grupo>
 
-      <ArchivoAnterior />
+      {esNube() ? <RespaldoNube /> : <ArchivoAnterior />}
 
       <Grupo titulo={T.datos.grupoBorrar} className={cx(css.grupoPeligro)}>
         <Fila etiqueta={T.datos.borrarTiktok} descripcion={T.datos.borrarTiktokTexto}>

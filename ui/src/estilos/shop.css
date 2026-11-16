@@ -1,0 +1,97 @@
+/* Corte · sistema inspirado en TikTok Shop. Coral oscuro para contraste AA. */
+:root, :root[data-theme="light"], :root[data-theme="system"] {
+  color-scheme: light;
+  /* Compatibilidad con las miniaturas de tema y las marcas de escritorio. */
+  --grafito-50: #111216; --grafito-100: #1b1c23; --grafito-150: #22232c;
+  --grafito-300: #3a3c48; --grafito-400: #525563; --grafito-900: #dedee5;
+  --grafito-925: #ededf0; --grafito-950: #f6f7f8; --grafito-1000: #ffffff;
+  --lima-400: #fe2c55;
+  --bg-canvas: #f6f7f8; --bg-sunken: #ffffff;
+  --surface-1: #ffffff; --surface-2: #f8f8fa; --surface-3: #f0f1f3; --surface-4: #ffffff;
+  --surface-hover: #f4f4f6; --surface-pressed: #ededf0; --surface-selected: #fff0f3;
+  --surface-inverse: #161823;
+  --text-1: #161823; --text-2: #50515b; --text-3: #696a75; --text-disabled: #848590;
+  --text-on-brand: #ffffff; --text-link: #c51b40;
+  --border-subtle: #e9e9ee; --border-default: #dedee5; --border-strong: #c9c9d2;
+  --border-control: #9697a3; --border-focus: #d81b43;
+  --focus-ring: 0 0 0 2px var(--surface-1), 0 0 0 4px #d81b43;
+  --brand: #fe2c55; --brand-hover: #ef1743; --brand-pressed: #c51b40;
+  --brand-ink: #c51b40; --brand-subtle: #ffe8ee; --brand-subtle-border: #f5becb;
+  --btn-primary-bg: #d81b43; --btn-primary-bg-hover: #bf1539;
+  --btn-primary-bg-pressed: #a51130; --btn-primary-fg: #ffffff;
+  --disabled-bg: #f0f1f3; --disabled-fg: #777985; --disabled-border: #dedee5;
+  --nav-indicator: #d81b43; --nav-indicator-edge: transparent;
+  --progress-fill: #d81b43; --progress-edge: transparent; --progress-track: #ededf0;
+  --seg-thumb-bg: #ffffff;
+  --stage-planeada: #f7b5c5; --stage-listo: #eb7e98;
+  --stage-programada: #d84669; --stage-publicada: #ad1839;
+  --stage-on-light: #161823; --stage-on-dark: #ffffff; --stage-track: #ededf0;
+  --overlay-scrim: #16182366;
+  --glass-bg: #ffffff; --glass-bg-solid: #ffffff; --glass-border: #e9e9ee;
+  --glass-blur: 0px; --glass-saturate: 100%;
+  --ok-fg: #237346; --ok-bg: #edf8f1; --ok-border: #bfdfcc;
+  --ok-solid: #237346; --ok-on-solid: #ffffff;
+  --warn-fg: #805600; --warn-bg: #fff7e6; --warn-border: #e8d5a2;
+  --warn-solid: #805600; --warn-on-solid: #ffffff;
+  --crit-fg: #bd2448; --crit-bg: #fff0f3; --crit-border: #f0bfcb;
+  --crit-solid: #bd2448; --crit-on-solid: #ffffff;
+  --info-fg: #086f77; --info-bg: #eaf9f9; --info-border: #b8dddd;
+  --info-solid: #086f77; --info-on-solid: #ffffff;
+  --neutral-fg: #50515b; --neutral-bg: #f2f3f5; --neutral-border: #dedee5;
+  --neutral-solid: #636571; --neutral-on-solid: #ffffff;
+  --elev-highlight: inset 0 0 0 0 transparent; --shadow-1: none;
+  --shadow-2: 0 4px 16px #1618230c; --shadow-3: 0 12px 36px #1618231a;
+  --shadow-4: 0 20px 65px #16182326;
+  --media-bg: #f0f1f3; --media-border: #e9e9ee; --media-veil: transparent;
+  --skeleton-a: #16182306; --skeleton-b: #1618230d;
+  --viz-mono: #696a75; --viz-1: #d81b43; --viz-2: #087f8c; --viz-3: #6b5abb;
+  --viz-4: #bd7d08; --viz-5: #cf608c; --viz-6: #317354; --viz-7: #327bb5; --viz-8: #814c32;
+  --viz-now: #d81b43; --viz-now-ring: #ffffff; --viz-grid: #1618230a;
+  --viz-axis: #16182324; --viz-label: #696a75; --viz-gap: #ffffff;
+  --viz-muted: #b9bac4; --viz-div-mid: #ededf0;
+  --viz-seq-1: #ffe8ee; --viz-seq-2: #f7b5c5; --viz-seq-3: #eb7e98;
+  --viz-seq-4: #d84669; --viz-seq-5: #ad1839;
+  --av-iris-bg: #eeecf8; --av-iris-fg: #51447b;
+  --av-coral-bg: #ffe8ee; --av-coral-fg: #a91c3c;
+  --av-aqua-bg: #e3f7f7; --av-aqua-fg: #086f77;
+  --av-ambar-bg: #fff3dc; --av-ambar-fg: #805600;
+  --av-rosa-bg: #fbeaf2; --av-rosa-fg: #97375f;
+  --av-pizarra-bg: #ecedf2; --av-pizarra-fg: #50515b;
+  --av-cielo-bg: #e8f2fc; --av-cielo-fg: #2b6094;
+  --av-verde-bg: #edf8f1; --av-verde-fg: #237346;
+  --stretch-kpi: 100%; --stretch-brand: 100%; --weight-body: 400;
+  --weight-display: 700; --weight-medium: 550;
+  --text-display-size: 32px; --text-title1-size: 26px; --text-title2-size: 21px;
+  --text-body-lh: 1.5;
+  --sidebar-w: 232px; --content-max: 1200px; --content-pad-x: 32px;
+  --radius-sm: 5px; --radius-md: 6px; --radius-lg: 8px; --radius-xl: 8px; --radius-2xl: 12px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-canvas: #111216; --bg-sunken: #17181e;
+  --surface-1: #1b1c23; --surface-2: #22232c; --surface-3: #292b35; --surface-4: #30323e;
+  --surface-hover: #292b35; --surface-pressed: #30323e; --surface-selected: #3d202c;
+  --surface-inverse: #f7f7fa;
+  --text-1: #f7f7fa; --text-2: #c8c9d2; --text-3: #a7a9b6; --text-disabled: #9294a2;
+  --text-link: #ff8aa4; --brand-ink: #ff8aa4; --brand-subtle: #3d202c;
+  --border-subtle: #2e303b; --border-default: #3a3c48; --border-strong: #525563;
+  --border-control: #858896; --brand-subtle-border: #704151;
+  --nav-indicator: #ff8aa4; --progress-track: #30323e; --seg-thumb-bg: #3a3c48;
+  --glass-bg: #1b1c23; --glass-bg-solid: #1b1c23; --glass-border: #2e303b;
+  --disabled-bg: #292b35; --disabled-fg: #9294a2; --disabled-border: #3a3c48;
+  --neutral-fg: #c8c9d2; --neutral-bg: #292b35; --neutral-border: #3a3c48;
+  --ok-fg: #8ed6ab; --ok-bg: #183427; --ok-border: #335840;
+  --warn-fg: #f2cc7e; --warn-bg: #3a301b; --warn-border: #68562b;
+  --crit-fg: #ff9bb3; --crit-bg: #3e222b; --crit-border: #704151;
+  --info-fg: #82d8de; --info-bg: #193438; --info-border: #34565b;
+  --media-bg: #292b35; --media-border: #3a3c48;
+  --skeleton-a: #ffffff08; --skeleton-b: #ffffff12;
+  --viz-1: #ff7899; --viz-2: #54c2cc; --viz-3: #aa99ef;
+  --viz-mono: #a7a9b6; --viz-muted: #858896; --viz-grid: #ffffff0c;
+  --viz-label: #a7a9b6; --viz-axis: #ffffff24; --viz-gap: #1b1c23;
+  --viz-now: #ff8aa4; --viz-now-ring: #1b1c23;
+}
+@media (max-width: 599px) {
+  :root { --content-pad-x: 16px; --text-display-size: 28px; }
+}
+.glass { backdrop-filter: none !important; }

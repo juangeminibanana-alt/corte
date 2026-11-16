@@ -1,0 +1,6 @@
+.contenido { width: min(760px, 100%); margin: 0 auto; padding: 40px 24px; }
+.volver { display: inline-block; margin-bottom: 32px; font-size: 14px; }
+.cabeza { margin-bottom: 32px; }
+.cabeza h1 { font-size: 32px; font-weight: 700; letter-spacing: -1px; line-height: 1.2; margin-bottom: 12px; }
+.cabeza p { font-size: 17px; line-height: 1.5; color: var(--text-2); }
+@media (max-width: 600px) { .contenido { padding: 24px 20px; } .cabeza h1 { font-size: 28px; } }

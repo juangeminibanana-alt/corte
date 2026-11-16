@@ -8,7 +8,10 @@
  * - Rutas con reglas de arranque (§8.6) y, encima de todo, la paleta Ctrl+K, el panel '?' y DialogoReautorizar.
  */
 import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { LogOut } from 'lucide-react';
 import { useConexionPc, useSesion, useSync } from '@/datos';
+import { Icono, useToast } from '@/componentes';
+import { esNube, cerrarSesionNube } from '../nube/entorno';
 import { useCapacidades, useClaseAncho, usePlataforma } from '../app/entornoUi';
 import { almacen, modoDemo } from '../app/entorno';
 import { esCampo } from '../app/atajos';
@@ -22,7 +25,8 @@ import { Banner } from './Banner';
 import { elegirBanner, type AccionBanner } from './banners';
 import { BarraInferior } from './BarraInferior';
 import { BarraLateral, insigniasNav } from './BarraLateral';
-import { cerrarAtajos, cerrarPaleta, usePaletaAbierta, useAtajosAbiertos } from './capasGlobales';
+import { abrirPaleta, cerrarAtajos, cerrarPaleta, usePaletaAbierta, useAtajosAbiertos } from './capasGlobales';
+import { Logo } from './Logo';
 import { useAhora, useTrabajo } from './datosMarco';
 import { destinoActivo, modoNav, segmentoVentas } from './destinos';
 import {
@@ -75,6 +79,7 @@ function useTecladoAbierto(activo: boolean): boolean {
 }
 
 export function Marco(p: { cargadores?: Cargadores; cargadoresReautorizar?: Cargadores }): ReactElement {
+  const toast = useToast();
   const r = useRuta();
   const plataforma = usePlataforma();
   const clase = useClaseAncho();
@@ -111,7 +116,7 @@ export function Marco(p: { cargadores?: Cargadores; cargadoresReautorizar?: Carg
   const inferior = modo === 'inferior';
   const activo = destinoActivo(r.ruta, inferior || android);
   const teclado = useTecladoAbierto(android && inferior);
-  const segmento = android ? segmentoVentas(r.ruta) : null;
+  const segmento = inferior || android ? segmentoVentas(r.ruta) : null;
   const demo = demoNavegador || sesion.datos?.modo === 'demo';
 
   const trabajo = useTrabajo(!completa && !enRaiz);
@@ -152,7 +157,7 @@ export function Marco(p: { cargadores?: Cargadores; cargadoresReautorizar?: Carg
   useAtrasAndroid(plataforma, paletaAbierta);
   useNotificaciones(!enRaiz && (sesion.datos?.datos.hay_datos ?? android));
 
-  const acciones = accionesPaleta({ android, puedeSincronizar: sync.puede, puedeReautorizar: capacidades.auth });
+  const acciones = accionesPaleta({ android, puedeSincronizar: sync.puede, puedeReautorizar: capacidades.auth }).filter((a) => !esNube() || a.id !== 'emparejar');
   const elegir = (res: ResultadoPaleta): void => {
     cerrarPaleta();
     const d = res.destino;
@@ -205,6 +210,18 @@ export function Marco(p: { cargadores?: Cargadores; cargadoresReautorizar?: Carg
       ) : null}
 
       <div className={css.columna}>
+        {!completa && !enRaiz ? (
+          <header className={css.cabecera}>
+            <a href="#/inicio" className={css.marcaMovil} aria-label="Corte · Inicio"><Logo tamano={28} /><span>Corte</span></a>
+            <span className={css.espacio}>Espacio de creador</span>
+            <div className={css.herramientas}>
+              <button type="button" className={css.buscar} onClick={() => abrirPaleta()} aria-label="Buscar en Corte">
+                <Icono nombre="Search" tamano={18} /><span>Buscar</span><kbd>Ctrl K</kbd>
+              </button>
+              {esNube() ? <button type="button" className={css.salir} onClick={() => { void cerrarSesionNube().catch(() => toast.mostrar({ texto: 'No pudimos cerrar la sesión. Inténtalo de nuevo.', tono: 'error' })); }} aria-label="Cerrar sesión" title="Cerrar sesión"><LogOut size={18} strokeWidth={1.75} /></button> : null}
+            </div>
+          </header>
+        ) : null}
         <main id="contenido" ref={principal} tabIndex={-1} className={css.contenido} data-completa={completa ? '' : undefined}>
           <div className={css.lienzo}>
             {(inferior || (android && modo !== 'ninguna')) && (demo || banner || segmento) ? (

@@ -2,6 +2,8 @@
  * Textos de Conexión y ajustes (01_ux §4.14, §5.4 A, §7.5; BUILD_SPEC C10, C35, C36, C37, C42; 04 §C.10).
  * Español de México, vocabulario de 01 §1.5: nunca «token», «scope», «sample» ni «seller».
  */
+import { esNube } from '../../nube/entorno';
+
 export const T = {
   tituloPantalla: 'Conexión y ajustes',
   tituloMas: 'Más',
@@ -108,7 +110,7 @@ export const T = {
   // A2. Métricas de tus videos (Display API de TikTok for Developers, contrato rev. 5)
   metricas: {
     descripcion: 'Corte puede traer las vistas, likes, comentarios y compartidos de tus videos públicos para que veas cuántos pedidos te deja cada 1,000 vistas. Solo lee: no publica ni cambia nada en tu cuenta.',
-    queEs: 'Usa una app aparte, que creas tú en TikTok for Developers en modo Sandbox. No es la de TikTok Shop.',
+    get queEs() { return esNube() ? 'La conexión de métricas usa una app de TikTok for Developers, independiente de la app de TikTok Shop.' : 'Usa una app aparte, que creas tú en TikTok for Developers en modo Sandbox. No es la de TikTok Shop.'; },
     // Estados
     chipConectada: 'Conectada',
     chipSinConectar: 'Sin conectar',
@@ -203,7 +205,7 @@ export const T = {
     borrarDatos: 'Borrar también las vistas, la tendencia y las portadas que ya se trajeron',
     olvidarApp: 'Olvidar el Client key y el Client secret',
     desconectada: 'Desconectamos las métricas de tus videos',
-    desconectadaSinInternet: 'Se desconectó de esta PC. No pudimos avisar a TikTok porque no hay internet; puedes retirar el acceso desde la app de TikTok.',
+    get desconectadaSinInternet() { return esNube() ? 'Se desconectó de Corte. No pudimos avisar a TikTok; también puedes retirar el acceso desde la app de TikTok.' : 'Se desconectó de esta PC. No pudimos avisar a TikTok porque no hay internet; puedes retirar el acceso desde la app de TikTok.'; },
     // Avisos
     reautorizar: 'TikTok pide que vuelvas a autorizar a Corte. Mientras tanto, las vistas que ya tienes se quedan como están.',
     volverAConectar: 'Volver a conectar',
@@ -232,7 +234,7 @@ export const T = {
     grupoAuto: 'Automática',
     intervalo: 'Sincronizar automáticamente',
     opciones: { '15': '15 min', '30': '30 min', '60': '60 min', apagado: 'Apagada' },
-    cada: (min: number) => `Cada ${min} minutos mientras Corte está abierto o en segundo plano.`,
+    cada: (min: number) => esNube() ? `Cada ${min} minutos desde el servidor, aunque cierres la página.` : `Cada ${min} minutos mientras Corte está abierto o en segundo plano.`,
     apagada: 'No sincronizamos solos. Usa Sincronizar ahora cuando quieras.',
     recomendado: 'Recomendado: 30 min',
     segundoPlano: 'Mantener en segundo plano al cerrar la ventana',
@@ -241,7 +243,7 @@ export const T = {
     iniciarWindows: 'Abrir Corte al iniciar Windows (minimizado)',
     iniciarWindowsDesc: 'Corte arranca en la bandeja del sistema, sin abrir la ventana.',
     iniciarBloqueado: 'Lo apagaste desde el Administrador de tareas de Windows. Vuelve a activarlo ahí.',
-    grupoModulos: 'Qué tienes en esta PC',
+    get grupoModulos() { return esNube() ? 'Datos sincronizados' : 'Qué tienes en esta PC'; },
     ventas: 'Tus ventas',
     pedidosDesde: (n: string, desde: string) => `${n} pedidos (desde el ${desde})`,
     pedidos: (n: string) => `${n} pedidos`,
@@ -421,7 +423,7 @@ export const T = {
 
   // F. Apariencia
   apariencia: {
-    descripcion: 'Cómo se ve Corte en este equipo. El tema y las animaciones también llegan a tu celular.',
+    get descripcion() { return esNube() ? 'Personaliza la apariencia y las animaciones de tu espacio.' : 'Cómo se ve Corte en este equipo. El tema y las animaciones también llegan a tu celular.'; },
     descripcionAndroid: 'Cómo se ve Corte en este celular.',
     tema: 'Tema',
     temas: { sistema: 'Según el sistema', claro: 'Claro', oscuro: 'Oscuro' },
@@ -438,11 +440,10 @@ export const T = {
 
   // G. Privacidad y datos
   datos: {
-    privacidad:
-      'Tus datos de TikTok Shop se guardan solo en esta PC, dentro de tu usuario de Windows, y en tu celular si lo emparejas. Tus llaves de TikTok van cifradas y nunca salen de esta PC. Corte no los envía a ningún servidor que no sea de TikTok.',
+    get privacidad() { return esNube() ? 'Tus datos se guardan en el servidor de Corte. Las credenciales de TikTok se cifran antes de guardarse. Firebase verifica tu acceso con Google y los respaldos que crees se guardan en Firebase Storage con acceso privado.' : 'Tus datos de TikTok Shop se guardan solo en esta PC, dentro de tu usuario de Windows, y en tu celular si lo emparejas. Tus llaves de TikTok van cifradas y nunca salen de esta PC. Corte no los envía a ningún servidor que no sea de TikTok.'; },
     grupoEspacio: 'Espacio usado',
     espacio: (datos: string, imagenes: string) => `Espacio usado: datos ${datos} · imágenes ${imagenes}`,
-    espacioTitulo: 'Espacio que ocupa Corte en esta PC',
+    get espacioTitulo() { return esNube() ? 'Espacio que ocupa Corte en el servidor' : 'Espacio que ocupa Corte en esta PC'; },
     partes: { datos: 'Datos', imagenes: 'Imágenes', registros: 'Registros' },
     columnaQue: 'Qué',
     columnaEspacio: 'Espacio',
@@ -455,7 +456,7 @@ export const T = {
     exportarDesc: 'Un archivo JSON con tu plan, avisos, notas, recordatorios, plantillas y preferencias.',
     exportarCorto: 'Exportar',
     importarCorto: 'Importar',
-    borrarTodoDesc: 'Incluye la autorización, la clave de la app, tu plan, avisos, notas, plantillas y celulares emparejados. No se puede deshacer.',
+    get borrarTodoDesc() { return esNube() ? 'Incluye la autorización, la clave de la app, tu plan, avisos, notas y plantillas del servidor. Los respaldos de Firebase Storage se conservan. No se puede deshacer.' : 'Incluye la autorización, la clave de la app, tu plan, avisos, notas, plantillas y celulares emparejados. No se puede deshacer.'; },
     exportado: 'Guardamos tu archivo',
     exportadoCancelado: 'No se guardó el archivo',
     importar: 'Importar plan, avisos y notas',
@@ -469,21 +470,20 @@ export const T = {
     anteriorEnPapelera: 'Mandamos el archivo anterior a la Papelera',
     anteriorNoExiste: 'El archivo anterior ya no estaba',
     grupoBorrar: 'Borrar',
-    borrarTiktok: 'Borrar datos de TikTok de este equipo',
-    borrarTiktokTitulo: '¿Borrar datos de TikTok de este equipo?',
+    get borrarTiktok() { return esNube() ? 'Borrar datos de TikTok del servidor' : 'Borrar datos de TikTok de este equipo'; },
+    get borrarTiktokTitulo() { return esNube() ? '¿Borrar datos de TikTok del servidor?' : '¿Borrar datos de TikTok de este equipo?'; },
     borrarTiktokTexto:
       'Se borrarán muestras, pedidos, productos e imágenes guardados. Tu plan, tus avisos y tus notas se conservan. Podrás volver a descargarlos sincronizando.',
     borrar: 'Borrar',
-    tiktokBorrado: 'Borramos tus datos de TikTok de este equipo',
+    get tiktokBorrado() { return esNube() ? 'Borramos los datos de TikTok del servidor' : 'Borramos tus datos de TikTok de este equipo'; },
     borrarTodo: 'Borrar todo y desconectar',
     borrarTodoTitulo: '¿Borrar todo y desconectar?',
     borrarTodoTexto1: 'Se borrará todo: datos de TikTok, la autorización de tu cuenta, ',
     borrarTodoClave: 'la clave de la app',
-    borrarTodoTexto2:
-      ', plan, avisos, notas, plantillas y celulares emparejados. Para volver a conectar necesitarás el archivo anterior o la clave de Partner Center. No se puede deshacer. Escribe BORRAR para confirmar.',
+    get borrarTodoTexto2() { return esNube() ? ', plan, avisos, notas y plantillas del servidor. Los respaldos en Firebase Storage se conservan. Para volver a conectar necesitarás autorizar de nuevo tu cuenta. No se puede deshacer. Escribe BORRAR para confirmar.' : ', plan, avisos, notas, plantillas y celulares emparejados. Para volver a conectar necesitarás el archivo anterior o la clave de Partner Center. No se puede deshacer. Escribe BORRAR para confirmar.'; },
     borrarTodoCampo: 'Escribe BORRAR',
     borrarTodoBoton: 'Borrar todo',
-    todoBorrado: 'Borramos todo de esta PC',
+    get todoBorrado() { return esNube() ? 'Borramos los datos de Corte del servidor' : 'Borramos todo de esta PC'; },
     // Android
     androidPrivacidad:
       'Tu celular guarda una copia de tus datos para verla sin conexión. Tus llaves de TikTok se quedan en tu PC y nunca llegan al celular.',

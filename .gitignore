@@ -2,6 +2,7 @@
 # Dependencias, entornos y salidas de compilación
 # ---------------------------------------------------------------------------
 node_modules/
+.pnpm-store/
 .venv*/
 vendor/wheels/
 __pycache__/
@@ -27,6 +28,8 @@ secrets/
 *.jks
 *.pem
 *.dpapi
+*.aesgcm*
+.cloud-data*/
 *.sqlite*
 config.json
 .env*
@@ -72,3 +75,14 @@ android/pruebas_tls/
 .idea/
 Thumbs.db
 desktop.ini
+
+# Google infrastructure: local state, plans and operator values
+**/.terraform/
+*.tfstate*
+*.tfvars
+*.tfvars.json
+*.tfplan
+.qa-infra/
+crash.log
+cloud/google/firebase-web-config.local.json
+.firebase/

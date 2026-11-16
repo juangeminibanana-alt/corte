@@ -19,7 +19,7 @@ export interface DefSeccion {
 }
 
 /** Orden de 01 §3.1 (Windows) y de «Más» en Android (01 §3.3: Conexión con la PC primero, sin Sincronización). */
-export function seccionesPara(android: boolean): DefSeccion[] {
+export function seccionesPara(android: boolean, nube = false): DefSeccion[] {
   const s = T.secciones;
   // En Android la cuenta es solo lectura (C35): el resumen no promete manejar la clave de la app.
   const tiktok: DefSeccion = { id: 'tiktok', titulo: android ? s.tiktok.tituloAndroid : s.tiktok.titulo, resumen: android ? s.tiktok.resumenAndroid : s.tiktok.resumen, icono: 'Store' };
@@ -39,6 +39,7 @@ export function seccionesPara(android: boolean): DefSeccion[] {
     { id: 'ayuda', titulo: s.ayuda.titulo, resumen: s.ayuda.resumen, icono: 'CircleHelp' },
     { id: 'acerca', titulo: s.acerca.titulo, resumen: s.acerca.resumen, icono: 'Info' },
   ];
+  if (nube) return [tiktok, metricas, { id: 'sincronizacion', titulo: s.sincronizacion.titulo, resumen: s.sincronizacion.resumen, icono: 'RefreshCw' }, ...resto.map((x) => x.id === 'acerca' ? { ...x, resumen: 'Versión y licencias' } : x)];
   if (android) return [celular, tiktok, metricas, ...resto];
   return [tiktok, metricas, { id: 'sincronizacion', titulo: s.sincronizacion.titulo, resumen: s.sincronizacion.resumen, icono: 'RefreshCw' }, celular, ...resto];
 }

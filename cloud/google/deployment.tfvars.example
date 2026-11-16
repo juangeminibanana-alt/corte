@@ -1,0 +1,24 @@
+# Complete the required values after reviewing the existing shared project.
+# This file deliberately cannot be applied as-is. It contains no secrets.
+project_id = "e-book-21589"
+region     = "us-central1"
+zone       = "us-central1-a"
+
+hosting_site_id = "corte-e-book-21589"
+owner_email = "REQUIRED_VERIFIED_GOOGLE_EMAIL"
+owner_uid   = ""
+
+storage_bucket_name   = "corte-REQUIRED_UNIQUE_PRIVATE_BUCKET"
+create_storage_bucket = false
+
+firebase_web_config = {
+  apiKey        = "REQUIRED_PUBLIC_WEB_CONFIG"
+  authDomain    = "REQUIRED_FIREBASE_AUTH_DOMAIN"
+  projectId     = "e-book-21589"
+  storageBucket = "REQUIRED_CORTE_BUCKET"
+  appId         = "1:1026985150312:web:ee7a6fa15362048c6438dd"
+}
+
+runtime_enabled            = false
+container_image            = ""
+initialize_empty_data_disk = false

@@ -350,13 +350,17 @@ class Hub:
                       'hay_datos': self._hay_datos()},
             'plataforma': 'windows' if local else ctx.plataforma,
             'modo': 'real' if self.modo == 'real' else 'demo',
-            'capacidades': {'auth': local, 'lan_admin': local, 'portapapeles': local,
+            'capacidades': {'auth': local, 'lan_admin': local and not self.op.nube,
+                            'portapapeles': local and not self.op.nube,
                             'escribir': ctx.puede_escribir, 'sincronizar': ctx.puede_escribir},
         }
         if local:
-            r['lan'] = self.lan.resumen()
+            r['lan'] = self.lan.resumen() if self.lan is not None else {
+                'activo': False, 'dispositivos_activos': 0, 'puerto': None}
             r['servidor'] = {'version': config.VERSION, 'puerto_ui': self.puerto_ui,
                              'puerto_respaldo': self.puerto_respaldo}
+        if self.op.nube:
+            r['cloud'] = True
         return r
 
     def uso_datos(self) -> Json:
@@ -716,7 +720,11 @@ def iniciar_hub(op: OpcionesHub) -> HubProto:
         almacen = crear_almacen(rutas.db, reloj)
         bus.iniciar_versiones(almacen.versiones())
         # 4
-        boveda = crear_boveda(rutas, op.modo)
+        if op.nube:
+            from .nube import crear_boveda_nube
+            boveda = crear_boveda_nube(rutas, display=False)
+        else:
+            boveda = crear_boveda(rutas, op.modo)
         registro.fijar_secretos_vivos(boveda.secretos_vivos)
         # 5
         if op.modo == 'real':
@@ -739,11 +747,14 @@ def iniciar_hub(op: OpcionesHub) -> HubProto:
         hub._registro_propio = registro_propio
         hub.auth = crear_auth(boveda, cliente, almacen, bus, reloj, hub, op.modo)
         # 8 b · rev. 5: Display API de TikTok for Developers (métricas de tus videos). Bóveda y transporte PROPIOS.
-        boveda_display = crear_boveda_display(rutas, op.modo)
+        boveda_display = crear_boveda_nube(rutas, display=True) if op.nube else crear_boveda_display(rutas, op.modo)
         registro.fijar_secretos_vivos(lambda: (*boveda.secretos_vivos(), *boveda_display.secretos_vivos()))
         hub.display = crear_servicio_display(boveda_display, crear_transporte_display(op.modo, reloj), almacen, bus,
                                              reloj, hub, op.modo)
         hub.display.puerto = lambda: hub.puerto_ui            # redirect_uri = http://127.0.0.1:<puerto real>/oauth/tiktok
+        if op.nube:
+            from .nube import configurar_auth_nube
+            configurar_auth_nube(hub)
         hub.display.al_conectar = lambda: hub.sincronizar_ahora('usuario')
         # 9
         dep = Dependencias(modo=op.modo, rutas=rutas, config=cfg, reloj=reloj, bus=bus, almacen=almacen, boveda=boveda,
@@ -758,10 +769,12 @@ def iniciar_hub(op: OpcionesHub) -> HubProto:
         hub.planificador.configurar(ajustes['sync_auto'], ajustes['sync_intervalo_min'])
         # 10
         hub.despachador = rutas_api.crear_despachador(hub)
-        hub.lan = crear_servicio_lan(dep)
-        hub.lan.fijar_despachador(hub.despachador)
+        if not op.nube:
+            hub.lan = crear_servicio_lan(dep)
+            hub.lan.fijar_despachador(hub.despachador)
         # 11
-        hub.iniciar_servidor(_dir_ui(op))
+        if not op.nube:
+            hub.iniciar_servidor(_dir_ui(op))
     except BaseException:
         if imagenes is not None:
             with contextlib.suppress(Exception):
@@ -773,7 +786,7 @@ def iniciar_hub(op: OpcionesHub) -> HubProto:
             registro.cerrar_registro()
         raise
     hub.t_listo_ms = (time.monotonic() - t_inicio) * 1000.0
-    _log.info('Hub listo en 127.0.0.1:%d (modo %s, %.0f ms)', hub.puerto_ui, op.modo, hub.t_listo_ms)
+    _log.info('Hub listo (nube=%s, modo %s, %.0f ms)', op.nube, op.modo, hub.t_listo_ms)
     # 12
     hub._arrancar_en_fondo()
     return hub

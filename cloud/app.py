@@ -1,0 +1,411 @@
+"""Corte privado en HTTPS. El hub conserva sincronización, analítica y SQLite.
+
+Arrancar con: gunicorn -c cloud/gunicorn.conf.py 'cloud.app:create_app()'
+Un proceso y varios hilos: las renovaciones OAuth y el planificador tienen un dueño.
+"""
+from __future__ import annotations
+
+import atexit
+import collections
+import hashlib
+import hmac
+import json
+import os
+from pathlib import Path
+import secrets
+import sys
+import threading
+import time
+from dataclasses import dataclass
+from datetime import timedelta
+from typing import Any
+from urllib.parse import urlsplit
+
+from flask import Flask, Response, g, jsonify, redirect, request, send_file, session, stream_with_context
+from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.security import check_password_hash
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'hub'))
+
+from creatorhub.api.estaticos import Estaticos
+from creatorhub.api.rutas_display import crear_despachador_display, es_ruta_display
+from creatorhub.api.seguridad import CSP_WINDOWS
+from creatorhub.api.sse import formatear
+from creatorhub.errores import ErrorDominio
+from creatorhub.interfaces import CTX_UI, OpcionesHub
+from creatorhub.tiktok_dev.servicio import pagina_html
+
+
+@dataclass(frozen=True)
+class Settings:
+    public_url: str
+    session_secret: str
+    password_hash: str
+    data_dir: str
+    ui_dir: str
+    allow_http: bool = False
+    trust_proxy: bool = False
+    auth_provider: str = 'password'
+    proxy_hops: int = 1
+
+    @classmethod
+    def from_env(cls) -> 'Settings':
+        public_url = os.environ.get('CORTE_PUBLIC_URL', '').rstrip('/')
+        public = urlsplit(public_url)
+        allow_http = os.environ.get('CORTE_ALLOW_HTTP') == '1'
+        local = public.hostname in ('localhost', '127.0.0.1', '::1')
+        if (not public.hostname or public.username or public.password or public.path or public.query or public.fragment
+                or (public.scheme != 'https' and not (allow_http and local and public.scheme == 'http'))):
+            raise ValueError('Configura CORTE_PUBLIC_URL con el origen HTTPS de tu servicio.')
+        session_secret = os.environ.get('CORTE_SESSION_SECRET', '')
+        password_hash = os.environ.get('CORTE_PASSWORD_HASH', '')
+        provider = os.environ.get('CORTE_AUTH_PROVIDER', 'firebase')
+        proxy_hops = int(os.environ.get('CORTE_PROXY_HOPS', '1'))
+        if proxy_hops not in (1, 2):
+            raise ValueError('CORTE_PROXY_HOPS debe ser 1 o 2 para la topología documentada.')
+        if len(session_secret) < 32:
+            raise ValueError('Falta CORTE_SESSION_SECRET (al menos 32 caracteres aleatorios).')
+        if provider not in ('firebase', 'password'):
+            raise ValueError('CORTE_AUTH_PROVIDER debe ser firebase o password.')
+        if provider == 'password' and (not password_hash.startswith(('scrypt:', 'pbkdf2:sha256:')) or password_hash.count('$') != 2):
+            raise ValueError('Falta CORTE_PASSWORD_HASH. Genéralo con python -m cloud.setup.')
+        if len(os.environ.get('CORTE_ENCRYPTION_KEY', '')) < 32:
+            raise ValueError('Falta CORTE_ENCRYPTION_KEY (al menos 32 caracteres aleatorios).')
+        return cls(public_url, session_secret, password_hash,
+                   os.environ.get('CORTE_DATA_DIR', '/var/lib/corte'),
+                   os.environ.get('CORTE_UI_DIR', str(ROOT / 'ui' / 'dist')),
+                   allow_http, os.environ.get('CORTE_TRUST_PROXY') == '1', provider, proxy_hops)
+
+
+class LoginLimiter:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._attempts: dict[str, collections.deque[float]] = {}
+
+    def allow(self, address: str) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            self._attempts = {k: v for k, v in self._attempts.items() if v and v[-1] > now - 900}
+            # Bound memory, and enforce a process-wide budget as well as the IP budget.
+            if address not in self._attempts and len(self._attempts) >= 1024:
+                return False
+            own = self._attempts.setdefault(address, collections.deque())
+            total = self._attempts.setdefault('*', collections.deque())
+            for bucket in (own, total):
+                while bucket and bucket[0] <= now - 900:
+                    bucket.popleft()
+            if len(own) >= 10 or len(total) >= 60:
+                return False
+            own.append(now)
+            total.append(now)
+            return True
+
+
+def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any = None) -> Flask:
+    settings = settings or Settings.from_env()
+    app = Flask(__name__, static_folder=None)
+    if settings.auth_provider == 'firebase' and firebase is None:
+        from cloud.firebase_service import FirebaseServices
+        firebase = FirebaseServices()
+    public = urlsplit(settings.public_url)
+    app.config.update(SECRET_KEY=settings.session_secret, SESSION_COOKIE_NAME='corte_session',
+                      SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SECURE=not settings.allow_http,
+                      SESSION_COOKIE_SAMESITE='Lax', PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
+                      SESSION_REFRESH_EACH_REQUEST=False, MAX_CONTENT_LENGTH=20 * 1024 * 1024,
+                      TRUSTED_HOSTS=[public.hostname])
+    if settings.trust_proxy:
+        # Production's gateway normalizes one hop; direct VM ingress is blocked by firewall.
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=settings.proxy_hops, x_proto=1, x_host=0, x_port=0, x_prefix=0)
+    if hub is None:
+        from creatorhub.hub import iniciar_hub
+        hub = iniciar_hub(OpcionesHub(modo='real', nube=True, sin_lan=True,
+                                      raiz_datos=settings.data_dir, dir_ui=settings.ui_dir))
+        atexit.register(hub.detener, 35.0)
+    app.extensions['corte_hub'] = hub
+    display = crear_despachador_display(hub)
+    static = Estaticos(settings.ui_dir)
+    limiter = LoginLimiter()
+    streams = threading.BoundedSemaphore(8)
+    auth_version = hashlib.sha256(settings.password_hash.encode('utf-8')).hexdigest()
+
+    def authenticated() -> bool:
+        if settings.auth_provider == 'firebase':
+            if not hasattr(g, 'firebase_claims'):
+                cookie = request.cookies.get('__session')
+                g.firebase_claims = firebase.verify_session(cookie) if cookie else None
+            return g.firebase_claims is not None
+        version = session.get('auth_version')
+        return isinstance(version, str) and hmac.compare_digest(version, auth_version)
+
+    def error(code: str, message: str, status: int) -> tuple[Response, int]:
+        return jsonify(error={'codigo': code, 'mensaje': message}), status
+
+    @app.before_request
+    def protect() -> Any:
+        request.max_content_length = 20 * 1024 * 1024 if request.path == '/api/cloud/import' else 256 * 1024
+        # Private readiness checks use HTTP to the backend with the configured domain Host.
+        # This endpoint exposes only readiness; private API routes still require HTTPS/auth.
+        if request.path == '/api/health' and request.method in ('GET', 'HEAD'):
+            return None
+        if request.host.lower() != public.netloc.lower():
+            return error('origen_invalido', 'Esta dirección no corresponde a Corte.', 421)
+        if not settings.allow_http and not request.is_secure:
+            return error('https_requerido', 'Abre Corte con su dirección HTTPS.', 400)
+        if request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+            if request.headers.get('Origin') != settings.public_url or request.headers.get('X-CH-Hub') != '1':
+                return error('origen_invalido', 'La solicitud debe venir de Corte.', 403)
+            if request.data and request.mimetype != 'application/json':
+                return error('formato_invalido', 'Envía los datos en formato JSON.', 415)
+        public_paths = ('/api/cloud/session', '/api/cloud/config', '/api/cloud/login', '/api/health')
+        if (request.path.startswith(('/api/', '/img/', '/oauth/')) and request.path not in public_paths
+                and not authenticated()):
+            return error('sesion_requerida', 'Inicia sesión para continuar.', 401)
+
+    @app.after_request
+    def headers(response: Response) -> Response:
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Referrer-Policy'] = 'no-referrer'
+        response.headers['X-Frame-Options'] = 'DENY'
+        csp = CSP_WINDOWS
+        if settings.auth_provider == 'firebase':
+            domain = firebase.web_config['authDomain']
+            csp = csp.replace("script-src 'self'", "script-src 'self' https://apis.google.com https://www.gstatic.com")
+            csp = csp.replace("connect-src 'self'", "connect-src 'self' https://identitytoolkit.googleapis.com "
+                              "https://securetoken.googleapis.com https://www.googleapis.com https://" + domain)
+            csp = csp.replace('frame-src https://www.tiktok.com',
+                              'frame-src https://www.tiktok.com https://' + domain)
+        response.headers['Content-Security-Policy'] = csp
+        response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+        if not settings.allow_http:
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000'
+        if request.path.startswith(('/api/', '/img/', '/oauth/')):
+            response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    @app.errorhandler(413)
+    def too_large(_error: Any) -> Any:
+        return error('cuerpo_demasiado_grande', 'El archivo o los datos superan el límite permitido.', 413)
+
+    @app.errorhandler(400)
+    def invalid_request(_error: Any) -> Any:
+        return error('solicitud_invalida', 'La solicitud no es válida.', 400)
+
+    @app.get('/api/health')
+    def health() -> Any:
+        try:
+            healthy = bool(hub.salud().get('db_ok'))
+        except Exception:
+            healthy = False
+        return jsonify(ok=healthy, cloud=True), 200 if healthy else 503
+
+    @app.get('/api/cloud/session')
+    def cloud_session() -> Any:
+        return jsonify(cloud=True, authenticated=authenticated())
+
+    @app.get('/api/cloud/config')
+    def cloud_config() -> Any:
+        result = {'auth_provider': settings.auth_provider}
+        if settings.auth_provider == 'firebase':
+            result['firebase'] = firebase.web_config
+        return jsonify(result)
+
+    @app.get('/api/cloud/revision')
+    def cloud_revision() -> Any:
+        sync = hub.sincronizador.estado()
+        # No current-time field or random value: unchanged persisted data and
+        # connection/sync state always yield the same revision across requests.
+        state = {
+            'versiones': list(hub.almacen.versiones()),
+            'conexion': hub.auth.conexion(),
+            'display': hub.display.estado() if hub.display is not None else None,
+            # Progress has its own response field; it should update progress UI
+            # without invalidating every table on each 3-second active-sync poll.
+            'sync': {key: sync.get(key) for key in ('en_curso', 'sync_id', 'ultima_estado', 'ultima_ok_at', 'ultimo_error')},
+        }
+        revision = hashlib.sha256(json.dumps(state, sort_keys=True, separators=(',', ':'),
+                                             ensure_ascii=False).encode('utf-8')).hexdigest()
+        return jsonify(revision=revision, sync=sync)
+
+    @app.post('/api/cloud/login')
+    def login() -> Any:
+        if not limiter.allow(request.remote_addr or 'unknown'):
+            response, status = error('demasiados_intentos', 'Espera 15 minutos antes de volver a intentarlo.', 429)
+            response.headers['Retry-After'] = '900'
+            return response, status
+        body = request.get_json(silent=True)
+        if settings.auth_provider == 'firebase':
+            token = body.get('id_token') if isinstance(body, dict) else None
+            if not isinstance(token, str) or not 20 <= len(token) <= 16384:
+                return error('sesion_google_invalida', 'Vuelve a iniciar sesión con Google.', 401)
+            try:
+                cookie = firebase.create_session(token)
+            except Exception:
+                return error('cuenta_no_autorizada', 'Esta cuenta de Google no tiene acceso a Corte.', 401)
+            response = jsonify(authenticated=True)
+            response.set_cookie('__session', cookie, max_age=12 * 3600, httponly=True,
+                                secure=not settings.allow_http, samesite='Lax', path='/')
+            return response
+        password = body.get('password') if isinstance(body, dict) else None
+        if (not isinstance(password, str) or not 1 <= len(password) <= 1024
+                or not check_password_hash(settings.password_hash, password)):
+            return error('clave_incorrecta', 'La contraseña no es correcta.', 401)
+        session.clear()
+        session.permanent = True
+        session['auth_version'] = auth_version
+        session['nonce'] = secrets.token_hex(16)
+        return jsonify(authenticated=True)
+
+    @app.post('/api/cloud/logout')
+    def logout() -> Any:
+        if settings.auth_provider == 'firebase':
+            # Revoke only this Corte cookie, preserving other apps in the shared Firebase project.
+            try:
+                firebase.revoke(g.firebase_claims, request.cookies.get('__session', ''))
+            except Exception:
+                return error('servicio_no_disponible', 'No pudimos cerrar la sesión. Inténtalo de nuevo.', 503)
+        if settings.auth_provider == 'password':
+            session.clear()
+        response = jsonify(authenticated=False)
+        if settings.auth_provider == 'firebase':
+            response.delete_cookie('__session', secure=not settings.allow_http, httponly=True, samesite='Lax')
+        return response
+
+    @app.get('/api/events')
+    def events() -> Any:
+        if not streams.acquire(blocking=False):
+            return error('demasiadas_conexiones', 'Cierra otra pestaña de Corte e inténtalo de nuevo.', 429)
+        @stream_with_context
+        def generate() -> Any:
+            sub = hub.bus.suscribir(100)
+            # Periodic reconnect revalidates the signed browser session.
+            deadline = time.monotonic() + 50
+            try:
+                yield b'retry: 3000\n\n'
+                while time.monotonic() < deadline and not hub._parar.is_set():
+                    event = sub.siguiente(min(5, max(0, deadline - time.monotonic())))
+                    if event is not None:
+                        yield formatear(event)
+                    elif getattr(sub, 'cerrada', False):
+                        break
+                    else:
+                        yield formatear({'tipo': 'ping', 't': hub.reloj.ahora()})
+            finally:
+                sub.cerrar()
+                streams.release()
+        return Response(generate(), mimetype='text/event-stream', headers={'X-Accel-Buffering': 'no'})
+
+    @app.get('/oauth/tiktok')
+    def display_callback() -> Any:
+        status, body = hub.callback_oauth(request.query_string.decode('utf-8', errors='replace'))
+        return Response(body, status=status, mimetype='text/html')
+
+    @app.get('/oauth/shop')
+    def shop_callback() -> Any:
+        # The state is checked and consumed by the existing auth service.
+        if not request.args.get('state') or len(request.args) > 16:
+            return Response(pagina_html('Este intento de conexión no es válido. Vuelve a Corte.', False),
+                            status=400, mimetype='text/html')
+        try:
+            hub.auth.canjear({'url_o_codigo': settings.public_url + request.full_path})
+            hub.encolar_avatar()
+            hub.sincronizar_tras_conectar()
+        except ErrorDominio as exc:
+            # Sanitized domain messages only; never reflect code/state or external errors.
+            return Response(pagina_html(exc.mensaje, False), status=exc.http, mimetype='text/html')
+        return redirect('/#/inicio', code=303)
+
+    @app.post('/api/cloud/import')
+    def import_local() -> Any:
+        try:
+            return jsonify(hub.local.importar(request.get_json()))
+        except ErrorDominio as exc:
+            return jsonify(exc.a_respuesta(hub.secretos_vivos())), exc.http
+
+    @app.get('/api/cloud/storage')
+    def storage_status() -> Any:
+        if settings.auth_provider != 'firebase':
+            return jsonify(enabled=False, backups=[])
+        try:
+            return jsonify(enabled=True, backups=firebase.list_backups(g.firebase_claims))
+        except Exception:
+            return error('almacenamiento_no_disponible', 'No pudimos consultar tus copias en Firebase.', 503)
+
+    @app.post('/api/cloud/storage/backup')
+    def storage_backup() -> Any:
+        if settings.auth_provider != 'firebase':
+            return error('almacenamiento_no_configurado', 'Firebase Storage no está configurado.', 409)
+        try:
+            result = firebase.backup(g.firebase_claims, hub.local.exportar())
+            return jsonify(result), 201
+        except Exception:
+            return error('almacenamiento_no_disponible', 'No pudimos guardar la copia. Tus datos siguen en Corte.', 503)
+
+    @app.post('/api/cloud/storage/restore')
+    def storage_restore() -> Any:
+        if settings.auth_provider != 'firebase':
+            return error('almacenamiento_no_configurado', 'Firebase Storage no está configurado.', 409)
+        body = request.get_json(silent=True)
+        identifier = body.get('id') if isinstance(body, dict) else None
+        try:
+            data = firebase.restore(g.firebase_claims, identifier)
+            return jsonify(hub.local.importar(data))
+        except ValueError:
+            return error('archivo_invalido', 'La copia seleccionada no es válida.', 422)
+        except ErrorDominio as exc:
+            return jsonify(exc.a_respuesta(hub.secretos_vivos())), exc.http
+        except Exception:
+            return error('almacenamiento_no_disponible', 'No pudimos importar la copia de Firebase.', 503)
+
+    @app.post('/api/cloud/storage/image')
+    def storage_image() -> Any:
+        if settings.auth_provider != 'firebase':
+            return error('almacenamiento_no_configurado', 'Firebase Storage no está configurado.', 409)
+        from creatorhub.imagenes.claves import ref_valido
+        body = request.get_json(silent=True)
+        tipo, ref = (body.get('tipo'), body.get('ref_id')) if isinstance(body, dict) else (None, None)
+        if not ref_valido(tipo, ref):
+            return error('imagen_invalida', 'Selecciona una imagen válida de Corte.', 422)
+        path = hub.imagenes.ruta_original(tipo, ref)
+        if not path:
+            return error('no_encontrado', 'La imagen todavía no está descargada.', 404)
+        try:
+            relative = str(Path(path).resolve().relative_to(Path(hub.rutas.cache_img).resolve()))
+            firebase.store_image(g.firebase_claims, relative, path)
+            return jsonify(stored=True)
+        except Exception:
+            return error('almacenamiento_no_disponible', 'No pudimos guardar la imagen en Firebase.', 503)
+
+    @app.route('/api/<path:path>', methods=['GET', 'POST', 'PATCH', 'PUT', 'DELETE'])
+    @app.get('/img/<path:path>')
+    def api(path: str) -> Any:
+        route = request.path
+        disabled = ('/api/lan', '/api/auth/portapapeles', '/api/credenciales/importar',
+                    '/api/credenciales/legado', '/api/local/importar', '/api/sistema/abrir')
+        if any(route == item or route.startswith(item + '/') for item in disabled):
+            return error('no_disponible_en_nube', 'Esta función pertenece a la aplicación de escritorio.', 410)
+        dispatcher = display if es_ruta_display(route) else hub.despachador
+        result = dispatcher.despachar(request.method, route, request.query_string.decode('utf-8', errors='replace'),
+                                      dict(request.headers), request.get_data(), CTX_UI)
+        response = send_file(result.archivo) if result.archivo else Response(result.cuerpo, status=result.status)
+        response.status_code = result.status
+        for name, value in result.cabeceras:
+            response.headers[name] = value
+        return response
+
+    @app.get('/')
+    @app.get('/<path:path>')
+    def interface(path: str = '') -> Any:
+        result = static.resolver('/' + path)
+        response = send_file(result.archivo) if result.archivo else Response(result.cuerpo, status=result.status)
+        response.status_code = result.status
+        for name, value in result.cabeceras:
+            response.headers[name] = value
+        return response
+
+    return app
+
+
+if __name__ == '__main__':
+    # Development only. Production uses gunicorn and its single-worker configuration.
+    create_app().run(host='127.0.0.1', port=int(os.environ.get('PORT', '10000')), threaded=True, debug=False)

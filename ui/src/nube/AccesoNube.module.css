@@ -1,0 +1,25 @@
+.fondo { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; background: #f7f7f8; color: #161823; }
+.marca { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; font-size: 30px; font-weight: 750; letter-spacing: -1px; }
+.panel { width: 100%; max-width: 450px; padding: 36px; background: #fff; border: 1px solid #e4e4e8; border-radius: 10px; }
+.panel h1 { font-size: 26px; line-height: 1.2; font-weight: 700; letter-spacing: -.7px; margin-bottom: 12px; }
+.panel p { color: #62626c; font-size: 15px; line-height: 1.6; }
+.formulario { display: flex; flex-direction: column; margin-top: 28px; }
+.formulario label { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.google { min-height: 46px; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 11px 18px; border: 1px solid #747775; border-radius: 6px; background: #fff; color: #1f1f1f; font-size: 14px; font-weight: 500; }
+.google:hover { background: #f8f9fa; }
+.google:focus-visible, .enlace:focus-visible { outline: 3px solid #ea7590; outline-offset: 3px; }
+.google:disabled { opacity: .65; cursor: wait; }
+.panel p.notaGoogle { margin-top: 16px; font-size: 13px; }
+.enlace { color: #b71939; text-decoration: underline; text-underline-offset: 3px; margin-top: 16px; padding: 8px; }
+.formulario input { min-height: 46px; padding: 10px 12px; background: #fff; border: 1px solid #93939b; border-radius: 6px; width: 100%; }
+.formulario input[aria-invalid] { border-color: #b71939; }
+.principal { display: flex; align-items: center; justify-content: center; gap: 16px; min-height: 46px; padding: 11px 18px; border-radius: 6px; background: #d81b43; color: #fff; font-weight: 600; font-size: 14px; margin-top: 24px; width: 100%; }
+.principal:hover { background: #bd1237; }
+.principal:disabled { opacity: .65; cursor: wait; }
+.principal:focus-visible, .formulario input:focus-visible { outline: 3px solid #ea7590; outline-offset: 3px; }
+.panel p.error { color: #b71939; font-size: 14px; margin-top: 10px; }
+.pie { max-width: 450px; font-size: 13px; text-align: center; line-height: 1.5; margin-top: 24px; color: #62626c; }
+.carga { display: block; width: 24px; height: 24px; margin: 24px auto 0; border: 2px solid #eee; border-top-color: #d81b43; border-radius: 50%; animation: giro .8s linear infinite; }
+@keyframes giro { to { transform: rotate(360deg); } }
+@media (max-width: 480px) { .fondo { padding: 28px 20px; } .panel { padding: 28px 24px; } .panel h1 { font-size: 24px; } }
+@media (prefers-reduced-motion: reduce) { .carga { animation: none; } }

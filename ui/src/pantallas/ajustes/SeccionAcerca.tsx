@@ -13,6 +13,7 @@ import { Aviso, Dato, Grupo, Seccion } from './piezas';
 import { T } from './textos';
 import css from './ajustes.module.css';
 import { cx } from './clases';
+import { esNube } from '../../nube/entorno';
 
 /** Logotipo: ícono C con el corte a 45° + «corte» (02 §2.2). Colores de tokens. */
 export function Logotipo(p: { tamano?: number }): ReactElement {
@@ -77,10 +78,10 @@ export function SeccionAcerca(): ReactElement {
 
       <Grupo titulo={T.acerca.grupoTecnico}>
         <Dato etiqueta={T.acerca.versionEtiqueta} valor={version} mono />
-        <Dato etiqueta={T.acerca.plataforma} valor={T.acerca.plataformas[plataforma] ?? plataforma} />
-        {servidor ? <Dato etiqueta={T.acerca.puerto} valor={`127.0.0.1:${servidor.puerto_ui}`} mono /> : null}
+        <Dato etiqueta={T.acerca.plataforma} valor={esNube() ? 'Web' : T.acerca.plataformas[plataforma] ?? plataforma} />
+        {!esNube() && servidor ? <Dato etiqueta={T.acerca.puerto} valor={`127.0.0.1:${servidor.puerto_ui}`} mono /> : null}
       </Grupo>
-      {servidor?.puerto_respaldo ? (
+      {!esNube() && servidor?.puerto_respaldo ? (
         <Aviso tono="info" icono="Info">
           {T.acerca.puertoRespaldo(servidor.puerto_ui)}
         </Aviso>

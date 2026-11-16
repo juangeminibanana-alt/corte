@@ -103,6 +103,7 @@ class ServicioDisplay:
         self.boveda, self.cliente, self.almacen, self.bus, self.reloj = boveda, cliente, almacen, bus, reloj
         self.coordinador, self.modo = coordinador, modo
         self.puerto: Callable[[], int] = lambda: config.PUERTO_UI        # hub.py: el puerto REAL de la interfaz
+        self.redirect_uri: str | None = None
         self.abrir_url: Callable[[str], None] = _abrir_url_sistema
         self.al_conectar: Callable[[], None] | None = None              # hub.py: sincronizar_ahora
         self._candado = threading.Lock()
@@ -231,12 +232,14 @@ class ServicioDisplay:
             pass
 
     def iniciar_conexion(self, abrir_navegador: bool = False) -> Json:
+        if self.redirect_uri is not None:
+            abrir_navegador = False
         self._exigir_real()
         d = self.boveda.leer()
         if not (d.get('client_key') and d.get('client_secret')):
             raise ErrorDominio('sin_credenciales', MSG_FALTAN_CREDENCIALES, http=409)
         verifier, state = pkce.nuevo_verifier(), pkce.nuevo_state()
-        redirect_uri = f'http://{config.HOST_UI}:{int(self.puerto())}{RUTA_CALLBACK}'
+        redirect_uri = self.redirect_uri or f'http://{config.HOST_UI}:{int(self.puerto())}{RUTA_CALLBACK}'
         ahora = self.reloj.ahora()
         expira = ahora + VIGENCIA_INTENTO_S
         with self._candado:

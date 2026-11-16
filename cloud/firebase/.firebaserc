@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "e-book-21589"
+  },
+  "targets": {
+    "e-book-21589": {
+      "hosting": {
+        "corte": [
+          "corte-e-book-21589"
+        ]
+      }
+    }
+  }
+}

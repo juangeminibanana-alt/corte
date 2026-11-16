@@ -13,7 +13,7 @@ PREFERENCIAS_POR_OMISION: dict[str, Any] = {
     'capacidad_videos_dia': 3, 'dias_videos': [0, 1, 2, 3, 4, 5], 'programo_mis_videos': False, 'firma': '',
     'recordatorio_diario': True, 'hora_recordatorio': '10:00', 'aviso_por_vencer': True, 'aviso_promesas': True,
     'aviso_atrasados': True, 'resumen_semanal': False, 'orden_plan': 'sugerido', 'umbral_publicado_sin_ventas_dias': 14,
-    'tema': 'sistema', 'reducir_animaciones': 'sistema',
+    'tema': 'claro', 'reducir_animaciones': 'sistema',
 }
 CLAVES_PREFERENCIAS = tuple(PREFERENCIAS_POR_OMISION)
 

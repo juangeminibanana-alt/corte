@@ -1,0 +1,13 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Deploy ONLY to the explicitly mapped, isolated `corte` bucket target.
+    // Never deploy this file to E-BOOK's default/shared bucket.
+    // Corte reads and writes through its authenticated Python backend.
+    // Admin SDK bypasses rules; the backend verifies the owner UID/email.
+    // A Firebase Google login alone never grants direct bucket access.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

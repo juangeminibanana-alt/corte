@@ -7,10 +7,19 @@
  * - Android A1–A6 (?paso=a1…a6): A2/A2'/A3 viven en #/emparejar; aquí A1, A4 (copia), A5 (recordatorios) y A6.
  */
 import { type ReactElement } from 'react';
-import { usePlataforma } from '@/app';
+import { EnlaceRuta, Pantalla, usePlataforma } from '@/app';
+import { esNube } from '../../nube/entorno';
+import { SeccionTikTokNube } from '../ajustes/ConexionNube';
+import css from './Nube.module.css';
 import { BienvenidaWindows } from './Windows';
 import { BienvenidaAndroid } from './Android';
 
 export function PantallaBienvenida(): ReactElement {
-  return usePlataforma() === 'android' ? <BienvenidaAndroid /> : <BienvenidaWindows />;
+  const plataforma = usePlataforma();
+  if (esNube()) return <BienvenidaNube />;
+  return plataforma === 'android' ? <BienvenidaAndroid /> : <BienvenidaWindows />;
+}
+
+function BienvenidaNube(): ReactElement {
+  return <Pantalla titulo="Conecta tu cuenta" lista><div className={css.contenido}><EnlaceRuta a="/inicio" className={css.volver ?? ''}>← Volver a Inicio</EnlaceRuta><header className={css.cabeza}><h1>Empieza con tu cuenta</h1><p>Conecta TikTok Shop y organiza tu trabajo desde cualquier dispositivo.</p></header><SeccionTikTokNube /></div></Pantalla>;
 }

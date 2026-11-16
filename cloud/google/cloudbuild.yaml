@@ -1,0 +1,8 @@
+# Invoked only after review and approval of Google Cloud costs.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: [build, --tag, '${_IMAGE_URI}', .]
+images: ['${_IMAGE_URI}']
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 1200s

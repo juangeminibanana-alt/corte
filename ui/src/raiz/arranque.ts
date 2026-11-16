@@ -30,6 +30,8 @@ export function decidirArranque(e: EntradaArranque): DecisionArranque {
     // Sin dato del puente todavía: se decide con la sesión (copia) como en Windows.
   }
   if (e.sesion) {
+    // La web abre el resumen; conectar la cuenta es una acción de Configuración.
+    if (e.plataforma === 'navegador') return 'inicio';
     const sinCredenciales = e.sesion.conexion.estado === 'sin_credenciales' || e.sesion.conexion.estado === 'sin_autorizar';
     return sinCredenciales && !e.sesion.datos.hay_datos ? 'bienvenida' : 'inicio';
   }

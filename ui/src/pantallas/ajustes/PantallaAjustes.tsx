@@ -26,11 +26,13 @@ import { SeccionAcerca } from './SeccionAcerca';
 import { T } from './textos';
 import css from './ajustes.module.css';
 import { cx } from './clases';
+import { esNube } from '../../nube/entorno';
+import { SeccionTikTokNube } from './ConexionNube';
 
 function Contenido(p: { id: IdSeccion; android: boolean }): ReactElement {
   switch (p.id) {
     case 'tiktok':
-      return <SeccionTiktok />;
+      return esNube() ? <SeccionTikTokNube /> : <SeccionTiktok />;
     case 'metricas':
       return <SeccionMetricas />;
     case 'sincronizacion':
@@ -155,11 +157,12 @@ export function PantallaAjustes(): ReactElement {
   const r = useRuta();
   const clase = useClaseAncho();
   const android = usePlataforma() === 'android';
-  const secciones = seccionesPara(android);
+  const nube = esNube();
+  const secciones = seccionesPara(android, nube);
   const pedida = r.params['seccion'] ?? null;
   const compacta = clase === 'compacta';
   const valida = pedida === null ? null : esSeccion(pedida) && secciones.some((s) => s.id === pedida) ? pedida : 'invalida';
-  const titulo = compacta && android ? T.tituloMas : T.tituloPantalla;
+  const titulo = nube ? 'Configuración' : compacta && android ? T.tituloMas : T.tituloPantalla;
 
   if (compacta) {
     if (valida === null) {
@@ -185,9 +188,9 @@ export function PantallaAjustes(): ReactElement {
 
   const activa: IdSeccion | 'invalida' = valida ?? secciones[0]?.id ?? 'tiktok';
   return (
-    <Pantalla titulo={T.tituloPantalla} lista>
+    <Pantalla titulo={titulo} lista>
       <div className={cx(css.raiz)} data-vista="dos-columnas" data-seccion-activa={activa}>
-        <EncabezadoPantalla titulo={T.tituloPantalla} contexto={android ? T.contextoAndroid : T.contexto} />
+        <EncabezadoPantalla titulo={titulo} contexto={nube ? 'Tu cuenta, tus datos y cómo se ve Corte.' : android ? T.contextoAndroid : T.contexto} />
         <div className={cx(css.columnas)}>
           <Subnav secciones={secciones} activa={activa === 'invalida' ? null : activa} />
           <div className={cx(css.contenido)}>{activa === 'invalida' ? <NoExiste /> : <Contenido id={activa} android={android} />}</div>

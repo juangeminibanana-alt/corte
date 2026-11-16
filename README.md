@@ -1,5 +1,33 @@
 # Corte
 
+Corte ahora incluye una **versión web privada**, con una interfaz clara inspirada en TikTok Shop y acceso desde computadora o teléfono, sin emparejamiento por Wi-Fi.
+
+- **Inicio simplificado:** resultados, hasta cinco prioridades y accesos directos. El detalle permanece en Muestras, Tiendas, Ventas, Videos y Productos.
+- **Google con Firebase Authentication:** el servidor verifica la identidad y limita el acceso al propietario autorizado.
+- **Firebase Storage:** copias privadas del trabajo local, con importación y restauración desde Configuración.
+- **Publicación en Google:** Firebase Hosting sirve la interfaz por HTTPS; Cloud Run la conecta con el backend privado de Compute Engine y su disco persistente. Conserva la sincronización de TikTok y la analítica existentes.
+
+La configuración, los requisitos y la publicación están en [Corte en la nube](cloud/README.md). Firebase Authentication y Storage comparten el proyecto de Google Cloud donde se ejecuta el backend Python. El repositorio por sí solo no activa estos servicios.
+
+## Desarrollo de la versión web
+
+Requisitos: Node 24, pnpm 11.25 y Python 3.12. Instala las dependencias del frontend y compílalo:
+
+```powershell
+cd ui
+pnpm install --frozen-lockfile
+pnpm build
+```
+
+El frontend se sirve desde el mismo origen que la API; la configuración pública de Firebase llega desde el servidor. Los secretos de administración y TikTok permanecen fuera del navegador y de Git. Las pruebas nuevas de la versión web no dependen de datos personales:
+
+```powershell
+python -m pip install -r cloud/requirements.txt
+python -m unittest discover -s cloud/tests -v
+```
+
+## Aplicaciones de escritorio y Android existentes
+
 Corte es un hub de Windows y una app de Android para **creadores afiliados de TikTok Shop**. Junta en un solo lugar las
 muestras que pediste (y los videos que debes), tus ventas y comisiones, las tiendas, los productos y los videos, y te
 ayuda a ponerte al día con las tiendas.
