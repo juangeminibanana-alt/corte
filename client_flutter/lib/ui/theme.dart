@@ -95,6 +95,21 @@ ThemeData corteTheme() => ThemeData(
     ),
   ),
   snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
+  dialogTheme: DialogThemeData(
+    backgroundColor: Colors.white,
+    surfaceTintColor: Colors.transparent,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  ),
+  datePickerTheme: DatePickerThemeData(
+    backgroundColor: Colors.white,
+    surfaceTintColor: Colors.transparent,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  ),
+  menuTheme: MenuThemeData(style: MenuStyle(
+    backgroundColor: const WidgetStatePropertyAll(Colors.white),
+    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+    shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+  )),
 );
 
 class CorteMark extends StatelessWidget {
