@@ -5,6 +5,7 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.os.SystemClock;
 import app.creatorhub.datos.AlmacenSeguro;
+import app.creatorhub.BuildConfig;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -182,6 +183,7 @@ public final class ClienteHub {
 
     private final Context ctx;
     private final AlmacenSeguro almacen;
+    public final CanalNube nube;
     private final Object candado = new Object();
     private Credencial cred;                 // con candado
     private TlsFijado.Canal canal;           // con candado
@@ -198,7 +200,10 @@ public final class ClienteHub {
     public ClienteHub(Context ctx, AlmacenSeguro almacen) {
         this.ctx = ctx.getApplicationContext();
         this.almacen = almacen;
+        this.nube = BuildConfig.CLOUD_ENABLED ? new CanalNube(almacen, this::avisar) : null;
     }
+
+    public boolean esNube() { return nube != null; }
 
     /** Lee la credencial del Keystore la primera vez que se necesita. Se llama con `candado` tomado. */
     private void cargar() {
@@ -224,17 +229,17 @@ public final class ClienteHub {
     }
 
     // ------------------------------------------------------------------ estado (sin secretos)
-    public boolean emparejado() { synchronized (candado) { cargar(); return cred != null; } }
-    public boolean conectado() { return conectado && emparejado(); }
+    public boolean emparejado() { if (esNube()) return nube.autenticado(); synchronized (candado) { cargar(); return cred != null; } }
+    public boolean conectado() { return esNube() ? nube.conectado() : conectado && emparejado(); }
     public boolean revocado() { return revocado; }
     public String incompatible() { return incompatible; }
-    public String ip() { return conectado ? ip : null; }
+    public String ip() { return esNube() ? null : conectado ? ip : null; }
     public int puerto() { return puerto; }
     public JSONObject ultimaSesion() { return ultimaSesion; }
 
-    public String hostId() { synchronized (candado) { cargar(); return cred == null ? null : cred.hostId; } }
-    public String nombreEquipo() { synchronized (candado) { cargar(); return cred == null ? null : cred.nombreEquipo; } }
-    public String permisos() { synchronized (candado) { cargar(); return cred == null ? null : cred.permisos; } }
+    public String hostId() { if (esNube()) return emparejado() ? "corte-nube" : null; synchronized (candado) { cargar(); return cred == null ? null : cred.hostId; } }
+    public String nombreEquipo() { if (esNube()) return "Corte en la nube"; synchronized (candado) { cargar(); return cred == null ? null : cred.nombreEquipo; } }
+    public String permisos() { if (esNube()) return emparejado() ? "lectura_escritura" : null; synchronized (candado) { cargar(); return cred == null ? null : cred.permisos; } }
     public List<String> direcciones() {
         synchronized (candado) { cargar(); return cred == null ? Collections.emptyList() : new ArrayList<>(cred.direcciones); }
     }
@@ -243,6 +248,7 @@ public final class ClienteHub {
     public boolean hayClavePendiente() { synchronized (candado) { cargar(); return cred != null && cred.clavePendiente != null; } }
 
     public void marcarDesconectado() {
+        if (esNube()) { nube.desconectado(); avisar(); return; }
         if (conectado) { conectado = false; avisar(); }
     }
 
@@ -266,6 +272,7 @@ public final class ClienteHub {
 
     /** "Olvidar esta PC": borra la credencial del Keystore. */
     public void olvidar() {
+        if (esNube()) { nube.cerrar(); return; }
         synchronized (candado) { cargar();
             if (cred != null) {
                 Arrays.fill(cred.deviceKey, (byte) 0);
@@ -315,6 +322,7 @@ public final class ClienteHub {
      * vez por `firma_invalida` si estaba probando la clave nueva de una rotación.
      */
     public Respuesta pedir(Peticion p) throws IOException {
+        if (esNube()) return nube.pedir(p);
         TlsFijado.Canal k;
         String deviceId;
         synchronized (candado) { cargar();
@@ -492,6 +500,11 @@ public final class ClienteHub {
      * filtrado por host_id (1.5 s), y GET /lan/v1/api/session firmado. Tope total `topeMs` (5 s en la app).
      */
     public boolean conectar(int topeMs) {
+        if (esNube()) {
+            if (!nube.autenticado()) return false;
+            try { refrescarSesion(); avisar(); return true; }
+            catch (IOException e) { nube.desconectado(); avisar(); return false; }
+        }
         final TlsFijado.Canal k;
         final String hostId;
         final int puertoGuardado;
@@ -588,6 +601,7 @@ public final class ClienteHub {
     // ------------------------------------------------------------------ rotación (dos fases)
     /** POST /lan/v1/rotar si el hub lo pidió (X-CH-Rotar: 1) o pasaron 30 días. La nueva se guarda antes de usarla. */
     public boolean rotarSiToca(boolean forzar) throws IOException {
+        if (esNube()) return false;
         long rotada;
         synchronized (candado) { cargar();
             if (cred == null || cred.clavePendiente != null) return false;

@@ -31,6 +31,7 @@ import os
 import platform
 import re
 import sys
+from pathlib import Path
 
 FORMATO = 1
 ARCHIVO_LICENCIA = re.compile(r'^(licen[cs]e|copying|notice)([._-].*)?$', re.I)
@@ -67,6 +68,8 @@ def norm(nombre: str) -> str:
 # ====================================================================== interfaz (npm)
 def componentes_interfaz(raiz: str) -> list[dict]:
     ui = os.path.join(raiz, 'ui')
+    if os.path.isfile(os.path.join(ui, 'pnpm-lock.yaml')):
+        return componentes_interfaz_pnpm(Path(ui))
     with open(os.path.join(ui, 'package-lock.json'), encoding='utf-8') as f:
         lock = json.load(f)
     if lock.get('lockfileVersion') not in (2, 3):
@@ -106,6 +109,82 @@ def componentes_interfaz(raiz: str) -> list[dict]:
     if not salida:
         raise ErrorLicencias('ui/package-lock.json no tiene dependencias de ejecución')
     return salida
+
+
+def componentes_interfaz_pnpm(ui: Path) -> list[dict]:
+    """Recorre las dependencias instaladas por pnpm sin asumir hoisting npm.
+
+    La instalación usa --frozen-lockfile; cada dependencia directa se comprueba
+    además contra la versión exacta declarada en package.json.
+    """
+    manifest = json.loads((ui / 'package.json').read_text(encoding='utf-8'))
+    visited: dict[str, dict] = {}
+
+    def encontrar(nombre: str, desde: Path) -> Path | None:
+        for base in (desde, *desde.parents):
+            if not base.is_relative_to(ui):
+                break
+            archivo = base / 'node_modules' / nombre / 'package.json'
+            if archivo.is_file():
+                return archivo.resolve()
+        return None
+
+    def visitar(nombre: str, desde: Path, version: str | None = None, opcional: bool = False) -> None:
+        archivo = encontrar(nombre, desde)
+        if archivo is None:
+            if opcional:
+                return
+            raise ErrorLicencias(f'Falta dependencia instalada: {nombre}')
+        paquete = json.loads(archivo.read_text(encoding='utf-8'))
+        if version is not None and paquete['version'] != version:
+            raise ErrorLicencias(f'{nombre}: la versión instalada no coincide con package.json')
+        key = str(archivo)
+        if key in visited:
+            return
+        carpeta = archivo.parent
+        archivos = sorted(p.name for p in carpeta.iterdir() if p.is_file() and ARCHIVO_LICENCIA.match(p.name))
+        licencia = paquete.get('license')
+        if isinstance(licencia, dict):
+            licencia = licencia.get('type')
+        licencia_firebase = (ui.parent / 'tools/licencias/Firebase-Apache-2.0.txt')
+        if not archivos and licencia == 'Apache-2.0' and (nombre == 'firebase' or nombre.startswith('@firebase/')):
+            if not licencia_firebase.is_file():
+                raise ErrorLicencias('Falta el texto oficial Apache-2.0 de Firebase SDK')
+            texto = leer(str(licencia_firebase))
+            archivos = ['Firebase SDK LICENSE (firebase/firebase-js-sdk)']
+        elif not archivos:
+            raise ErrorLicencias(f'{nombre} no incluye archivo de licencia')
+        else:
+            texto = '\n\n'.join(leer(str(carpeta / a)) for a in archivos)
+        repo = paquete.get('repository')
+        if isinstance(repo, dict):
+            repo = repo.get('url')
+        sitio = paquete.get('homepage') or repo
+        visited[key] = {'nombre': paquete['name'], 'version': paquete['version'], 'licencia': licencia,
+                        'origen': 'interfaz', 'descripcion': None, 'sitio': sitio or None,
+                        'archivos_licencia': archivos, 'nota': None,
+                        'texto': texto}
+        for dep in paquete.get('dependencies', {}):
+            visitar(dep, carpeta, opcional=dep in paquete.get('optionalDependencies', {}))
+        for dep in paquete.get('optionalDependencies', {}):
+            visitar(dep, carpeta, opcional=True)
+
+    for name, version in manifest['dependencies'].items():
+        visitar(name, ui, version)
+    unicos: dict[str, dict] = {}
+    for p in visited.values():
+        key = norm(p['nombre'])
+        if key not in unicos:
+            unicos[key] = dict(p)
+            continue
+        anterior = unicos[key]
+        if anterior['licencia'] != p['licencia']:
+            raise ErrorLicencias(f'{p["nombre"]}: revisa licencias diferentes entre versiones')
+        anterior['version'] = ', '.join(sorted(set(anterior['version'].split(', ')) | {p['version']}))
+        if p['texto'] not in anterior['texto']:
+            anterior['texto'] += '\n\n' + p['texto']
+        anterior['archivos_licencia'] = sorted(set(anterior['archivos_licencia']) | set(p['archivos_licencia']))
+    return sorted(unicos.values(), key=lambda p: p['nombre'])
 
 
 # ====================================================================== ejecutable (Python)
@@ -292,7 +371,11 @@ def main(argv: list[str] | None = None) -> int:
         datos = generar(os.path.abspath(a.raiz), a.plataforma)
         texto = json.dumps(datos, ensure_ascii=False, indent=2) + '\n'
         for patron, nombre in PROHIBIDO_EN_SALIDA:
-            if patron.search(texto):
+            inspeccion = texto + '\n' + '\n'.join(c['texto'] for c in datos['componentes'])
+            if patron.pattern == 'fixtures':
+                inspeccion = json.dumps({**datos, 'componentes': [
+                    {k: v for k, v in c.items() if k != 'texto'} for c in datos['componentes']]})
+            if patron.search(inspeccion):
                 raise ErrorLicencias(f'licencias.json contendría {nombre}: verificar_dist y la guardia lo rechazarían')
     except (ErrorLicencias, OSError, ValueError, KeyError) as e:
         print(f'generar_licencias: FALLA · {e}', file=sys.stderr)

@@ -14,7 +14,7 @@
   Uso: powershell -ExecutionPolicy Bypass -File scripts\build_windows.ps1 [-SinUI] [-SinInstalador] [-SinPrueba] [-SinRed] [-InnoSetup]
 #>
 [CmdletBinding()]
-param([switch]$SinUI, [switch]$SinInstalador, [switch]$SinPrueba, [switch]$SinRed, [switch]$InnoSetup)
+param([switch]$SinUI, [switch]$SinInstalador, [switch]$SinPrueba, [switch]$SinRed, [switch]$InnoSetup, [string]$UiDist)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'comun.ps1')
 . (Join-Path $PSScriptRoot 'comun_empaquetado.ps1')
@@ -29,6 +29,22 @@ $Hub     = Join-Path $Raiz 'hub'
 $Trabajo = Join-Path $Raiz 'build\windows'
 $Salida  = Join-Path $Raiz 'dist'
 $Iconos  = Join-Path $Trabajo 'iconos'
+# Recursive build operations must remain inside this checkout.
+$raizAbsoluta = [IO.Path]::GetFullPath($Raiz).TrimEnd('\') + '\'
+foreach ($objetivo in @($Trabajo, $Salida, $Iconos)) {
+    $absoluto = [IO.Path]::GetFullPath($objetivo)
+    if (-not $absoluto.StartsWith($raizAbsoluta, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'El destino de compilación salió del repositorio.'
+    }
+}
+$UiBundle = Join-Path $UI 'dist'
+if ($UiDist) {
+    if (-not $SinUI) { throw '-UiDist requiere -SinUI para usar una interfaz ya verificada.' }
+    $UiBundle = (Resolve-Path -LiteralPath $UiDist).Path
+    if (-not ([IO.Path]::GetFullPath($UiBundle)).StartsWith($raizAbsoluta, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'La interfaz empaquetada debe estar dentro del repositorio.'
+    }
+}
 
 $version = [string](Get-Content (Join-Path $Raiz 'version.json') -Raw | ConvertFrom-Json).version
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "version.json: versión inválida '$version'" }
@@ -48,11 +64,11 @@ if (-not $SinUI) {
     Push-Location $UI
     try { Ejecutar $Npm @('run', 'build') } finally { Pop-Location }
 }
-if (-not (Test-Path (Join-Path $UI 'dist\index.html'))) { throw 'Falta ui\dist\index.html (corre sin -SinUI)' }
+if (-not (Test-Path (Join-Path $UiBundle 'index.html'))) { throw 'Falta index.html en la interfaz para empaquetar.' }
 
 # ---------------- 1b. licencias (Acerca de) ----------------
 Paso 'Licencias: ui\dist\licencias.json (interfaz + ejecutable)'
-& (Join-Path $PSScriptRoot 'generar_licencias.ps1') -Plataforma windows -Salida (Join-Path $UI 'dist\licencias.json')
+& (Join-Path $PSScriptRoot 'generar_licencias.ps1') -Plataforma windows -Salida (Join-Path $UiBundle 'licencias.json')
 
 # ---------------- 2. íconos ----------------
 Paso 'Íconos: SVG -> PNG (resvg) -> ICO (Pillow)'
@@ -83,6 +99,7 @@ VSVersionInfo(
 # ---------------- 4. PyInstaller ----------------
 Paso 'PyInstaller (onedir, sin consola, sin UPX)'
 $env:CH_RAIZ = $Raiz
+$env:CH_UI_DIST = $UiBundle
 Ejecutar $Py @('-m', 'PyInstaller', '--noconfirm', '--clean', '--log-level', 'WARN',
     '--distpath', (Join-Path $Trabajo 'dist'), '--workpath', (Join-Path $Trabajo 'pyi'),
     (Join-Path $Hub 'CreatorHub.spec'))
@@ -131,6 +148,9 @@ if ($SinInstalador) {
 } else {
     Paso 'Zip portátil + Instalar.ps1'
     $tmp = Join-Path $Trabajo 'zip'
+    if (-not ([IO.Path]::GetFullPath($tmp)).StartsWith($raizAbsoluta, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'El destino ZIP salió del repositorio.'
+    }
     if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
     New-Item -ItemType Directory -Force $tmp | Out-Null
     Copy-Item $App (Join-Path $tmp 'CreatorHub') -Recurse

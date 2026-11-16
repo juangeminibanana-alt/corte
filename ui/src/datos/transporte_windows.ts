@@ -44,6 +44,8 @@ export const TIPOS_EVENTO: readonly C.EventoHub['tipo'][] = [
   'display.cambio',
 ];
 const CONJUNTO_TIPOS: ReadonlySet<string> = new Set(TIPOS_EVENTO);
+const EVENTOS_SHELL_WINDOWS = ['recordatorio.vencido', 'ventana.preguntar_cierre', 'ventana.mostrar_ruta'] as const;
+const CONJUNTO_SHELL: ReadonlySet<string> = new Set(EVENTOS_SHELL_WINDOWS);
 
 /** rev. 5 · Forma mínima de EstadoDisplay (lo que la interfaz lee para decidir el estado de Ajustes). */
 export function esEstadoDisplay(v: unknown): v is C.EstadoDisplay {
@@ -69,6 +71,26 @@ export function leerEventoSse(nombre: string, data: string): C.EventoHub | null 
   if ((tipo === 'sync.progreso' || tipo === 'sync.fin') && (evento['estado'] === null || typeof evento['estado'] !== 'object')) return null;
   if (tipo === 'display.cambio' && !esEstadoDisplay(evento['display'])) return null;
   return evento as C.EventoHub;
+}
+
+/** Solo loopback: conserva el puente de la ventana y los recordatorios del proceso de Windows. */
+export function conectarEventosShellWindows(sumidero: SumideroEventos): () => void {
+  if (typeof EventSource === 'undefined') return () => undefined;
+  const fuente = new EventSource('/api/events');
+  let activo = true;
+  const recibir = (nombre: string) => (ev: Event): void => {
+    if (!activo) return;
+    const data = ev instanceof MessageEvent && typeof ev.data === 'string' ? ev.data : '';
+    const evento = leerEventoSse(nombre, data);
+    if (evento && CONJUNTO_SHELL.has(evento.tipo)) sumidero.evento(evento);
+  };
+  const oyentes = [...EVENTOS_SHELL_WINDOWS, 'message'].map((tipo) => [tipo, recibir(tipo)] as const);
+  for (const [tipo, fn] of oyentes) fuente.addEventListener(tipo, fn);
+  return () => {
+    activo = false;
+    for (const [tipo, fn] of oyentes) fuente.removeEventListener(tipo, fn);
+    fuente.close();
+  };
 }
 
 function rutaDeOp(op: C.OpLocal): { metodo: MetodoMutacion; ruta: string; cuerpo?: unknown } {
@@ -269,7 +291,8 @@ export function crearTransporteWindows(): Transporte {
     conectarEventos(sumidero: SumideroEventos): () => void {
       if (esNube() || esWindowsNativo()) {
         // Las peticiones cortas dejan al gateway escalar a cero entre lecturas.
-        // El escritorio conserva SSE; la web no mantiene una instancia ocupada al dejar la pestaña abierta.
+        // Windows añade únicamente los eventos Shell de su servidor loopback; nunca abre SSE en Google.
+        const cerrarShell = esWindowsNativo() ? conectarEventosShellWindows(sumidero) : () => undefined;
         let activo = true;
         let temporizador: ReturnType<typeof setTimeout> | null = null;
         let solicitud: AbortController | null = null;
@@ -360,6 +383,7 @@ export function crearTransporteWindows(): Transporte {
         programar(0);
         return () => {
           activo = false;
+          cerrarShell();
           limpiarTemporizador();
           solicitud?.abort();
           document.removeEventListener('visibilitychange', alVisibilidad);

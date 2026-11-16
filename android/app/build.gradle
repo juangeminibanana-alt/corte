@@ -22,10 +22,14 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.debug          // CONTEXTO: llave de depuración estándar
+            // Certificado histórico para actualizar sin borrar los datos. No es firma de publicación en Google Play.
+            signingConfig signingConfigs.debug
         }
     }
     buildFeatures { buildConfig true }
+    defaultConfig {
+        buildConfigField 'boolean', 'CLOUD_ENABLED', providers.gradleProperty('chCloud').getOrElse('true')
+    }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     androidResources { noCompress += ['webp', 'woff2'] }
     lint { abortOnError true; checkReleaseBuilds true }

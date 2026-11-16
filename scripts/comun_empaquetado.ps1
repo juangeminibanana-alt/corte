@@ -15,6 +15,10 @@ function TextoDeSalida($linea) {
 # confirma que node_modules ya coincide con el lock (cada paquete con su versión exacta y nada de más), se adopta la
 # marca. Después se llama SIEMPRE a AsegurarNodeModules: si node_modules no coincidía, hace su `npm ci` como siempre.
 function NodeModulesAlDia([string]$carpetaUi) {
+    if (Test-Path -LiteralPath (Join-Path $carpetaUi 'pnpm-lock.yaml')) {
+        AsegurarNodeModules $carpetaUi
+        return
+    }
     $lock = Join-Path $carpetaUi 'package-lock.json'
     $modulos = Join-Path $carpetaUi 'node_modules'
     $marca = Join-Path $modulos '.ch-lock.sha256'

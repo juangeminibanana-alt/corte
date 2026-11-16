@@ -7,3 +7,5 @@ dependencyResolutionManagement {
 }
 rootProject.name = 'CreatorHub'
 include ':app'
+// APK de comprobación aislado, nunca entra en el release del usuario.
+if (providers.gradleProperty('chInstrumentarNube').getOrElse('false') == 'true') include ':qa-nube'

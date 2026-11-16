@@ -217,6 +217,7 @@ class Hub:
         self._avisadas: set[int] = set()
         self._detenido = False
         self._registro_propio = False
+        self.cliente_nativo: Any = None
 
     # ================================================================== HubProto
     def url_arranque(self) -> str:
@@ -224,6 +225,13 @@ class Hub:
         return f'http://{config.HOST_UI}:{self.puerto_ui}/boot?t={self.sesiones.crear_token()}'
 
     def sincronizar_ahora(self, origen: str = 'usuario') -> None:
+        if self.cliente_nativo is not None:
+            try:
+                self.cliente_nativo.remoto('POST', '/api/sync', {'tipo': 'incremental'})
+                self.cliente_nativo.despertar.set()
+            except Exception:
+                _log.info('No se pudo solicitar la sincronización en Google')
+            return
         try:
             self.sincronizador.iniciar('incremental', origen)
         except ErrorDominio as e:
@@ -233,6 +241,8 @@ class Hub:
         """'/img/p/<id>?v=…' → archivo original de la caché (para «Guardar imagen»), o None."""
         if not isinstance(ruta_img, str):
             return None
+        if self.cliente_nativo is not None and ruta_img.startswith('/img/'):
+            return self.cliente_nativo.archivo_imagen(ruta_img)
         m = _RE_RUTA_IMG.match(urllib.parse.urlsplit(ruta_img).path)
         if m is None:
             return None
@@ -267,6 +277,8 @@ class Hub:
             return max(0.05, (limite - time.monotonic()) * fraccion)
 
         self._parar.set()
+        if self.cliente_nativo is not None:
+            self.cliente_nativo.detener()
         if self.sincronizador is not None:
             _con_tope('sincronizacion', lambda: self.sincronizador.cancelar(resto(0.3)), resto(0.35))
         if self.planificador is not None:
@@ -493,7 +505,8 @@ class Hub:
     # ================================================================== tareas del planificador
     def registrar_tareas(self) -> None:
         p = self.planificador
-        p.registrar_tarea('auto_sync', TIC_S, lambda: self.sincronizador.iniciar('incremental', 'auto'))
+        p.registrar_tarea('auto_sync', TIC_S, lambda: self.cliente_nativo.despertar.set()
+                         if self.cliente_nativo is not None else self.sincronizador.iniciar('incremental', 'auto'))
         p.registrar_tarea('recordatorios', TIC_S, self._tarea_recordatorios)
         p.registrar_tarea('volcado', VOLCADO_S, self._tarea_volcado)
         if self.modo == 'real':                     # §6.3.4: nunca en demo ni autoprueba
@@ -551,6 +564,8 @@ class Hub:
                 vivos += tuple(self.display.secretos_vivos())
             except Exception:  # noqa: BLE001
                 pass
+        if self.cliente_nativo is not None:
+            vivos += tuple(self.cliente_nativo.vault.secretos_vivos())
         return vivos
 
     def callback_oauth(self, consulta: str) -> tuple[int, bytes]:
@@ -620,7 +635,8 @@ class Hub:
     def iniciar_servidor(self, dir_ui: str) -> None:
         self.despachador = self.despachador or rutas_api.crear_despachador(self)
         self.servidor = ServidorLocal(self.despachador, self.sesiones, Estaticos(dir_ui), self.canal, self.op.puerto_ui,
-                                      dev=self.op.dev, despachador_local=crear_despachador_display(self),
+                                      dev=self.op.dev, despachador_local=(self.despachador if self.op.cliente_nube
+                                                                        else crear_despachador_display(self)),
                                       oauth=self.callback_oauth)
         self.puerto_ui = self.servidor.puerto
         self.puerto_respaldo = self.servidor.respaldo
@@ -664,6 +680,8 @@ class Hub:
 
     def _sync_de_arranque(self) -> None:
         """03 §4.4: incremental (completa si nunca hubo barrido) si la última ok tiene más de 15 min."""
+        if self.op.cliente_nube:
+            return
         ultima = (self.sincronizador.estado() or {}).get('ultima_ok_at')
         if isinstance(ultima, int) and self.reloj.ahora() - ultima <= SYNC_ARRANQUE_SI_MAS_DE_S:
             _log.info('Sync de arranque omitida: la última terminó hace menos de 15 min')
@@ -678,6 +696,11 @@ class Hub:
 def _validar_opciones(op: OpcionesHub) -> None:
     if op.modo not in ('real', 'demo', 'autoprueba'):
         raise ValueError(f'modo desconocido: {op.modo!r}')
+    if op.cliente_nube and (op.nube or op.modo != 'real'):
+        raise ValueError('El cliente Windows y el servidor de nube son modos distintos.')
+    if op.cliente_nube:
+        op.sin_lan = True
+        op.sync_al_iniciar = False
     if op.fuente_demo not in ('sinteticos', 'fixtures_reales'):
         raise ValueError(f'fuente de demo desconocida: {op.fuente_demo!r}')
     if getattr(sys, 'frozen', False):
@@ -769,7 +792,12 @@ def iniciar_hub(op: OpcionesHub) -> HubProto:
         hub.planificador.configurar(ajustes['sync_auto'], ajustes['sync_intervalo_min'])
         # 10
         hub.despachador = rutas_api.crear_despachador(hub)
-        if not op.nube:
+        if op.cliente_nube:
+            from .cliente_nativo import ClienteNativo, DespachadorNativo
+            hub.cliente_nativo = ClienteNativo(hub)
+            hub.despachador = DespachadorNativo(hub.cliente_nativo, hub.despachador)
+            registro.fijar_secretos_vivos(hub.secretos_vivos)
+        if not op.nube and not op.cliente_nube:
             hub.lan = crear_servicio_lan(dep)
             hub.lan.fijar_despachador(hub.despachador)
         # 11
@@ -789,4 +817,6 @@ def iniciar_hub(op: OpcionesHub) -> HubProto:
     _log.info('Hub listo (nube=%s, modo %s, %.0f ms)', op.nube, op.modo, hub.t_listo_ms)
     # 12
     hub._arrancar_en_fondo()
+    if hub.cliente_nativo is not None:
+        hub.cliente_nativo.iniciar()
     return hub

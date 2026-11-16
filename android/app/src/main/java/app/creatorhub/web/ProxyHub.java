@@ -42,6 +42,11 @@ public final class ProxyHub {
             return error(405, "prohibido", "Este cambio se envía desde la app.", "hub");
         }
         String rutaQuery = query == null ? ruta : ruta + "?" + query;
+        if (n.cliente.esNube() && u.getPath() != null && u.getPath().startsWith("/api/native/")) {
+            if ("/api/native/session".equals(u.getPath()))
+                return ServidorAssets.json(200, "OK", n.estadoNativo().toString(), new HashMap<>());
+            return error(403, "prohibido", "Esta ruta de acceso se gestiona dentro de la aplicación.", "hub");
+        }
         if (ruta.startsWith("/img/")) return imagen(rutaQuery);
         if ("/api/snapshot".equals(ruta)) return snapshot();
         if (!n.cliente.emparejado() || !n.cliente.conectado()) return sinConexion();
@@ -138,7 +143,7 @@ public final class ProxyHub {
 
     /** 503 + ErrorRespuesta + X-CH-Fuente: sin_conexion → la interfaz arma la vista con deCopia() o «Necesita tu PC encendida». */
     static WebResourceResponse sinConexion() {
-        return error(503, "sin_internet", "Necesita tu PC encendida y en el mismo Wi‑Fi.", "sin_conexion");
+        return error(503, "sin_internet", "No hay conexión disponible. Tu copia guardada sigue en este dispositivo.", "sin_conexion");
     }
 
     static WebResourceResponse error(int codigo, String clave, String mensaje, String fuente) {

@@ -44,6 +44,7 @@ class OpcionesHub:
     sync_al_iniciar: bool = True        # False en --medir y --autoprueba
     retraso_sync_s: float = 5.0         # 60 con --inicio-windows y segundo plano
     nube: bool = False                 # Web privada: sin shell, listener local ni emparejamiento LAN.
+    cliente_nube: bool = False         # App Windows local con datos/autorización centralizados en Google.
 
 
 @dataclass(frozen=True)

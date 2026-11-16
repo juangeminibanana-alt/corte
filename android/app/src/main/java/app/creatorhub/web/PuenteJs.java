@@ -62,7 +62,8 @@ public final class PuenteJs {
     static final String PAQUETE_TIKTOK = "com.zhiliaoapp.musically";
     /** Hosts permitidos para abrir fuera de la app (BUILD_SPEC §6.4; 03 §7.7). Solo https. */
     static final Set<String> HOSTS_PERMITIDOS = new HashSet<>(Arrays.asList(
-            "shop.tiktok.com", "www.tiktok.com", "affiliate.tiktok.com", "seller-mx.tiktok.com", "partner.tiktokshop.com"));
+            "shop.tiktok.com", "www.tiktok.com", "affiliate.tiktok.com", "seller-mx.tiktok.com", "partner.tiktokshop.com",
+            "corte-e-book-21589.web.app"));
     private static final Pattern ID_PEDIDO = Pattern.compile("[A-Za-z0-9_-]{1,64}");
     private static final Pattern RESTAURAR = Pattern.compile("/api/plantillas/[A-Za-z0-9_-]{1,64}/restaurar");
     private static final int TOPE_TEXTO = 100_000;
@@ -95,6 +96,7 @@ public final class PuenteJs {
         try {
             PackageInfo wv = WebView.getCurrentWebViewPackage();
             o.put("app", BuildConfig.VERSION_NAME).put("sdk", Build.VERSION.SDK_INT)
+             .put("cloud", n.cliente.esNube())
              .put("modelo", Build.MANUFACTURER + " " + Build.MODEL)
              .put("webview", wv == null ? "desconocido" : wv.packageName + " " + wv.versionName)
              .put("idioma", Locale.getDefault().toLanguageTag());
@@ -190,29 +192,54 @@ public final class PuenteJs {
     /** Solo POST /api/sync y POST /api/plantillas/{id}/restaurar → creatorhub-respuesta {id, status, cuerpo}. */
     @JavascriptInterface public void peticion(String metodo, String ruta, String cuerpo, String idPedido) {
         if (!permitido() || !idValido(idPedido)) return;
-        final boolean admitida = "POST".equals(metodo) && ruta != null
+        final boolean control = n.cliente.esNube() && "POST".equals(metodo)
+                && ("/api/native/connect".equals(ruta) || "/api/native/logout".equals(ruta) || "/api/native/migrate".equals(ruta))
+                && (cuerpo == null || cuerpo.length() <= 1024);
+        final boolean mutacionNube = n.cliente.esNube() && ruta != null && ruta.startsWith("/api/")
+                && !ruta.startsWith("/api/native/") && ruta.length() <= 4096
+                && ("POST".equals(metodo) || "PUT".equals(metodo) || "PATCH".equals(metodo) || "DELETE".equals(metodo))
+                && (cuerpo == null || cuerpo.getBytes(StandardCharsets.UTF_8).length <= 20 * 1024 * 1024);
+        final boolean admitida = mutacionNube || ("POST".equals(metodo) && ruta != null
                 && ("/api/sync".equals(ruta) || RESTAURAR.matcher(ruta).matches())
-                && (cuerpo == null || cuerpo.length() <= 64 * 1024);
+                && (cuerpo == null || cuerpo.length() <= 64 * 1024));
         n.io.execute(() -> {
             int status;
             String texto;
-            if (!admitida) {
+            if (control) {
+                try {
+                    if ("/api/native/connect".equals(ruta)) {
+                        String url = n.iniciarAccesoNube();
+                        if (!abrirUrl(a.actividad(), url)) throw new IOException("No pudimos abrir el navegador. Abre el enlace de autorización e inténtalo de nuevo.");
+                    } else if ("/api/native/migrate".equals(ruta)) {
+                        JSONObject decision;
+                        try { decision = new JSONObject(cuerpo == null ? "{}" : cuerpo); }
+                        catch (JSONException e) { throw new IOException("Confirma si quieres importar la organización anterior."); }
+                        Object confirmar = decision.opt("confirm");
+                        if (!(confirmar instanceof Boolean)) throw new IOException("Confirma si quieres importar la organización anterior.");
+                        n.migrarAccesoNube((Boolean) confirmar);
+                    } else n.cerrarAccesoNube();
+                    status = 200;
+                    JSONObject resultado = n.estadoNativo();
+                    try { resultado.put("ok", true); } catch (JSONException e) { /* campo fijo */ }
+                    texto = resultado.toString();
+                } catch (IOException e) { status = 503; texto = errorJson("sin_internet", e.getMessage()); }
+            } else if (!admitida) {
                 status = 403;      // como el hub con lo que no va por la LAN (BUILD_SPEC §5: 403 solo_local)
                 texto = errorJson("solo_local", "Esto solo se puede hacer desde Corte en tu PC.");
             } else if (!n.cliente.emparejado() || !n.cliente.conectado()) {
                 status = 503;
-                texto = errorJson("sin_internet", "Necesita tu PC encendida y en el mismo Wi‑Fi.");
+                texto = errorJson("sin_internet", n.cliente.esNube() ? "No hay conexión a internet. Tu copia y tus cambios siguen guardados." : "Necesita tu PC encendida y en el mismo Wi‑Fi.");
             } else {
                 try {
                     byte[] b = (cuerpo == null || cuerpo.isEmpty() ? "{}" : cuerpo).getBytes(StandardCharsets.UTF_8);
-                    ClienteHub.Respuesta r = n.cliente.pedir(new ClienteHub.Peticion("POST", "/lan/v1" + ruta).cuerpo(b));
+                    ClienteHub.Respuesta r = n.cliente.pedir(new ClienteHub.Peticion(metodo, "/lan/v1" + ruta).cuerpo(b));
                     status = r.codigo;
                     texto = new String(r.cuerpo, StandardCharsets.UTF_8);
                     if ("/api/sync".equals(ruta) && (r.codigo == 202 || r.codigo == 200)) n.io.execute(() -> n.refrescarCopia(false));
                 } catch (IOException e) {
                     n.cliente.marcarDesconectado();
                     status = 503;
-                    texto = errorJson("sin_internet", "Necesita tu PC encendida y en el mismo Wi‑Fi.");
+                    texto = errorJson("sin_internet", n.cliente.esNube() ? "No hay conexión a internet. Tu copia y tus cambios siguen guardados." : "Necesita tu PC encendida y en el mismo Wi‑Fi.");
                 }
             }
             try { n.emitir("creatorhub-respuesta", new JSONObject().put("id", idPedido).put("status", status).put("cuerpo", texto)); }

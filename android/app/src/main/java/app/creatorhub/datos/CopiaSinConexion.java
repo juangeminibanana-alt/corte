@@ -57,17 +57,19 @@ public final class CopiaSinConexion {
     public static final class Meta {
         public String etag = "";
         public long dataVersion, localRev, imgRev, copiaAt, generadoAt;
+        public boolean nube;
         public List<String> imagenes = Collections.emptyList();
 
         JSONObject aJson() throws JSONException {
             return new JSONObject().put("etag", etag).put("data_version", dataVersion).put("local_rev", localRev)
                     .put("img_rev", imgRev).put("copia_at", copiaAt).put("generado_at", generadoAt)
-                    .put("imagenes", new org.json.JSONArray(imagenes));
+                    .put("imagenes", new org.json.JSONArray(imagenes)).put("nube", nube);
         }
 
         static Meta deJson(JSONObject o) {
             Meta m = new Meta();
             m.etag = o.optString("etag", "");
+            m.nube = o.optBoolean("nube", false);
             m.dataVersion = o.optLong("data_version", 0);
             m.localRev = o.optLong("local_rev", 0);
             m.imgRev = o.optLong("img_rev", 0);
@@ -136,7 +138,7 @@ public final class CopiaSinConexion {
     private Meta actualizarSinCompetencia(ClienteHub cliente) throws IOException {
         if (!dirCopia.isDirectory() && !dirCopia.mkdirs()) throw new IOException("sin carpeta de copia");
         String etag;
-        synchronized (this) { etag = existe() ? m().etag : ""; }
+        synchronized (this) { etag = existe() && (!cliente.esNube() || m().nube) ? m().etag : ""; }
         File tmp = new File(dirCopia, "snapshot.json.gz.nuevo");
         ClienteHub.Peticion p = new ClienteHub.Peticion("GET", "/lan/v1/api/snapshot")
                 .gzipCrudo().aArchivo(tmp).limite(TOPE_SNAPSHOT).lectura(60_000);
@@ -163,6 +165,7 @@ public final class CopiaSinConexion {
                 if (nueva.imgRev == 0) nueva.imgRev = Long.parseLong(m.group(3));
             }
             nueva.copiaAt = System.currentTimeMillis() / 1000L;
+            nueva.nube = cliente.esNube();
             synchronized (this) {
                 Files.move(tmp.toPath(), archivo.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
                 escribirAtomico(archivoMeta, nueva.aJson().toString().getBytes(StandardCharsets.UTF_8));

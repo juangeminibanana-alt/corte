@@ -71,6 +71,7 @@ if ($UiDist) {
 # ---------------- 3. Gradle (syncWebAssets copia ui\dist -> app\src\main\assets\web) ----------------
 $tarea = if ($Tipo -eq 'release') { ':app:assembleRelease' } else { ':app:assembleDebug' }
 $argumentos = @('-p', $Android, '--console=plain', "-PchVersionName=$version", "-PchVersionCode=$codigo", $tarea)
+$argumentos += '-PchCloud=true'
 if ($UiDist)      { $argumentos = @("-PchUiDist=$($UiDist -replace '\\', '/')") + $argumentos }
 if (-not $Online) { $argumentos = @('--offline') + $argumentos }
 if ($SinDaemon)   { $argumentos = @('--no-daemon') + $argumentos }
@@ -84,6 +85,11 @@ Paso 'Verificando versión, SDK, permisos y firma'
 $badging = Capturar (Join-Path $BT 'aapt2.exe') @('dump', 'badging', $apk)
 foreach ($e in @("versionCode='$codigo'", "versionName='$version", "minSdkVersion:'26'", "targetSdkVersion:'35'")) {
     if (-not ($badging -match [regex]::Escape($e))) { throw "El APK no cumple: $e" }
+}
+if ($Tipo -eq 'release') {
+    if ($badging -match 'application-debuggable') { throw 'El APK release no debe permitir depuración.' }
+    if (-not ($badging -match "package: name='app.creatorhub'")) { throw 'Cambió el identificador de la app: no sería una actualización compatible.' }
+    Paso 'Release optimizado con certificado histórico compatible (Android Debug heredado; no listo para Google Play)'
 }
 $permitidos = @('android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE', 'android.permission.CAMERA',
                 'android.permission.POST_NOTIFICATIONS', 'android.permission.RECEIVE_BOOT_COMPLETED')

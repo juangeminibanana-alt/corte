@@ -164,9 +164,10 @@ def opciones_hub(b: Banderas, oculta: bool = False) -> Any:
         puerto_ui=b.puerto,
         raiz_datos=os.path.abspath(b.datos) if b.datos else None,
         dir_ui=os.path.abspath(b.ui) if b.ui else None,
-        sin_lan=b.sin_lan or b.medir,
+        sin_lan=True if not b.demo else b.sin_lan or b.medir,
         fuente_demo=b.fuente or 'sinteticos',      # type: ignore[arg-type]
-        sync_al_iniciar=not b.medir,
+        sync_al_iniciar=False if not b.demo else not b.medir,
+        cliente_nube=not b.demo and not b.medir,
         retraso_sync_s=60.0 if oculta else 5.0,   # --inicio-windows con segundo plano: la 1.ª sync espera 60 s
     )
 

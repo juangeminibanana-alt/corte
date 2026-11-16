@@ -2,7 +2,7 @@
   "generado_por": "ui/scripts/render_iconos.mjs (no editar a mano: se regenera desde spec/assets)",
   "resvg_js": "2.6.2",
   "origen": {
-    "spec/assets/icon.svg": "1fdce4f10cc80ca4ac8ec6d1e6947ac1e31fdda51d8e2c4541e27a900094dd09",
+    "spec/assets/icon.svg": "f590039146c9626bdf03f13b9f53df1b6fcddab8908c81f2b5432472cafbf39c",
     "spec/assets/icon-16.svg": "9642157324516870cb9d2793ad89b4ad15268ba7ebbb504528114e740bec9a0c",
     "spec/assets/icon-capa-frontal.svg": "3c3de62b1a96935c1fa126376cec3a87fb2ea22c10dcef4e524489b63d68d960",
     "spec/assets/icon-monocromo.svg": "06a394ca7a8d89f2c118e0bce3cfcd5fe0960420656dba1018f493aa251d09fa"
@@ -135,8 +135,8 @@
     },
     {
       "ruta": "icono.svg",
-      "bytes": 1536,
-      "sha256": "1fdce4f10cc80ca4ac8ec6d1e6947ac1e31fdda51d8e2c4541e27a900094dd09"
+      "bytes": 1562,
+      "sha256": "f590039146c9626bdf03f13b9f53df1b6fcddab8908c81f2b5432472cafbf39c"
     },
     {
       "ruta": "png/icono-1024.png",

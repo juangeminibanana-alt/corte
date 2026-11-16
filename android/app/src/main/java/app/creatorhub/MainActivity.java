@@ -11,11 +11,13 @@ import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.OpenableColumns;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.view.WindowInsets;
@@ -27,6 +29,7 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.ValueCallback;
 import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 import app.creatorhub.red.PruebaDepuracion;
@@ -35,6 +38,8 @@ import app.creatorhub.web.ProxyHub;
 import app.creatorhub.web.PuenteJs;
 import app.creatorhub.web.ServidorAssets;
 import java.util.Locale;
+import java.io.InputStream;
+import java.io.IOException;
 import java.util.regex.Pattern;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -48,6 +53,8 @@ import org.json.JSONObject;
 public final class MainActivity extends Activity implements Nucleo.Emisor, PuenteJs.Anfitrion {
     private static final int PEDIR_CAMARA = 41;
     private static final int PEDIR_NOTIFICACIONES = 42;
+    private static final int ELEGIR_JSON = 43;
+    private static final long TOPE_JSON = 20L * 1024 * 1024;
     private static final int WEBVIEW_MINIMA = 111;      // target de Vite (04 §B.10)
     private static final Pattern RUTA_HASH = Pattern.compile("#/[A-Za-z0-9/_.~?=&%-]{0,200}");
 
@@ -63,6 +70,7 @@ public final class MainActivity extends Activity implements Nucleo.Emisor, Puent
     private PermissionRequest permisoPendiente;
     private WindowInsets ultimosInsets;
     private Object callbackAtras;    // OnBackInvokedCallback (API 33+), guardado como Object para API 26
+    private ValueCallback<Uri[]> archivoPendiente;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override protected void onCreate(Bundle estado) {
@@ -140,6 +148,20 @@ public final class MainActivity extends Activity implements Nucleo.Emisor, Puent
         });
 
         web.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onShowFileChooser(WebView vista, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (archivoPendiente != null) devolverArchivo(archivoPendiente, null);
+                archivoPendiente = callback;
+                if (!ServidorAssets.esLocal(Uri.parse(urlActual)) || params.getMode() != FileChooserParams.MODE_OPEN) {
+                    devolverArchivo(callback, null); return true;
+                }
+                Intent selector = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                        .setType("*/*").putExtra(Intent.EXTRA_MIME_TYPES,
+                                new String[] { "application/json", "text/json", "text/plain", "application/octet-stream" })
+                        .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                try { startActivityForResult(selector, ELEGIR_JSON); }
+                catch (ActivityNotFoundException e) { devolverArchivo(callback, null); }
+                return true;
+            }
             @Override public void onPermissionRequest(PermissionRequest pedido) {
                 runOnUiThread(() -> decidirPermiso(pedido));
             }
@@ -201,7 +223,7 @@ public final class MainActivity extends Activity implements Nucleo.Emisor, Puent
         boolean vidrio = equipoCapaz();
         boolean sinAnimaciones = !ValueAnimator.areAnimatorsEnabled();
         web.evaluateJavascript(String.format(Locale.US,
-                "(function(e){var s=e.style;"
+                "(function(e){if(!e)return;var s=e.style;"
                 + "s.setProperty('--native-inset-top','%.1fpx');s.setProperty('--native-inset-right','%.1fpx');"
                 + "s.setProperty('--native-inset-bottom','%.1fpx');s.setProperty('--native-inset-left','%.1fpx');"
                 + "s.setProperty('--native-ime','%.1fpx');s.setProperty('--fs','%.2f');"
@@ -253,12 +275,58 @@ public final class MainActivity extends Activity implements Nucleo.Emisor, Puent
     }
 
     @Override protected void onDestroy() {
+        if (archivoPendiente != null) devolverArchivo(archivoPendiente, null);
         if (Build.VERSION.SDK_INT >= 33 && callbackAtras != null) {
             getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback((OnBackInvokedCallback) callbackAtras);
         }
         nucleo.quitarEmisor(this);
         if (web != null) { web.destroy(); web = null; }
         super.onDestroy();
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override protected void onActivityResult(int codigo, int resultado, Intent datos) {
+        super.onActivityResult(codigo, resultado, datos);
+        if (codigo != ELEGIR_JSON || archivoPendiente == null) return;
+        final ValueCallback<Uri[]> callback = archivoPendiente;
+        final Uri uri = resultado == RESULT_OK && datos != null ? datos.getData() : null;
+        if (uri == null) { devolverArchivo(callback, null); return; }
+        nucleo.io.execute(() -> {
+            boolean valido = false;
+            try { valido = jsonPermitido(uri); } catch (IOException | RuntimeException e) { /* no se registra el archivo */ }
+            final boolean aceptado = valido;
+            runOnUiThread(() -> {
+                devolverArchivo(callback, aceptado && !isFinishing() ? new Uri[] { uri } : null);
+                if (!aceptado && !isFinishing()) android.widget.Toast.makeText(this,
+                        "Elige un archivo JSON de hasta 20 MB.", android.widget.Toast.LENGTH_LONG).show();
+            });
+        });
+    }
+
+    private void devolverArchivo(ValueCallback<Uri[]> callback, Uri[] archivos) {
+        if (archivoPendiente != callback) return;
+        archivoPendiente = null;
+        callback.onReceiveValue(archivos);
+    }
+
+    private boolean jsonPermitido(Uri uri) throws IOException {
+        if (!"content".equals(uri.getScheme())) return false;
+        String nombre = null;
+        try (Cursor c = getContentResolver().query(uri, new String[] { OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE }, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                int n = c.getColumnIndex(OpenableColumns.DISPLAY_NAME), tam = c.getColumnIndex(OpenableColumns.SIZE);
+                if (n >= 0) nombre = c.getString(n);
+                if (tam >= 0 && !c.isNull(tam) && c.getLong(tam) > TOPE_JSON) return false;
+            }
+        }
+        if (nombre == null || !nombre.toLowerCase(Locale.ROOT).endsWith(".json")) return false;
+        // El proveedor puede omitir o falsear SIZE: comprobar el límite leyendo en bloques, sin guardar su contenido.
+        try (InputStream in = getContentResolver().openInputStream(uri)) {
+            if (in == null) return false;
+            byte[] buffer = new byte[8192]; long total = 0;
+            for (int n; (n = in.read(buffer)) != -1;) { total += n; if (total > TOPE_JSON) return false; }
+        }
+        return true;
     }
 
     // ------------------------------------------------------------------ eventos hacia la interfaz

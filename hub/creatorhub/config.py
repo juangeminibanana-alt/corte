@@ -75,7 +75,8 @@ VIGENCIA_TOKEN_BOOT_S = 60   # /boot?t=<token de un uso>
 
 # ------------------------------------------------------------------ hosts permitidos para abrir enlaces (§6.4, 03 §7.7)
 HOSTS_PERMITIDOS: frozenset[str] = frozenset({
-    'shop.tiktok.com', 'www.tiktok.com', 'affiliate.tiktok.com', 'seller-mx.tiktok.com', 'partner.tiktokshop.com'})
+    'shop.tiktok.com', 'www.tiktok.com', 'affiliate.tiktok.com', 'seller-mx.tiktok.com', 'partner.tiktokshop.com',
+    'corte-e-book-21589.web.app'})
 HOST_AVISO_WEBVIEW2 = 'go.microsoft.com'                                   # solo el aviso de WebView2, desde el shell
 HOSTS_PERMITIDOS_SHELL: frozenset[str] = HOSTS_PERMITIDOS | {HOST_AVISO_WEBVIEW2}
 

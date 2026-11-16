@@ -4,6 +4,11 @@
 Set-StrictMode -Version Latest
 $script:Reloj = [Diagnostics.Stopwatch]::StartNew()
 $script:NodeDir = 'D:\android-toolchain\node-v24.22.3-win-x64'
+if (-not (Test-Path -LiteralPath (Join-Path $script:NodeDir 'node.exe'))) {
+    $nodeDisponible = Get-Command node.exe -ErrorAction SilentlyContinue
+    if (-not $nodeDisponible) { throw 'Falta Node.js 24 para compilar la interfaz.' }
+    $script:NodeDir = Split-Path -Parent $nodeDisponible.Source
+}
 if (-not ($env:PATH -like "$script:NodeDir;*")) { $env:PATH = "$script:NodeDir;$env:PATH" }
 
 function Paso([string]$t) { Write-Host ('[{0,6:N1} s] {1}' -f $script:Reloj.Elapsed.TotalSeconds, $t) -ForegroundColor Cyan }
@@ -30,6 +35,14 @@ function EscribirUtf8SinBom([string]$ruta, [string]$texto) {
 
 # node_modules al día con el lock: compara el SHA-256 de package-lock.json con la marca del último npm ci.
 function AsegurarNodeModules([string]$carpetaUi) {
+    if (Test-Path -LiteralPath (Join-Path $carpetaUi 'pnpm-lock.yaml')) {
+        $pnpm = Get-Command pnpm.cmd -ErrorAction SilentlyContinue
+        if (-not $pnpm) { throw 'Falta pnpm 11.25 para instalar las dependencias fijadas.' }
+        Push-Location -LiteralPath $carpetaUi
+        try { Ejecutar $pnpm.Source @('install', '--frozen-lockfile', '--prefer-offline') }
+        finally { Pop-Location }
+        return
+    }
     $lock = Join-Path $carpetaUi 'package-lock.json'
     if (-not (Test-Path -LiteralPath $lock)) {
         throw "Falta $lock. Genéralo una vez con 'npm install' dentro de ui\ y guárdalo con el proyecto."

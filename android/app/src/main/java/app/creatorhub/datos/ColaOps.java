@@ -2,6 +2,7 @@ package app.creatorhub.datos;
 
 import android.content.Context;
 import app.creatorhub.red.ClienteHub;
+import app.creatorhub.red.SeguridadNube;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -86,7 +87,7 @@ public final class ColaOps {
         for (int i = 0; i < a.length(); i++) {
             JSONObject o = a.optJSONObject(i);
             if (o == null || !valida(o)) continue;
-            if (o.toString().length() > 64 * 1024) continue;
+            if (o.toString().getBytes(StandardCharsets.UTF_8).length > 64 * 1024) continue;
             aceptadas++;
             if (!ops.containsKey(o.getString("op_id"))) nuevas.add(o);
         }
@@ -126,6 +127,16 @@ public final class ColaOps {
 
     public synchronized int cantidad() { cargar(); return ops.size(); }
 
+    /** Sólo después de archivar y verificar el archivo anterior: la nube empieza con una cola independiente. */
+    public synchronized void aislarLegado() throws IOException {
+        cargar();
+        if (!ops.isEmpty()) {
+            if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("sin carpeta de cola");
+            CopiaSinConexion.escribirAtomico(archivo, new byte[0]);
+            ops.clear();
+        }
+    }
+
     /**
      * Envía la cola en lotes de ≤ 200. Devuelve {resultados: OpsResultado[], pendientes: OpLocal[]} (detalle de
      * creatorhub-ops) o null si no había nada que enviar. Lanza IOException si se perdió la conexión.
@@ -142,11 +153,14 @@ public final class ColaOps {
         while (true) {
             List<String> ids = new ArrayList<>();
             JSONArray lote = new JSONArray();
+            int bytes = "{\"ops\":[]}".getBytes(StandardCharsets.UTF_8).length;
             synchronized (this) {
                 cargar();
                 for (Map.Entry<String, String> e : ops.entrySet()) {
                     if (ids.size() >= LOTE) break;
-                    try { lote.put(new JSONObject(e.getValue())); ids.add(e.getKey()); }
+                    int n = e.getValue().getBytes(StandardCharsets.UTF_8).length + (ids.isEmpty() ? 0 : 1);
+                    if (!SeguridadNube.cabeEnLote(bytes, ids.size(), e.getValue())) break;
+                    try { lote.put(new JSONObject(e.getValue())); ids.add(e.getKey()); bytes += n; }
                     catch (JSONException ignorada) { /* ya validada */ }
                 }
             }

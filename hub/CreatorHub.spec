@@ -21,7 +21,7 @@ HUB = os.path.join(RAIZ, "hub")
 TRABAJO = os.path.join(RAIZ, "build", "windows")
 ICO = os.path.join(TRABAJO, "iconos", "CreatorHub.ico")
 VERSION_INFO = os.path.join(TRABAJO, "version_info.txt")
-UI_DIST = os.path.join(RAIZ, "ui", "dist")
+UI_DIST = os.environ.get("CH_UI_DIST", os.path.join(RAIZ, "ui", "dist"))
 VERSION_JSON = os.path.join(RAIZ, "version.json")
 
 for _requisito in (os.path.join(HUB, "creatorhub", "__main__.py"), os.path.join(UI_DIST, "index.html"),

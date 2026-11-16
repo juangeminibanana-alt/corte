@@ -56,3 +56,13 @@ terraform -chdir=cloud/google validate
 Las pruebas usan datos vacíos o sintéticos para comprobar seguridad web, propietario, cifrado, revocación aislada, Storage, proxy y persistencia. La validación estática no crea recursos ni comprueba una cuenta real de Google o TikTok. Tras publicar deben verificarse login, permisos, callbacks, sincronización y conservación de datos después de un reinicio.
 
 Para una revisión local aislada puede usarse `CORTE_AUTH_PROVIDER=password`, un hash de contraseña y llaves temporales. `CORTE_ALLOW_HTTP=1` solo admite localhost; no se configura en la infraestructura de producción.
+
+## Windows y Android con Google Cloud
+
+La versión 1.1.0 conserva los clientes instalables: Windows usa su ejecutable, WebView2, bandeja, archivos y DPAPI; Android mantiene su APK, WebView con assets empaquetados, recordatorios y Android Keystore. Sus transportes nativos consultan el servidor de Google por HTTPS. No necesitan emparejar el teléfono con una PC ni mantenerla encendida. La interfaz instalada no navega a la web remota.
+
+Al pulsar **Continuar con Google**, la aplicación abre el navegador habitual. El propietario comprueba el código y aprueba ese dispositivo; el acceso dura hasta 30 días y puede revocarse. Las credenciales permanecen en la capa nativa, fuera de JavaScript. El protocolo y la validación de identidad se documentan en [NATIVE_CLIENTS.md](NATIVE_CLIENTS.md).
+
+Los clientes conservan información consultada y una cola durable de cambios con identificadores idempotentes. La copia sin conexión cubre los datos descargados; no equivale a una descarga de todo el histórico. Windows conserva una copia de la SQLite anterior y Android archiva su copia y operaciones antes de recuperar la organización. Las importaciones nativas comprueban la cuenta de TikTok dentro del bloqueo que protege la mutación.
+
+Los paquetes se generan con `scripts/build_windows.ps1` y `scripts/build_android.ps1`. Windows entrega un ZIP con `CreatorHub.exe`, `_internal` e **Instalar Corte.cmd**. Android entrega un APK release sin depuración, conservando el certificado de la aplicación anterior para permitir actualizarla. Ese certificado histórico de desarrollo no representa una publicación en Google Play. Las guardas de empaquetado verifican que no se distribuyan credenciales, datos privados ni fixtures.

@@ -462,6 +462,15 @@ class ShellVentana:
         if self._saliendo:
             self._despedirse()
             return True
+        cliente_nube = getattr(self.hub, 'cliente_nativo', None)
+        if cliente_nube is not None:
+            estado = cliente_nube.estado()
+            if not estado.get('authenticated') or estado.get('migration_pending'):
+                # La pantalla de acceso no monta el diálogo de cierre de la aplicación.
+                # Cerrar conserva la copia, la cola y la organización respaldada.
+                self._saliendo = True
+                self._despedirse()
+                return True
         try:
             segundo_plano = self.hub.ajustes_pc().get('segundo_plano')
         except Exception:  # noqa: BLE001

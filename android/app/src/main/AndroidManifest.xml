@@ -25,6 +25,7 @@
         android:supportsRtl="true"
         android:theme="@style/Tema.Corte"
         android:enableOnBackInvokedCallback="true">
+        <meta-data android:name="app.creatorhub.signing" android:value="legacy-debug-certificate-compatible-update" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

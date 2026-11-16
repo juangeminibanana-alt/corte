@@ -5,6 +5,7 @@ import android.os.SystemClock;
 import app.creatorhub.datos.AlmacenSeguro;
 import app.creatorhub.datos.ColaOps;
 import app.creatorhub.datos.CopiaSinConexion;
+import app.creatorhub.datos.MigracionNube;
 import app.creatorhub.red.ClienteHub;
 import app.creatorhub.red.Emparejador;
 import java.io.IOException;
@@ -37,10 +38,12 @@ public final class Nucleo implements ClienteHub.Oyente {
     public final CopiaSinConexion copia;
     public final ColaOps cola;
     public final Emparejador emparejador;
+    public final MigracionNube migracion;
     /** Tareas del puente (emparejar, buscar, actualizar, peticion, compartir). */
     public final ExecutorService io = Executors.newFixedThreadPool(4);
     private final ExecutorService fondo = Executors.newSingleThreadExecutor();
     private final AtomicBoolean precargando = new AtomicBoolean();
+    private final AtomicBoolean sondeandoAcceso = new AtomicBoolean();
     private final AtomicReference<HttpsURLConnection> largoEnCurso = new AtomicReference<>();
     private final Object senal = new Object();
 
@@ -49,7 +52,9 @@ public final class Nucleo implements ClienteHub.Oyente {
     private volatile boolean syncEnCurso;
     private volatile Thread bucle;
     private volatile long ultimaCopiaPorImagenes, ultimaRevisionCopia;
+    private volatile boolean ultimaCopiaValida;
     private String ultimoEstado = "";
+    private String ultimaRevisionNube;
 
     private Nucleo(Context c) {
         ctx = c.getApplicationContext();
@@ -58,6 +63,7 @@ public final class Nucleo implements ClienteHub.Oyente {
         copia = new CopiaSinConexion(ctx);
         cola = new ColaOps(ctx);
         emparejador = new Emparejador(ctx, cliente);
+        migracion = new MigracionNube(ctx);
         cliente.fijarOyente(this);
     }
 
@@ -113,9 +119,73 @@ public final class Nucleo implements ClienteHub.Oyente {
         synchronized (senal) { senal.notifyAll(); }
     }
 
+    /** Estado local sin tokens: el gate puede consultarlo antes de cualquier sesión remota. */
+    public JSONObject estadoNativo() {
+        JSONObject o = cliente.esNube() ? cliente.nube.estado() : new JSONObject();
+        try {
+            if (cliente.esNube()) migracion.preparar(cola);
+            o.put("native_client", true).put("platform", "android").put("hay_copia", copia.existe());
+            if (cliente.esNube()) {
+                JSONObject anterior = migracion.estadoPublico();
+                java.util.Iterator<String> keys = anterior.keys();
+                while (keys.hasNext()) { String key = keys.next(); o.put(key, anterior.get(key)); }
+            }
+        } catch (IOException | JSONException e) {
+            try { o.put("native_client", true).put("platform", "android").put("migration_pending", true)
+                    .put("migration_warning", "La copia anterior está conservada. No pudimos prepararla para la nube."); }
+            catch (JSONException ignorada) { /* campos fijos */ }
+        }
+        reanudarAccesoNube();
+        return o;
+    }
+
+    public String iniciarAccesoNube() throws IOException {
+        if (!cliente.esNube()) throw new IOException("Este paquete no está configurado para la nube.");
+        String url = cliente.nube.iniciar("Corte para Android");
+        reanudarAccesoNube();
+        return url;
+    }
+
+    public JSONObject migrarAccesoNube(boolean confirmar) throws IOException {
+        if (!cliente.esNube() || !cliente.emparejado()) throw new IOException("Entra con Google antes de importar tu organización anterior.");
+        migracion.preparar(cola);
+        migracion.decidir(confirmar, cliente, cola);
+        ultimaRevisionNube = null;
+        despertar();
+        JSONObject o = estadoNativo();
+        try { o.put("ok", true); } catch (JSONException e) { /* campo fijo */ }
+        return o;
+    }
+
+    public void reanudarAccesoNube() {
+        if (!cliente.esNube() || !cliente.nube.hayPendiente() || !sondeandoAcceso.compareAndSet(false, true)) return;
+        io.execute(() -> {
+            try {
+                while (cliente.nube.hayPendiente() && cliente.nube.sondear()) {
+                    try { Thread.sleep(cliente.nube.esperaSondeoMs()); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+                }
+            } finally {
+                sondeandoAcceso.set(false);
+                avisarConexion();
+                despertar();
+            }
+        });
+    }
+
+    /** Salir no descarta los cambios pendientes; la identidad se comprueba antes de volver a enviarlos. */
+    public void cerrarAccesoNube() {
+        if (!cliente.esNube()) return;
+        cliente.nube.cerrar();
+        syncEnCurso = false;
+        ultimaRevisionNube = null;
+        avisarConexion();
+        despertar();
+    }
+
     // ------------------------------------------------------------------ ciclo de vida
     public void alFrente(boolean si) {
         alFrente = si;
+        if (si) reanudarAccesoNube();
         if (si) arrancarBucle();
         else detenerBucle();                   // el long-poll solo se hace con la app al frente (C27)
         synchronized (senal) { senal.notifyAll(); }
@@ -153,6 +223,12 @@ public final class Nucleo implements ClienteHub.Oyente {
         long espera = 0;
         boolean recienAlFrente = true;          // 04 §B.4: la copia se revisa al volver al frente…
         while (alFrente && !pausado && !Thread.currentThread().isInterrupted()) {
+            if (cliente.esNube()) {
+                revisarNube(recienAlFrente);
+                recienAlFrente = false;
+                esperar(syncEnCurso ? 3000 : 15000);
+                continue;
+            }
             if (!cliente.emparejado() || cliente.revocado()) {
                 syncEnCurso = false;
                 avisarConexion();
@@ -209,6 +285,29 @@ public final class Nucleo implements ClienteHub.Oyente {
         synchronized (this) { if (bucle == Thread.currentThread()) bucle = null; }
     }
 
+    /** Peticiones cortas sobre internet; se pausa con el ciclo de vida y mantiene la copia/cola originales. */
+    private void revisarNube(boolean alVolver) {
+        if (!cliente.emparejado()) { syncEnCurso = false; avisarConexion(); return; }
+        if (!cliente.conectado() && !cliente.conectar(TOPE_RECONEXION_MS)) return;
+        try {
+            ClienteHub.Respuesta r = cliente.pedir(new ClienteHub.Peticion("GET", "/api/cloud/revision")
+                    .lectura(10000).cancelable(largoEnCurso));
+            if (r.codigo != 200) { avisarConexion(); return; }
+            JSONObject o = r.json(), sync = o == null ? null : o.optJSONObject("sync");
+            String revision = o == null ? "" : o.optString("revision");
+            if (revision.isEmpty()) return;
+            boolean antes = syncEnCurso;
+            syncEnCurso = sync != null && sync.optBoolean("en_curso", false);
+            if (alVolver || !revision.equals(ultimaRevisionNube) || !copia.existe()) {
+                refrescarCopia(true);
+                if (ultimaCopiaValida) ultimaRevisionNube = revision;
+            }
+            enviarCola();
+            if (antes != syncEnCurso) emitirCopia(copia.meta());
+            avisarConexion();
+        } catch (IOException e) { cliente.marcarDesconectado(); }
+    }
+
     /**
      * CambiosResponse: sync_en_curso al estado; si cambió data_version/local_rev → copia ya; si solo img_rev → máx. 1
      * copia cada 30 s (mientras tanto el long-poll respondería al instante: se espera lo que falta de la ventana).
@@ -238,9 +337,12 @@ public final class Nucleo implements ClienteHub.Oyente {
 
     /** GET snapshot con If-None-Match; 200 → creatorhub-copia y precarga de imágenes. Devuelve true si cambió. */
     public boolean refrescarCopia(boolean precargar) {
+        ultimaCopiaValida = false;
         try {
+            if (cliente.esNube()) migracion.preparar(cola);
             CopiaSinConexion.Meta nueva = copia.actualizar(cliente);
             ultimaRevisionCopia = SystemClock.elapsedRealtime();
+            ultimaCopiaValida = true;
             if (nueva == null) return false;
             emitirCopia(nueva);
             avisarConexion();
