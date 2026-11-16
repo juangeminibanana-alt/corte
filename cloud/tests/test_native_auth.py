@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sqlite3
 import tempfile
+import threading
 import time
 from types import SimpleNamespace
 import unittest
@@ -171,6 +172,7 @@ class NativeWebTests(unittest.TestCase):
         self.firebase.verify_session = lambda cookie: dict(self.claims) if cookie == 'synthetic-owner-cookie' else None
         self.firebase.web_config = {'authDomain': 'corte-test.firebaseapp.com'}
         self.hub = Mock()
+        self.hub._candado_mutacion = threading.RLock()
         self.hub.despachador.despachar.return_value = SimpleNamespace(status=200, cuerpo=b'{"ok":true}', archivo=None, cabeceras=[])
         settings = Settings(self.base, 'synthetic-session-key-' * 4, '', self.folder.name, self.folder.name,
                             auth_provider='firebase')
@@ -304,6 +306,100 @@ class NativeWebTests(unittest.TestCase):
             self.assertEqual('Authorization' in sent, forwarded)
             if forwarded:
                 self.assertEqual(sent['Authorization'], valid)
+
+    def test_native_import_requires_creator_bound_to_live_connected_account(self):
+        grant = self.grant()
+        headers = {**self.headers, 'Authorization': 'Bearer ' + grant['token']}
+        expected = 'synthetic-creator-before'
+        self.hub.boveda.leer.return_value = {'open_id': expected}
+        self.hub.auth.conexion.return_value = {'estado': 'conectada'}
+        payload = {'formato': 'corte-local', 'version': 1, 'planes': []}
+        for value in [None, '', ' ', 'x' * 257, 'invalid\tvalue', 'non-ascii-\u00e1']:
+            extra = {'X-Corte-Expected-Creator': value} if value is not None else {}
+            result = self.client.post('/api/cloud/import', json=payload, headers={**headers, **extra}, base_url=self.base)
+            self.assertEqual(result.status_code, 409)
+            self.assertEqual(result.json['error']['codigo'], 'cuenta_cambio_sin_importar')
+        bound = {**headers, 'X-Corte-Expected-Creator': expected}
+        for stored, connection in [({'open_id': 'synthetic-creator-after'}, {'estado': 'conectada'}),
+                                   ({}, {'estado': 'conectada'}),
+                                   ({'open_id': expected}, {'estado': 'sin_autorizar'}),
+                                   ({'open_id': expected}, {'estado': 'reautorizar'})]:
+            self.hub.boveda.leer.return_value = stored
+            self.hub.auth.conexion.return_value = connection
+            result = self.client.post('/api/cloud/import', json=payload, headers=bound, base_url=self.base)
+            self.assertEqual(result.status_code, 409)
+            self.assertNotIn(expected, result.text)
+            self.assertNotIn('synthetic-creator-after', result.text)
+        self.hub.local.importar.assert_not_called()
+
+    def test_matching_import_holds_coordinator_rlock_and_browser_contract_is_preserved(self):
+        grant = self.grant()
+        expected = 'synthetic-matching-creator'
+        self.hub.boveda.leer.return_value = {'open_id': expected}
+        self.hub.auth.conexion.return_value = {'estado': 'conectada'}
+        payload = {'formato': 'corte-local', 'version': 1, 'notas': []}
+        def import_under_lock(data):
+            self.assertTrue(self.hub._candado_mutacion._is_owned())
+            # The actual coordinator is reentrant; import never takes or keeps
+            # the vault lock while acquiring the SQLite writer.
+            with self.hub._candado_mutacion:
+                self.assertEqual(data, payload)
+            return {'importados': {'notas': 0}, 'omitidos': 0}
+        self.hub.local.importar.side_effect = import_under_lock
+        result = self.client.post('/api/cloud/import', json=payload, base_url=self.base,
+                                  headers={**self.headers, 'Authorization': 'Bearer ' + grant['token'],
+                                           'X-Corte-Expected-Creator': expected})
+        self.assertEqual(result.status_code, 200)
+        self.hub.local.importar.side_effect = None
+        self.hub.local.importar.return_value = {'importados': {'notas': 0}, 'omitidos': 0}
+        self.hub.local.importar.reset_mock()
+        browser = self.owner.post('/api/cloud/import', json=payload, base_url=self.base, headers=self.headers)
+        self.assertEqual(browser.status_code, 200)
+        self.hub.local.importar.assert_called_once_with(payload)
+
+    def test_creator_changed_while_native_import_waited_for_mutex_is_not_imported(self):
+        grant = self.grant()
+        before, after = 'synthetic-before-race', 'synthetic-after-race'
+        self.hub.boveda.leer.return_value = {'open_id': before}
+        self.hub.auth.conexion.return_value = {'estado': 'conectada'}
+        waiting = threading.Event()
+        class SignaledLock:
+            def __init__(self): self.inner = threading.RLock()
+            def __enter__(self): waiting.set(); self.inner.acquire(); return self
+            def __exit__(self, *_): self.inner.release()
+        lock = SignaledLock()
+        self.hub._candado_mutacion = lock
+        def import_in_other_thread():
+            return self.app.test_client().post('/api/cloud/import', json={'formato': 'corte-local', 'version': 1},
+                                               base_url=self.base, headers={**self.headers,
+                                               'Authorization': 'Bearer ' + grant['token'],
+                                               'X-Corte-Expected-Creator': before})
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            lock.inner.acquire()
+            try:
+                future = pool.submit(import_in_other_thread)
+                self.assertTrue(waiting.wait(5), 'request did not reach coordinator lock')
+                self.hub.boveda.leer.return_value = {'open_id': after}
+            finally:
+                lock.inner.release()
+            result = future.result(timeout=5)
+        self.assertEqual(result.status_code, 409)
+        self.hub.local.importar.assert_not_called()
+
+    def test_gateway_creator_binding_header_requires_well_formed_native_bearer(self):
+        from cloud.gateway import GatewaySettings, create_app as gateway_app
+        from cloud.tests.test_gateway import upstream
+        transport = Mock()
+        transport.request.return_value = upstream()
+        gateway = gateway_app(GatewaySettings('http://10.73.0.10:8080', self.base), transport).test_client()
+        valid = 'Bearer corte_native_v1_' + 'A' * 43
+        for authorization, forwarded in [(valid, True), ('Bearer arbitrary', False), ('', False)]:
+            gateway.post('/api/cloud/import', json={}, base_url=self.base,
+                         headers={'Authorization': authorization, 'X-Corte-Expected-Creator': 'synthetic-creator'})
+            sent = transport.request.call_args.kwargs['headers']
+            self.assertEqual('X-Corte-Expected-Creator' in sent, forwarded)
+            if forwarded:
+                self.assertEqual(sent['X-Corte-Expected-Creator'], 'synthetic-creator')
 
 
 if __name__ == '__main__':

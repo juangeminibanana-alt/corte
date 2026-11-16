@@ -78,6 +78,9 @@ def create_app(settings: GatewaySettings | None = None, transport=None) -> Flask
         authorization = request.headers.get('Authorization', '')
         if BEARER_RE.fullmatch(authorization):
             headers['Authorization'] = authorization
+            expected = request.headers.get('X-Corte-Expected-Creator')
+            if expected is not None:
+                headers['X-Corte-Expected-Creator'] = expected
         headers['Host'] = upstream_host
         headers['X-Forwarded-Proto'] = 'https'
         # Never trust client-supplied Forwarded/X-Forwarded-* values. Pass exactly

@@ -478,7 +478,29 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
     @app.post('/api/cloud/import')
     def import_local() -> Any:
         try:
-            return jsonify(hub.local.importar(request.get_json()))
+            data = request.get_json()
+            if g.native_actor:
+                expected = request.headers.get('X-Corte-Expected-Creator')
+                if (not isinstance(expected, str) or not 1 <= len(expected) <= 256
+                        or any(not 33 <= ord(c) <= 126 for c in expected)):
+                    return error('cuenta_cambio_sin_importar',
+                                 'Conecta tu cuenta de TikTok y vuelve a iniciar la importación desde esta app.', 409)
+                # Credential/account mutations take this same RLock. Never hold
+                # the vault lock across an import: read it after acquiring the
+                # coordinator, then let the normal SQLite writer import while
+                # account changes remain excluded. No network call occurs here.
+                with hub._candado_mutacion:
+                    stored = hub.boveda.leer()
+                    current = stored.get('open_id') if isinstance(stored, dict) else None
+                    connection = hub.auth.conexion()
+                    if (not isinstance(current, str) or not current
+                            or not isinstance(connection, dict) or connection.get('estado') != 'conectada'
+                            or not hmac.compare_digest(current.encode('utf-8'), expected.encode('ascii'))):
+                        return error('cuenta_cambio_sin_importar',
+                                     'La cuenta de TikTok cambió o aún no está conectada. No importamos datos. '
+                                     'Revisa la cuenta y vuelve a intentarlo.', 409)
+                    return jsonify(hub.local.importar(data))
+            return jsonify(hub.local.importar(data))
         except ErrorDominio as exc:
             return jsonify(exc.a_respuesta(hub.secretos_vivos())), exc.http
 

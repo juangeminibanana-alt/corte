@@ -42,6 +42,18 @@ caducidad y revocación del dispositivo, y consulta el usuario Firebase vivo:
 owner permitido, correo verificado, proveedor Google, no deshabilitado y sin
 revocación posterior a la autorización Google que aprobó el dispositivo.
 
+Todo `POST /api/cloud/import` con bearer exige además
+`X-Corte-Expected-Creator: <open_id exacto>`: de 1 a 256 caracteres ASCII visibles,
+sin espacios ni codificación adicional. El broker nativo obtiene ese OID mediante
+`GET /api/native/session`; no lo entrega a JavaScript. El gateway solo reenvía
+esta cabecera junto con un bearer nativo bien formado. El servidor adquiere el
+mismo mutex de las mutaciones de cuenta, compara el OID vivo de la bóveda y
+mantiene el mutex hasta terminar la importación. Si falta, es inválido, difiere o
+no hay cuenta conectada, devuelve `409 cuenta_cambio_sin_importar`, sin escribir
+ni devolver identificadores. Esto también se exige al importar un archivo desde
+el diálogo de Windows. La importación manual del navegador con cookie conserva
+su contrato actual y no necesita esta cabecera.
+
 `GET /api/native/session` exige bearer y devuelve estado, device_id, expires_at y
 owner. Puede incluir `tiktok_open_id` y `username`, exclusivamente para que el
 broker nativo decida si una migración local corresponde a la misma cuenta.
