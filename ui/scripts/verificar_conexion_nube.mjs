@@ -21,13 +21,13 @@ const React = require('react');
 const { render, screen, fireEvent, waitFor, cleanup } = require('@testing-library/react');
 const styles = { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) };
 const requests = [], invalidations = [], links = [], toasts = [];
-let fetcher, expired = 0;
+let fetcher, expired = 0, credentialReads = 0, sessionReads = 0;
 let credentials = { app_key: '', app_secret_configurado: false, tokens_configurados: false };
-const consulta = { get datos() { return credentials; }, cargando: false, error: null, refrescar: async () => {} };
-let session = { datos: { conexion: { estado: 'sin_autorizar', aviso: null }, cuenta: null }, cargando: false, error: null, refrescar: async () => {} };
+const consulta = { get datos() { return credentials; }, cargando: false, error: null, refrescar: async () => { credentialReads++; } };
+let session = { datos: { conexion: { estado: 'sin_autorizar', aviso: null }, cuenta: null }, cargando: false, error: null, refrescar: async () => { sessionReads++; } };
 const env = { abrirAutorizacionNube: (url) => links.push(url), expirarSesionNube: () => expired++ };
 const hub = { authLink: async (open) => { links.push(open); return { url: 'https://shop.tiktok.com/alliance/creator/auth?state=qa' }; },
-  authCanjear: async () => {}, sincronizar: async () => {}, authDesconectar: async () => {} };
+  authCanjear: async () => {}, authRefrescar: async () => ({ conexion: { estado: 'conectada', aviso: null, scopes_faltantes: [] } }), sincronizar: async () => {}, authDesconectar: async () => {} };
 class ErrorHub extends Error {}
 
 function load(file, mock) {
@@ -156,7 +156,56 @@ try {
   assert.ok(screen.getByRole('button', { name: 'Desconectar cuenta' }), 'Autorización vencida permite desconexión explícita');
   assert.ok(!screen.getByText('Cambiar integración').closest('details').open, 'Conexión reutilizada no pide secretos');
   cleanup();
-  console.log('PASS: pareja, validación, guardado privado, limpieza de secretos, OAuth, conflicto, 401, importación saneada, límite de archivo, verificación fallida y desconexión.');
+
+  session = { ...session, datos: { ...session.datos, conexion: { estado: 'conectada', aviso: null } } };
+  let refreshCalls = 0, finishRefresh;
+  hub.authRefrescar = () => { refreshCalls++; return new Promise((resolveRefresh) => { finishRefresh = resolveRefresh; }); };
+  render(React.createElement(componentesNube.SeccionTikTokNube));
+  const previousReads = credentialReads + sessionReads;
+  fireEvent.click(screen.getByRole('button', { name: 'Renovar conexión' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Renovar conexión' }));
+  assert.ok(refreshCalls === 1, 'Evitar renovaciones duplicadas');
+  finishRefresh({ conexion: { estado: 'conectada', aviso: null, scopes_faltantes: [] } });
+  await waitFor(() => assert.ok(toasts.at(-1).texto === 'Se actualizó la conexión.'));
+  await waitFor(() => assert.ok(credentialReads + sessionReads === previousReads + 2));
+  assert.ok(screen.getByRole('status').textContent.includes('comprobar el perfil'), 'No afirmar verificación del perfil después de renovar');
+
+  hub.authRefrescar = async () => ({ conexion: { estado: 'reautorizar', aviso: 'Autorización requerida.', scopes_faltantes: [] } });
+  const beforeReauth = toasts.length;
+  fireEvent.click(screen.getByRole('button', { name: 'Renovar conexión' }));
+  await waitFor(() => assert.ok(screen.queryByRole('button', { name: 'Continuar en TikTok Shop' })));
+  assert.ok(toasts.slice(beforeReauth).every((toast) => toast.tono !== 'ok'), 'HTTP 200 con reautorizar no es éxito');
+  assert.ok(!screen.getByText('Cambiar integración').closest('details').open, 'Reautorizar conserva las claves guardadas');
+
+  hub.authRefrescar = async () => ({ conexion: { estado: 'conectada', aviso: 'La renovación está pendiente por un problema temporal.', scopes_faltantes: [] } });
+  const beforeTransient = toasts.length;
+  fireEvent.click(screen.getByRole('button', { name: 'Renovar conexión' }));
+  await waitFor(() => assert.ok(screen.getByRole('status').textContent.includes('problema temporal')));
+  assert.ok(toasts.slice(beforeTransient).every((toast) => toast.tono !== 'ok'), 'Aviso transitorio no produce falso éxito');
+  cleanup();
+
+  credentials = { app_key: '', app_secret_configurado: false, tokens_configurados: false };
+  session = { ...session, datos: { ...session.datos, conexion: { estado: 'sin_credenciales', aviso: null } } };
+  fetcher = async () => {
+    credentials = { app_key: appKey, app_secret_configurado: true, tokens_configurados: true };
+    session = { ...session, datos: { ...session.datos, conexion: { estado: 'conectada', aviso: null } } };
+    return response({ ok: false, verificacion: 'fallo', sync_iniciada: false });
+  };
+  const beforeParentImport = toasts.length;
+  render(React.createElement(componentesNube.SeccionTikTokNube));
+  selectFile(new window.File([JSON.stringify(conexionSintetica())], 'conexion-sintetica.json', { type: 'application/json' }));
+  await waitFor(() => assert.ok(screen.getByText('Pendiente de verificar')));
+  assert.ok(!screen.queryByText('Conectada'), 'No etiquetar como conectada la importación no verificada');
+  assert.ok(screen.getByRole('status').textContent.includes('TikTok no pudo confirmar'), 'Aviso de importación sobrevive al cambio de sección');
+  assert.ok(screen.getByRole('button', { name: 'Renovar conexión' }), 'Permitir renovación después de importar');
+  assert.ok(toasts.slice(beforeParentImport).every((toast) => toast.tono !== 'ok'), 'Sin éxito falso al cambiar el estado del padre');
+  hub.authRefrescar = async () => ({ conexion: { estado: 'conectada', aviso: null, scopes_faltantes: [] } });
+  fireEvent.click(screen.getByRole('button', { name: 'Renovar conexión' }));
+  await waitFor(() => assert.ok(screen.getByText('Conectada')));
+  assert.ok(!screen.queryByText('Pendiente de verificar'), 'Renovación confirmada limpia la verificación pendiente de importación');
+  assert.ok(screen.getByRole('status').textContent.includes('comprobar el perfil'), 'El perfil sigue requiriendo sincronización');
+  cleanup();
+  console.log('PASS: pareja/importación segura, renovación sin duplicados, refresco de consultas, reautorización 200, aviso transitorio y estado padre sin falsa conexión.');
 } catch (error) {
   console.error(error instanceof Error ? error.message : 'Falló la prueba de conexión nube.');
   process.exitCode = 1;

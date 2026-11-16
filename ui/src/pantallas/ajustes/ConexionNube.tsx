@@ -103,7 +103,11 @@ export function FormularioIntegracionTikTokNube(p: { alGuardada: (datos: Integra
 }
 
 /** Conexión web: sin rutas del disco ni control del navegador del servidor. */
-export function ConectarTikTokNube(p: { alConectada?: () => void; soloIntegracion?: boolean }): ReactElement {
+export function ConectarTikTokNube(p: {
+  alConectada?: () => void;
+  alImportacion?: (resultado: ImportacionAnteriorTikTok) => void;
+  soloIntegracion?: boolean;
+}): ReactElement {
   const cred = useConsulta('credenciales', {});
   const sesion = useSesion();
   const [integracionGuardada, setIntegracionGuardada] = useState<IntegracionTikTokGuardada | null>(null);
@@ -158,11 +162,12 @@ export function ConectarTikTokNube(p: { alConectada?: () => void; soloIntegracio
   const alImportada = (resultado: ImportacionAnteriorTikTok): void => {
     setIntegracionGuardada(null);
     setImportacionPendiente(resultado.verificacion === 'fallo');
+    p.alImportacion?.(resultado);
     void cred.refrescar();
     if (resultado.verificacion === 'ok') p.alConectada?.();
   };
   return <div className={css.pila}>
-    {importacionPendiente ? <Aviso tono="atencion" vivo>La configuración se importó, pero TikTok no pudo confirmar la conexión. Usa Continuar en TikTok Shop para volver a autorizarla.</Aviso> : null}
+    {importacionPendiente && !p.alImportacion ? <Aviso tono="atencion" vivo>La configuración se importó, pero TikTok no pudo confirmar la conexión. Usa Continuar en TikTok Shop para volver a autorizarla.</Aviso> : null}
     {confirmarCuenta ? <>
       <p className={css.parrafo}>Conectaste {sesion.datos?.cuenta ? `@${sesion.datos.cuenta.username}` : 'tu cuenta'}. Confirma para comenzar a sincronizar tus datos.</p>
       <Boton variante="primario" cargando={guardando} alPulsar={() => void confirmar()}>Confirmar cuenta y sincronizar</Boton>
@@ -198,7 +203,53 @@ export function SeccionTikTokNube(): ReactElement {
   const toast = useToast();
   const [desconectar, setDesconectar] = useState(false);
   const [trabajando, setTrabajando] = useState(false);
-  const conectada = sesion.datos?.conexion.estado === 'conectada';
+  const [renovando, setRenovando] = useState(false);
+  const renovacionEnCurso = useRef(false);
+  const [importacionPendiente, setImportacionPendiente] = useState(false);
+  const [requiereAutorizacion, setRequiereAutorizacion] = useState(false);
+  const [avisoRenovacion, setAvisoRenovacion] = useState<{ texto: string; tono: 'atencion' | 'critico' | 'info' } | null>(null);
+  const autorizada = sesion.datos?.conexion.estado === 'conectada';
+  const conectada = autorizada && !importacionPendiente && !requiereAutorizacion;
+  const hayTokens = !!cred.datos?.tokens_configurados;
+  const alImportacion = (resultado: ImportacionAnteriorTikTok): void => {
+    setImportacionPendiente(resultado.verificacion === 'fallo');
+    setAvisoRenovacion(null);
+    if (resultado.verificacion === 'fallo') toast.mostrar({ texto: 'TikTok no pudo confirmar la conexión importada. Revisa la conexión antes de continuar.', tono: 'info' });
+  };
+  const renovar = async (): Promise<void> => {
+    if (renovacionEnCurso.current) return;
+    renovacionEnCurso.current = true;
+    setRenovando(true);
+    setAvisoRenovacion(null);
+    try {
+      const resultado = await hub.authRefrescar();
+      const conexion = resultado.conexion;
+      const reautorizar = conexion.estado === 'reautorizar' || conexion.estado === 'sin_autorizar' || conexion.scopes_faltantes.length > 0;
+      setRequiereAutorizacion(reautorizar);
+      if (reautorizar) {
+        const texto = 'TikTok solicita que vuelvas a autorizar la cuenta. Usa Continuar en TikTok Shop; las claves guardadas se conservan.';
+        setAvisoRenovacion({ texto, tono: 'atencion' });
+        toast.mostrar({ texto: 'TikTok solicita una nueva autorización.', tono: 'info' });
+      } else if (conexion.estado !== 'conectada' || conexion.aviso) {
+        const texto = conexion.aviso ?? 'No pudimos renovar la conexión. Revisa su estado e inténtalo de nuevo.';
+        setAvisoRenovacion({ texto, tono: 'atencion' });
+        toast.mostrar({ texto: 'La renovación requiere atención. Revisa el aviso de la conexión.', tono: 'info' });
+      } else {
+        setImportacionPendiente(false);
+        setAvisoRenovacion({ texto: 'Sincroniza ahora para comprobar el perfil y actualizar tus datos.', tono: 'info' });
+        toast.mostrar({ texto: 'Se actualizó la conexión.', tono: 'ok' });
+      }
+      await Promise.all([sesion.refrescar(), cred.refrescar()]);
+    } catch (e) {
+      const texto = mensaje(e);
+      if (e instanceof ErrorHub && e.codigo === 'reautorizar') setRequiereAutorizacion(true);
+      setAvisoRenovacion({ texto, tono: 'critico' });
+      toast.mostrar({ texto, tono: 'error' });
+    } finally {
+      renovacionEnCurso.current = false;
+      setRenovando(false);
+    }
+  };
   const borrar = async (): Promise<void> => {
     setTrabajando(true);
     try { await hub.authDesconectar({ borrar_datos: false }); setDesconectar(false); toast.mostrar({ texto: 'Desconectamos la cuenta. Tus datos guardados se conservan.', tono: 'ok' }); }
@@ -208,11 +259,17 @@ export function SeccionTikTokNube(): ReactElement {
   return <Seccion titulo="TikTok Shop" id="tiktok" descripcion="Conecta tu cuenta para traer tus muestras, ventas y comisiones.">
     {sesion.cargando && !sesion.datos ? <CargandoGrupo filas={2} /> : !sesion.datos ? <ErrorCarga error={sesion.error} alReintentar={() => void sesion.refrescar()} /> : <>
       <Grupo titulo="Tu cuenta">
-        <Fila etiqueta={sesion.datos.cuenta ? `@${sesion.datos.cuenta.username}` : 'Cuenta de TikTok Shop'} descripcion={sesion.datos.conexion.aviso ?? (conectada ? 'La cuenta está autorizada para sincronizar.' : 'Autoriza tu cuenta para comenzar.')}><Chip tono={conectada ? 'ok' : 'neutro'}>{conectada ? 'Conectada' : 'Sin conectar'}</Chip></Fila>
+        <Fila etiqueta={sesion.datos.cuenta ? `@${sesion.datos.cuenta.username}` : 'Cuenta de TikTok Shop'} descripcion={importacionPendiente ? 'La conexión se importó, pero TikTok aún no confirmó el acceso.' : sesion.datos.conexion.aviso ?? (conectada ? 'La cuenta está autorizada para sincronizar.' : 'Autoriza tu cuenta para comenzar.')}><Chip tono={conectada ? 'ok' : 'neutro'}>{importacionPendiente ? 'Pendiente de verificar' : requiereAutorizacion ? 'Vuelve a autorizar' : conectada ? 'Conectada' : 'Sin conectar'}</Chip></Fila>
         <Dato etiqueta="Región" valor={sesion.datos.cuenta?.region ?? 'México'} />
       </Grupo>
-      {conectada ? <><div className={css.acciones}><Boton variante="secundario" icono="RefreshCw" deshabilitado={!sync.puede || !!sync.estado?.en_curso} alPulsar={() => void sync.sincronizar()}>Sincronizar ahora</Boton></div><ConectarTikTokNube soloIntegracion /></> : <ConectarTikTokNube />}
-      {conectada || cred.datos?.tokens_configurados ? <div className={css.acciones}><Boton variante="peligro" alPulsar={() => setDesconectar(true)}>Desconectar cuenta</Boton></div> : null}
+      {importacionPendiente ? <Aviso tono="atencion" vivo>TikTok no pudo confirmar la conexión importada. Prueba Renovar conexión o continúa en TikTok Shop para volver a autorizarla.</Aviso> : null}
+      {avisoRenovacion ? <Aviso tono={avisoRenovacion.tono} vivo>{avisoRenovacion.texto}</Aviso> : null}
+      <div className={css.acciones}>
+        {autorizada && !requiereAutorizacion ? <Boton variante="secundario" icono="RefreshCw" deshabilitado={!sync.puede || !!sync.estado?.en_curso || renovando} alPulsar={() => void sync.sincronizar()}>Sincronizar ahora</Boton> : null}
+        {hayTokens ? <Boton variante="secundario" icono="RotateCcw" cargando={renovando} alPulsar={() => void renovar()}>Renovar conexión</Boton> : null}
+      </div>
+      <ConectarTikTokNube soloIntegracion={conectada} alImportacion={alImportacion} alConectada={() => { setImportacionPendiente(false); setRequiereAutorizacion(false); setAvisoRenovacion(null); }} />
+      {autorizada || hayTokens ? <div className={css.acciones}><Boton variante="peligro" alPulsar={() => setDesconectar(true)}>Desconectar cuenta</Boton></div> : null}
       <Modal abierto={desconectar} titulo="¿Desconectar tu cuenta?" alCerrar={() => setDesconectar(false)} pie={<><Boton variante="fantasma" alPulsar={() => setDesconectar(false)}>Cancelar</Boton><Boton variante="peligro" cargando={trabajando} alPulsar={() => void borrar()}>Desconectar</Boton></>}><p>La autorización se eliminará del servidor. Tus datos y tu plan se conservarán, pero dejarán de actualizarse hasta que vuelvas a conectar.</p></Modal>
     </>}
   </Seccion>;
