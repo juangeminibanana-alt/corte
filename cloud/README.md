@@ -2,14 +2,16 @@
 
 Corte utiliza el sitio Firebase Hosting existente **`corte-e-book-21589`**, dentro de **`e-book-21589`**. La interfaz compilada se sirve desde `https://corte-e-book-21589.web.app`; sus rutas `/api/**`, `/img/**` y `/oauth/**` se reescriben al servicio Cloud Run `corte-gateway`. El gateway contacta por VPC al backend Python en una VM privada con un disco persistente separado. El teléfono abre la misma dirección: no necesita la PC encendida, compartir Wi-Fi ni emparejamiento.
 
-El sitio y la aplicación web Firebase de Corte ya están registrados. **Eso no confirma una aplicación publicada y funcional.** No se ha aplicado la infraestructura de cómputo ni se han autorizado todavía sus costos. La autenticación de Google Cloud CLI está completada y la facturación del proyecto está activa. No hace falta comprar un dominio ni crear otro sitio o proyecto.
+**Publicado y verificado:** [abrir Corte](https://corte-e-book-21589.web.app). Hosting y el backend responden por HTTPS; se comprobaron el acceso real del propietario con Google, el cierre de sesión, el rechazo de API sin sesión y la creación y consulta de un respaldo privado desde la interfaz. También se revisó la vista móvil. La VM se reinició conservando el disco existente, con el permiso de formateo desactivado. El costo autorizado es un estimado de 35–40 USD al mes para uso ligero, más variaciones por consumo e impuestos.
+
+La conexión real a TikTok Shop sigue pendiente del App Secret y la autorización del propietario en TikTok; las ventas, muestras y métricas aparecerán después de esa conexión. No se publicaron datos de demostración.
 
 La preparación y operación están en [google/README.md](google/README.md). El target de Hosting se documenta en [firebase/HOSTING.md](firebase/HOSTING.md).
 
 ## Componentes
 
 - **Firebase Hosting:** archivos de `ui/dist` y HTTPS del sitio existente.
-- **Cloud Run:** gateway sin base propia, con 1 CPU y 512 MiB, de cero a dos instancias y un timeout de 55 segundos. Su invocación pública permite los rewrites de Hosting; el backend valida la sesión del propietario antes de devolver datos privados.
+- **Cloud Run:** gateway sin base propia, con 1 CPU y 512 MiB, de cero a dos instancias y un timeout de 55 segundos. Su invocación pública permite los rewrites de Hosting; el backend valida la sesión del propietario antes de devolver datos privados. La startup probe TCP comprueba que el proceso escucha; `/api/health` sigue siendo la comprobación completa de conectividad con el backend y disponibilidad de su base.
 - **Compute Engine:** una VM COS privada en `10.73.0.10:8080`. Conserva el sincronizador, la analítica y las reglas de muestras existentes; Cloud NAT permite sus consultas salientes a TikTok.
 - **Persistent Disk:** SQLite, imágenes, revocaciones de sesión y bóvedas cifradas en `/var/lib/corte`. Solo un proceso Gunicorn controla el planificador y las renovaciones de TikTok.
 - **Servicios de Google:** Artifact Registry y Cloud Build para la imagen, Secret Manager para dos llaves, Cloud Logging y snapshots del disco. Firebase Auth gestiona el acceso con Google y un bucket privado exclusivo de Corte contiene los respaldos.

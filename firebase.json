@@ -1,7 +1,7 @@
 {
   "hosting": {
     "target": "corte",
-    "public": "../../ui/dist",
+    "public": "ui/dist",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -82,7 +82,7 @@
   "storage": [
     {
       "target": "corte",
-      "rules": "storage.rules"
+      "rules": "cloud/firebase/storage.rules"
     }
   ]
 }

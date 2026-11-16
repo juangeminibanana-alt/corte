@@ -6,22 +6,25 @@ el Hosting predeterminado de E-BOOK. El sitio debe existir antes de publicar.
 La app web de Corte registrada en Firebase es
 `1:1026985150312:web:ee7a6fa15362048c6438dd`.
 
-El frontend compilado se toma de `../../ui/dist`. Las rutas `/api/**`, `/img/**`
+La configuración única está en `firebase.json` y `.firebaserc`, en la raíz del
+repositorio. El frontend compilado se toma de `ui/dist`, dentro de ese directorio
+de proyecto, como exige Firebase CLI. Las rutas `/api/**`, `/img/**`
 y `/oauth/**` pasan a Cloud Run `corte-gateway`, región `us-central1`, que a su vez
 contacta al backend privado. La última regla sirve la SPA para las demás rutas.
 No se fija una revisión de Run con `pinTag`: el gateway puede actualizarse de
 forma independiente. El backend debe conservar rutas y parámetros originales.
 [Configuración de rewrites](https://firebase.google.com/docs/hosting/full-config).
 
-Para publicar desde esta carpeta, después de compilar y verificar el backend:
+Para publicar desde la raíz del repositorio, después de compilar y verificar el backend:
 
 ```text
 npx -y firebase-tools@latest deploy --project e-book-21589 --config firebase.json --only hosting:corte
 ```
 
 Ese comando no despliega Storage, reglas, Functions, Auth ni otros sitios.
-`storage.rules` se conserva para el bucket separado de Corte; no debe publicarse
-contra el bucket predeterminado de E-BOOK. La asociación local de Hosting sigue
+`cloud/firebase/storage.rules` se conserva para el bucket separado de Corte; no debe
+publicarse contra el bucket predeterminado de E-BOOK. La asociación local de Hosting
+está en la `.firebaserc` de la raíz y sigue
 el mecanismo de [targets](https://firebase.google.com/docs/hosting/multisites).
 
 ## Contrato con el gateway

@@ -12,7 +12,7 @@ https://corte-e-book-21589.web.app
             Corte: backend Python + Persistent Disk
 ```
 
-El sitio y la app web Firebase de Corte **ya existen** en el proyecto compartido `e-book-21589`. Reutiliza el target `hosting:corte` de `cloud/firebase/.firebaserc`. No crees otro proyecto, sitio o app, ni sustituyas recursos de E-BOOK. Firebase Hosting proporciona HTTPS para el dominio `web.app`; esta arquitectura no utiliza un balanceador externo, IP pública de la VM, certificado separado ni dominio comprado.
+El sitio y la app web Firebase de Corte **ya existen** en el proyecto compartido `e-book-21589`. Reutiliza el target `hosting:corte` de `.firebaserc` en la raíz del repositorio. No crees otro proyecto, sitio o app, ni sustituyas recursos de E-BOOK. Firebase Hosting proporciona HTTPS para el dominio `web.app`; esta arquitectura no utiliza un balanceador externo, IP pública de la VM, certificado separado ni dominio comprado.
 
 La VM usa Cloud NAT para consultar TikTok. Artifact Registry, Cloud Build, Secret Manager, Logging, snapshots y el bucket privado de Corte también permanecen en Google Cloud. El sincronizador y SQLite tienen un solo dueño: una VM y un proceso de backend.
 
@@ -20,9 +20,11 @@ Con `runtime_enabled=true` se crean una VM `e2-medium`, 20 GB de arranque, 20 GB
 
 ## Estado y requisitos
 
-La infraestructura de cómputo **no está aplicada** y sus costos todavía no están autorizados. La autenticación de Google Cloud CLI está completada y la facturación del proyecto está activa. Un sitio registrado, un archivo Terraform válido o `expected_url` no confirman un despliegue operativo.
+**Publicado y verificado:** [abrir Corte](https://corte-e-book-21589.web.app). Firebase Hosting, el gateway y el backend responden por HTTPS; se comprobó el acceso real con Google del propietario, la conservación de la sesión al recargar, el cierre de sesión y una copia de seguridad creada y listada en el bucket privado. La VM reutilizó el disco de datos tras el reinicio controlado. El estado de Terraform está migrado a GCS y el plan final no propone cambios.
 
-Antes de ejecutar acciones sobre Google se necesita:
+El usuario autorizó un presupuesto estimado de 35–40 USD al mes para uso ligero, con cargos según consumo e impuestos. La facturación del proyecto está activa. Para sincronizar datos reales de TikTok todavía debe configurarse el App Secret de la aplicación en los ajustes de Corte y autorizar la cuenta; el despliegue no incorpora credenciales de TikTok de ejemplo.
+
+Para continuar y operar el despliegue se necesita:
 
 - Acceso efectivo al proyecto `e-book-21589`, facturación disponible y revisión del plan y sus costos.
 - Terraform >=1.9, Google Cloud CLI y Python >=3.10. El operador debe poder crear los recursos declarados, gestionar su IAM y actuar como la cuenta de build.
@@ -32,6 +34,8 @@ Antes de ejecutar acciones sobre Google se necesita:
 No incluyas la configuración local, planes o estado en Git, el build o la imagen. Los archivos de exclusión cubren `*.tfvars`, `*.tfstate*`, `*.tfplan` y `.terraform/`. Los valores de las dos llaves se generan fuera de Terraform y no se escriben en su estado.
 
 ## Preparar un plan revisable
+
+Para este despliegue existente, conserva las variables privadas originales: `runtime_enabled=true`, `initialize_empty_data_disk=false` y la imagen por digest. Usa `deployment.private.tfvars.json` al generar planes de operación. El ejemplo y las fases de fundamentos siguientes documentan el aprovisionamiento inicial; no sustituyen la configuración de producción.
 
 Desde la raíz del repositorio:
 
@@ -47,9 +51,11 @@ Completa los campos requeridos con los datos revisados del proyecto, propietario
 
 La primera fase declara APIs, cuentas de servicio, IAM, repositorio de imágenes, bucket de fuentes y contenedores vacíos de secretos. Puede incluir el bucket de datos nuevo solo cuando `create_storage_bucket=true`. Es una mutación del proyecto y debe revisarse antes de aplicar; no es una simulación sin efectos.
 
-Conserva de forma segura el estado local o configura un backend GCS privado y versionado bajo control del propietario antes de producción. Perder el estado no elimina recursos. No intentes recrear recursos existentes como si fueran nuevos: utiliza importación y un plan de recuperación revisado.
+El estado ya se migró al backend GCS privado y versionado descrito abajo. Perder una copia local no elimina recursos. No intentes recrear recursos existentes como si fueran nuevos: utiliza el backend existente y un plan de recuperación revisado.
 
-## Publicar después de la autorización
+## Procedimiento de publicación
+
+La siguiente secuencia describe el aprovisionamiento inicial. Las fases ya completadas se indican en el estado anterior: continúa desde el estado Terraform actual y genera planes nuevos, sin repetir la creación de recursos existentes.
 
 1. Aplica el plan de fundamentos revisado:
 
@@ -67,8 +73,8 @@ Conserva de forma segura el estado local o configura un backend GCS privado y ve
    python cloud/google/manage.py status
    ```
 
-5. Comprueba el arranque de la VM y el gateway. En cuanto se inicialice el disco, vuelve a `initialize_empty_data_disk=false`, revisa y aplica ese cambio. No vuelvas a habilitar formateo para un disco con datos.
-6. Compila y publica el frontend únicamente en el target Corte, siguiendo [HOSTING.md](../firebase/HOSTING.md). La configuración de `cloud/firebase/firebase.json` reescribe API, imágenes y callbacks a `corte-gateway` en `us-central1`; no despliegues otros targets del proyecto.
+5. Comprueba el arranque de la VM y el gateway. La startup probe TCP de Cloud Run confirma únicamente que el proceso del gateway escucha; no demuestra que el backend esté disponible. Usa `/api/health` para verificar la ruta completa hasta la base del backend. En cuanto se inicialice el disco, vuelve a `initialize_empty_data_disk=false`, revisa y aplica ese cambio. No vuelvas a habilitar formateo para un disco con datos.
+6. Compila y publica el frontend únicamente en el target Corte, siguiendo [HOSTING.md](../firebase/HOSTING.md). La configuración `firebase.json` de la raíz reescribe API, imágenes y callbacks a `corte-gateway` en `us-central1`; no despliegues otros targets del proyecto.
 7. Verifica el sitio completo: `/api/health`, login del propietario, rechazo de una cuenta distinta, conexión a TikTok, importación y persistencia después de un reinicio controlado. Los datos reales requieren autorizar las cuentas desde la aplicación y tener aprobados los callbacks finales.
 
 Callbacks de TikTok:
@@ -105,6 +111,14 @@ Construye el commit revisado, actualiza `container_image`, revisa y aplica el pl
 `python cloud/google/manage.py status` consulta la VM y la URI del gateway; no prueba por sí solo el sitio ni el login. Los logs de aplicación y gateway excluyen query strings OAuth y se filtran los request logs de sus callbacks. Revisa Cloud Logging sin publicar datos privados.
 
 No cambies `runtime_enabled` a `false` para apagar un servicio existente: intentaría retirar recursos protegidos. La VM, el disco, los secretos y el bucket tienen protección contra borrado. Para recuperar datos, detén la VM y utiliza un disco nuevo desde un snapshot con un plan revisado; nunca montes SQLite de escritura en dos instancias simultáneamente.
+
+## Estado remoto y recuperación de infraestructura
+
+El backend de [backend.tf](backend.tf) utiliza `gs://corte-e-book-21589-tfstate` con prefijo `terraform/corte`. El bucket se administra en [state.tf](state.tf): acceso uniforme, prevención de acceso público, versionado y protección contra eliminación. No tiene TTL ni políticas de retención que bloqueen la liberación de locks. No se concedieron permisos a las identidades runtime, build o gateway; no se usa el bucket de datos ni el de fuentes de compilación.
+
+La migración conservó el lineage y los 44 identificadores de recursos; el serial avanzó una vez al escribir la copia remota. Se guardó una copia local privada antes de migrar. Una instalación nueva del operador debe usar ADC autorizado y `terraform init` contra este backend existente, sin recrear el bucket. Ejecuta después `terraform plan` con las variables privadas del despliegue y revisa cualquier diferencia antes de aplicar.
+
+Para recuperar una versión anterior del estado, usa las generaciones privadas del objeto GCS y un procedimiento revisado con el despliegue detenido a nivel de cambios de infraestructura. No borres el estado, no fuerces locks de otro operador y no sustituyas un estado más reciente por una copia antigua sin comparar lineage, serial y recursos reales.
 
 ## Referencias oficiales
 
