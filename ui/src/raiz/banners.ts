@@ -31,6 +31,7 @@ export interface DefBanner {
 
 export interface EntradaBanner {
   plataforma: PlataformaUi;
+  nube?: boolean;
   sesion: SessionResponse | undefined;
   /** Solo Android. */
   conexionPc: EstadoConexionPc | null;
@@ -74,7 +75,7 @@ export function fechaYHora(t: EpochS): string {
 /** Todos los banners que aplican, del más prioritario al menos (sin quitar los descartados). */
 export function calcularBanners(e: EntradaBanner): DefBanner[] {
   const lista: DefBanner[] = [];
-  const android = e.plataforma === 'android';
+  const android = e.plataforma === 'android' && !e.nube;
   const s = e.sesion;
   const conexion = s?.conexion;
 

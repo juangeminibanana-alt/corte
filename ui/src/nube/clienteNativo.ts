@@ -7,6 +7,7 @@ export interface SesionNativa {
   connected: boolean;
   offline: boolean;
   hay_copia: boolean;
+  error?: string;
   pending?: { user_code: string; verification_uri: string; expires_at: number };
   migration_pending?: boolean;
   migration_available?: boolean;

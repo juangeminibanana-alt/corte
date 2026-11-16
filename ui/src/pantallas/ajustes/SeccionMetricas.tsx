@@ -311,7 +311,7 @@ function SoloInformativa(): ReactElement {
 
 export function SeccionMetricas(): ReactElement {
   const android = usePlataforma() === 'android';
-  return android ? <SoloInformativa /> : <SeccionWindows />;
+  return android && !esNube() ? <SoloInformativa /> : <SeccionWindows />;
 }
 
 function SeccionWindows(): ReactElement {

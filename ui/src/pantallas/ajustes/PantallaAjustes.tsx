@@ -91,7 +91,7 @@ function TarjetaEstado(p: { android: boolean }): ReactElement | null {
   const sesion = useSesion();
   const pc = useConexionPc();
   const ahora = ahoraS();
-  if (p.android) {
+  if (p.android && !esNube()) {
     const copia = pc?.ultima_copia_at ?? sesion.copia_at ?? null;
     const conectado = pc?.conectado === true;
     const texto = !copia ? T.mas.sinCopia : conectado ? T.mas.copiaDe(formato.relativa(copia, ahora)) : T.mas.datosDel(`${formato.fechaCorta(copia)}, ${formato.hora(copia)}`);

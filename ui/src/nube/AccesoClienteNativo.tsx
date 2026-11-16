@@ -59,7 +59,7 @@ export function AccesoClienteNativo(p: { inicial: SesionNativa; children: ReactN
         <button className={css.principal} disabled={ocupado} onClick={() => void actuar('connect')}>{ocupado ? 'Abriendo navegador…' : sesion.pending ? 'Volver a abrir la conexión' : 'Continuar con Google'}</button>
         <p className={css.notaGoogle}>El acceso se realiza en tu navegador habitual.</p>
       </>}
-      {error ? <p role="alert" className={css.error}>{error}</p> : null}
+      {error || sesion.error ? <p role="alert" className={css.error}>{error || sesion.error}</p> : null}
     </section>
     <p className={css.pie}>Tus resultados y próximos pasos, en un solo lugar.</p>
   </main>;

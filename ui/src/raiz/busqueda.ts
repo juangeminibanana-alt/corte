@@ -19,14 +19,14 @@ export interface AccionPaleta {
 }
 
 /** Acciones de 01 §3.5, en su orden. Reautorizar no existe en Android (C35); emparejar va a la pantalla del celular. */
-export function accionesPaleta(e: { android: boolean; puedeSincronizar: boolean; puedeReautorizar: boolean }): AccionPaleta[] {
+export function accionesPaleta(e: { android: boolean; puedeSincronizar: boolean; puedeReautorizar: boolean; nube?: boolean }): AccionPaleta[] {
   const todas: Array<AccionPaleta | null> = [
     e.puedeSincronizar ? { id: 'sincronizar', etiqueta: T.accionSincronizar, icono: 'RefreshCw', claves: 'actualizar tiktok datos' } : null,
     { id: 'plan', etiqueta: T.accionPlan, icono: 'CalendarDays', claves: 'plan agenda fechas' },
     { id: 'avisar', etiqueta: T.accionAvisar, icono: 'MessageCircle', claves: 'mensaje tiendas aviso' },
     { id: 'sesion', etiqueta: T.accionSesion, icono: 'Clapperboard', claves: 'grabar videos enfoque' },
-    { id: 'emparejar', etiqueta: T.accionEmparejar, icono: 'Smartphone', claves: 'celular telefono qr pc' },
-    e.puedeReautorizar && !e.android ? { id: 'reautorizar', etiqueta: T.accionReautorizar, icono: 'Link', claves: 'conexion autorizacion cuenta' } : null,
+    !e.nube ? { id: 'emparejar', etiqueta: T.accionEmparejar, icono: 'Smartphone', claves: 'celular telefono qr pc' } : null,
+    e.puedeReautorizar && (!e.android || e.nube) ? { id: 'reautorizar', etiqueta: T.accionReautorizar, icono: 'Link', claves: 'conexion autorizacion cuenta' } : null,
     { id: 'ventas', etiqueta: T.accionVentas, icono: 'ChartColumn', claves: 'comision pedidos dinero' },
   ];
   return todas.filter((a): a is AccionPaleta => a !== null);

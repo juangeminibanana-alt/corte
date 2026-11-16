@@ -128,6 +128,7 @@ export function Marco(p: { cargadores?: Cargadores; cargadoresReautorizar?: Carg
     ? null
     : elegirBanner({
         plataforma,
+        nube: esNube(),
         sesion: sesion.datos,
         conexionPc,
         copiaAt: sesion.copia_at,
@@ -157,7 +158,7 @@ export function Marco(p: { cargadores?: Cargadores; cargadoresReautorizar?: Carg
   useAtrasAndroid(plataforma, paletaAbierta);
   useNotificaciones(!enRaiz && (sesion.datos?.datos.hay_datos ?? android));
 
-  const acciones = accionesPaleta({ android, puedeSincronizar: sync.puede, puedeReautorizar: capacidades.auth }).filter((a) => !esNube() || a.id !== 'emparejar');
+  const acciones = accionesPaleta({ android, nube: esNube(), puedeSincronizar: sync.puede, puedeReautorizar: capacidades.auth });
   const elegir = (res: ResultadoPaleta): void => {
     cerrarPaleta();
     const d = res.destino;
