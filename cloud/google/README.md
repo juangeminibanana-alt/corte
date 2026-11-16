@@ -22,7 +22,7 @@ Con `runtime_enabled=true` se crean una VM `e2-medium`, 20 GB de arranque, 20 GB
 
 **Publicado y verificado:** [abrir Corte](https://corte-e-book-21589.web.app). Firebase Hosting, el gateway y el backend responden por HTTPS; se comprobó el acceso real con Google del propietario, la conservación de la sesión al recargar, el cierre de sesión y una copia de seguridad creada y listada en el bucket privado. La VM reutilizó el disco de datos tras el reinicio controlado. El estado de Terraform está migrado a GCS y el plan final no propone cambios.
 
-El usuario autorizó un presupuesto estimado de 35–40 USD al mes para uso ligero, con cargos según consumo e impuestos. La facturación del proyecto está activa. Para sincronizar datos reales de TikTok todavía debe configurarse el App Secret de la aplicación en los ajustes de Corte y autorizar la cuenta; el despliegue no incorpora credenciales de TikTok de ejemplo.
+El usuario autorizó un presupuesto estimado de 35–40 USD al mes para uso ligero, con cargos según consumo e impuestos. La facturación del proyecto está activa. La conexión existente de TikTok Shop se importó de forma privada desde el panel anterior, se renovó y sobrevivió al reinicio. TikTok confirmó el perfil real y las consultas de muestras, productos, pedidos y vitrina. El despliegue no incorpora credenciales de ejemplo ni valores privados en el código.
 
 Para continuar y operar el despliegue se necesita:
 

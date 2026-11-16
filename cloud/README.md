@@ -4,7 +4,7 @@ Corte utiliza el sitio Firebase Hosting existente **`corte-e-book-21589`**, dent
 
 **Publicado y verificado:** [abrir Corte](https://corte-e-book-21589.web.app). Hosting y el backend responden por HTTPS; se comprobaron el acceso real del propietario con Google, el cierre de sesión, el rechazo de API sin sesión y la creación y consulta de un respaldo privado desde la interfaz. También se revisó la vista móvil. La VM se reinició conservando el disco existente, con el permiso de formateo desactivado. El costo autorizado es un estimado de 35–40 USD al mes para uso ligero, más variaciones por consumo e impuestos.
 
-La conexión real a TikTok Shop sigue pendiente del App Secret y la autorización del propietario en TikTok; las ventas, muestras y métricas aparecerán después de esa conexión. No se publicaron datos de demostración.
+La conexión de TikTok Shop se recuperó desde la configuración del panel anterior y se renovó mediante el servicio de TikTok. El perfil real quedó verificado y la sincronización automática consulta muestras, productos, pedidos y vitrina correctamente. Las claves y la autorización renovada se conservaron tras reiniciar la VM. No se publicaron datos de demostración ni credenciales.
 
 La preparación y operación están en [google/README.md](google/README.md). El target de Hosting se documenta en [firebase/HOSTING.md](firebase/HOSTING.md).
 
