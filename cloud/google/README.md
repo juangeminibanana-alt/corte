@@ -20,7 +20,7 @@ Con `runtime_enabled=true` se crean una VM `e2-medium`, 20 GB de arranque, 20 GB
 
 ## Estado y requisitos
 
-La infraestructura de cómputo **no está aplicada** y sus costos todavía no están autorizados. La autenticación de Google Cloud CLI sigue pendiente de completar. Un sitio registrado, un archivo Terraform válido o `expected_url` no confirman un despliegue operativo.
+La infraestructura de cómputo **no está aplicada** y sus costos todavía no están autorizados. La autenticación de Google Cloud CLI está completada y la facturación del proyecto está activa. Un sitio registrado, un archivo Terraform válido o `expected_url` no confirman un despliegue operativo.
 
 Antes de ejecutar acciones sobre Google se necesita:
 

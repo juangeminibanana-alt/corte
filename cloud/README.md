@@ -2,7 +2,7 @@
 
 Corte utiliza el sitio Firebase Hosting existente **`corte-e-book-21589`**, dentro de **`e-book-21589`**. La interfaz compilada se sirve desde `https://corte-e-book-21589.web.app`; sus rutas `/api/**`, `/img/**` y `/oauth/**` se reescriben al servicio Cloud Run `corte-gateway`. El gateway contacta por VPC al backend Python en una VM privada con un disco persistente separado. El teléfono abre la misma dirección: no necesita la PC encendida, compartir Wi-Fi ni emparejamiento.
 
-El sitio y la aplicación web Firebase de Corte ya están registrados. **Eso no confirma una aplicación publicada y funcional.** No se ha aplicado la infraestructura de cómputo ni se han autorizado todavía sus costos. La autenticación de Google Cloud CLI sigue pendiente de completar; no se presupone acceso efectivo del CLI. No hace falta comprar un dominio ni crear otro sitio o proyecto.
+El sitio y la aplicación web Firebase de Corte ya están registrados. **Eso no confirma una aplicación publicada y funcional.** No se ha aplicado la infraestructura de cómputo ni se han autorizado todavía sus costos. La autenticación de Google Cloud CLI está completada y la facturación del proyecto está activa. No hace falta comprar un dominio ni crear otro sitio o proyecto.
 
 La preparación y operación están en [google/README.md](google/README.md). El target de Hosting se documenta en [firebase/HOSTING.md](firebase/HOSTING.md).
 
