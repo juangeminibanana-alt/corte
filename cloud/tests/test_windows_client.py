@@ -207,6 +207,33 @@ class WindowsClientTests(unittest.TestCase):
         self.client.cache.guardar('/img/p/8234567890123456789?v=aaaaaaaa&t=sm', valid)
         self.assertIsNotNone(self.client.cache.leer('/img/p/8234567890123456789?v=aaaaaaaa&t=sm'))
 
+    def test_small_offline_cover_is_a_private_fallback_for_same_id_version_and_never_auth_failure(self):
+        from creatorhub.interfaces import RespuestaHttp
+        route = '/img/v/7123456789012345678'
+        sm = route + '?v=aaaaaaaa&t=sm'
+        self.client.cache.guardar(sm, RespuestaHttp(200, [('Content-Type', 'image/webp'),
+                                                        ('ETag', '"aaaaaaaa-sm"')], b'small-cover'))
+        dispatcher = DespachadorNativo(self.client, Mock())
+        r = dispatcher.despachar('GET', route, 'v=aaaaaaaa&t=md', {}, b'', CTX_UI)
+        self.assertEqual((r.status, r.cuerpo), (200, b'small-cover'))
+        self.assertIn(('Cache-Control', 'private, no-store'), r.cabeceras)
+        self.assertIsNone(self.client.cache.leer(route + '?v=aaaaaaaa&t=md'))
+        for path, query in [(route, 'v=bbbbbbbb&t=md'), (route, 'v=0&t=md'),
+                            ('/img/v/7999999999999999999', 'v=aaaaaaaa&t=md'),
+                            ('/img/p/7123456789012345678', 'v=aaaaaaaa&t=md')]:
+            self.assertEqual(dispatcher.despachar('GET', path, query, {}, b'', CTX_UI).status, 503)
+        self.transport.pedir.assert_not_called()
+        self.transport.pedir.side_effect = None
+        for status in (404, 429, 503):
+            self.client.connected = True
+            self.transport.pedir.return_value = respuesta({'error': {'codigo': 'no_disponible'}}, status)
+            self.assertEqual(dispatcher.despachar('GET', route, 'v=aaaaaaaa&t=md', {}, b'', CTX_UI).cuerpo,
+                             b'small-cover')
+        self.client.connected = True
+        self.transport.pedir.return_value = respuesta({'error': {'codigo': 'sesion_nativa_invalida'}}, 401)
+        self.assertEqual(dispatcher.despachar('GET', route, 'v=aaaaaaaa&t=md', {}, b'', CTX_UI).status, 401)
+        self.assertFalse(self.client.token())
+
     @unittest.skipUnless(sys.platform == 'win32', 'Windows shell')
     def test_access_gate_closes_cleanly_and_authenticated_shell_keeps_close_dialog(self):
         from creatorhub.plataforma.windows.ventana import ShellVentana

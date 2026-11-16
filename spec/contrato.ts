@@ -621,12 +621,11 @@ export interface FilaVideo {
   /** Producto asociado a sus ventas; nunca sustituye la portada del video. */
   producto_principal_id?: string | null;
   content_id: string;
-  /** rev. 3 · Siempre null: oEmbed ya no devuelve `title` (CONTEXTO 12/11). La interfaz muestra el nombre corto del
-   *  producto principal o "Video 7677…3012". */
+  /** El título heredado puede ser null. La interfaz prioriza la descripción real de TikTok antes del ID corto. */
   titulo: string | null;
-  /** rev. 3 · Portada = imagen del producto con más pedidos válidos en ese content_id ('/img/p/<id>?v=…'). */
+  /** Imagen real del mismo video ('/img/v/<content_id>?v=…'); null si no está disponible. */
   miniatura: UrlImagen | null;
-  /** rev. 3 · 'producto' = la portada es la foto del producto (rotular "Foto del producto"); null = sin imagen. */
+  /** 'producto' sólo se conserva para leer copias antiguas y no se presenta como portada. */
   miniatura_origen?: 'producto' | null;
   /** https://www.tiktok.com/@<username>/video/<content_id> */
   enlace: string;
@@ -650,7 +649,7 @@ export interface FilaVideo {
   likes?: number | null;
   comentarios?: number | null;
   compartidos?: number | null;
-  /** rev. 5 · Portada REAL del video: '/img/v/<content_id>?v=…' (regla C45). `miniatura` sigue siendo la foto del producto. */
+  /** Portada REAL del mismo video: '/img/v/<content_id>?v=…' (regla C45). */
   portada?: UrlImagen | null;
   /** rev. 5 · title (o video_description) del video en TikTok. `titulo` sigue en null por compatibilidad. */
   descripcion?: string | null;

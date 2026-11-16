@@ -14,6 +14,8 @@ import app.creatorhub.red.CanalNube;
 import app.creatorhub.red.SeguridadNube;
 import app.creatorhub.red.PoliticaCacheImagenes;
 import app.creatorhub.red.ControlPrecargaImagenes;
+import app.creatorhub.red.ClienteHub;
+import app.creatorhub.web.ProxyHub;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -32,7 +34,7 @@ public final class PruebasNube extends Instrumentation {
         Bundle resultado = new Bundle();
         try {
             probar();
-            resultado.putString("native_checks", "PASS: Keystore, PKCE, rutas, fsync, deduplicacion, UTF8, archivo SHA256, defer, DTO limpio, cache ETag y reintentos acotados");
+            resultado.putString("native_checks", "PASS: Keystore, PKCE, rutas, fsync, deduplicacion, UTF8, archivo SHA256, defer, DTO limpio, ETag, fallback ProxyHub404/429/503 y reintentos acotados");
             resultado.putBoolean("production_data_touched", false);
             finish(Activity.RESULT_OK, resultado);
         } catch (Throwable e) {
@@ -55,6 +57,8 @@ public final class PruebasNube extends Instrumentation {
         try { SeguridadNube.rutaRemota("/api/native/%73ession"); throw new AssertionError("Ruta privada codificada"); }
         catch (IllegalArgumentException esperado) { }
         AlmacenSeguro seguro = new AlmacenSeguro(aislado);
+        seguro.borrar("corte.nube.dispositivo.v1");
+        seguro.borrar("corte.nube.autorizacion.v1");
         String verifier = SeguridadNube.nuevoVerificador();
         JSONObject pendiente = new JSONObject().put("request_id", "qa-pedido-sintetico").put("code_verifier", verifier)
                 .put("user_code", "ABCD-EFGH").put("verification_uri", SeguridadNube.ORIGEN + "/conectar-dispositivo?codigo=ABCD-EFGH")
@@ -126,11 +130,71 @@ public final class PruebasNube extends Instrumentation {
         JSONObject privada = new JSONObject(new String(Files.readAllBytes(marca.toPath()), StandardCharsets.UTF_8))
                 .put("owner_uid", "qa-propietario-privado").put("tiktok_open_id", "qa-cuenta-privada");
         Files.write(marca.toPath(), privada.toString().getBytes(StandardCharsets.UTF_8));
-        String dto = Nucleo.de(aislado).estadoNativo().toString();
+        // El transporte HTTPS de pruebas NO abre sockets. El APK QA ni siquiera tiene permiso INTERNET.
+        HttpsSintetica.cuerpo = png;
+        java.net.URL.setURLStreamHandlerFactory(protocolo -> "https".equals(protocolo) ? new java.net.URLStreamHandler() {
+            @Override protected java.net.URLConnection openConnection(java.net.URL u) { return new HttpsSintetica(u); }
+        } : null);
+        seguro.guardar("corte.nube.dispositivo.v1", new JSONObject().put("token", "corte_native_v1_" + "z".repeat(43))
+                .put("expires_at", System.currentTimeMillis() / 1000L + 600).put("device_id", "qa-sintetico")
+                .put("owner_uid", "qa-sintetico").toString());
+        Nucleo nucleo = Nucleo.de(aislado);
+        nucleo.cliente.pedir(new ClienteHub.Peticion("GET", "/img/v/333333333?v=aaaaaaaa&t=md"));
+        java.lang.reflect.Method atender = ProxyHub.class.getDeclaredMethod("atender", String.class, android.net.Uri.class);
+        atender.setAccessible(true);
+        ProxyHub proxy = new ProxyHub(nucleo);
+        String pedido = "/img/v/333333333?v=aaaaaaaa&t=md";
+        HttpsSintetica.etag = "\"bbbbbbbb-md\"";
+        android.webkit.WebResourceResponse respuesta = (android.webkit.WebResourceResponse) atender.invoke(proxy, "GET", android.net.Uri.parse("https://appassets.androidplatform.net" + pedido));
+        comprobar(respuesta.getStatusCode() == 200 && nucleo.copia.imagenEnCache(pedido) == null
+                && respuesta.getResponseHeaders().get("Cache-Control").contains("no-store"), "Proxy nativo rechaza persistir ETag distinto");
+        HttpsSintetica.etag = "\"aaaaaaaa-md\"";
+        atender.invoke(proxy, "GET", android.net.Uri.parse("https://appassets.androidplatform.net" + pedido));
+        comprobar(nucleo.copia.imagenEnCache(pedido) != null, "Proxy nativo persiste sólo imagen verificada");
+        String md = "/img/v/444444444?v=aaaaaaaa&t=md", sm = "/img/v/444444444?v=aaaaaaaa&t=sm";
+        nucleo.copia.guardarImagen(sm, png, "\"aaaaaaaa-sm\"");
+        for (int status : new int[] { 404, 429, 503 }) {
+            HttpsSintetica.codigo = status;
+            respuesta = (android.webkit.WebResourceResponse) atender.invoke(proxy, "GET", android.net.Uri.parse("https://appassets.androidplatform.net" + md));
+            comprobar(respuesta.getStatusCode() == 200 && java.util.Arrays.equals(png, respuesta.getData().readAllBytes())
+                    && respuesta.getResponseHeaders().get("Cache-Control").contains("no-store"), "Proxy nativo usa SM ante MD" + status);
+        }
+        respuesta = (android.webkit.WebResourceResponse) atender.invoke(proxy, "GET", android.net.Uri.parse("https://appassets.androidplatform.net/img/v/444444444?v=bbbbbbbb&t=md"));
+        comprobar(respuesta.getStatusCode() == 503, "Proxy nativo no mezcla versiones");
+        HttpsSintetica.codigo = 401;
+        respuesta = (android.webkit.WebResourceResponse) atender.invoke(proxy, "GET", android.net.Uri.parse("https://appassets.androidplatform.net" + md));
+        comprobar(respuesta.getStatusCode() == 401, "Proxy nativo no oculta sesión vencida con imagen cacheada");
+        seguro.borrar("corte.nube.dispositivo.v1");
+        String dto = nucleo.estadoNativo().toString();
         comprobar(!dto.contains("\"token\"") && !dto.contains("code_verifier") && !dto.contains("tiktok_open_id")
                 && !dto.contains("owner_uid") && new JSONObject(dto).getBoolean("native_client"), "DTO limpio");
     }
 
     private static byte[] hash(File f) throws Exception { return MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(f.toPath())); }
     private static void comprobar(boolean valor, String mensaje) { if (!valor) throw new AssertionError(mensaje); }
+
+    private static final class HttpsSintetica extends javax.net.ssl.HttpsURLConnection {
+        static int codigo = 200;
+        static String etag = "\"aaaaaaaa-md\"";
+        static byte[] cuerpo;
+        HttpsSintetica(java.net.URL u) { super(u); }
+        @Override public int getResponseCode() throws java.io.IOException {
+            if (!"corte-e-book-21589.web.app".equals(url.getHost()) || !"1".equals(getRequestProperty("X-CH-Hub"))
+                    || !"https://corte-e-book-21589.web.app".equals(getRequestProperty("Origin"))
+                    || !getRequestProperty("Authorization").startsWith("Bearer corte_native_v1_")) throw new java.io.IOException("Transporte de prueba inesperado");
+            return codigo;
+        }
+        @Override public String getContentType() { return "image/png"; }
+        @Override public java.util.Map<String, java.util.List<String>> getHeaderFields() {
+            return java.util.Map.of("Content-Type", java.util.List.of("image/png"), "Cache-Control", java.util.List.of("private, no-store"), "ETag", java.util.List.of(etag));
+        }
+        @Override public java.io.InputStream getInputStream() { return new java.io.ByteArrayInputStream(cuerpo); }
+        @Override public java.io.InputStream getErrorStream() { return new java.io.ByteArrayInputStream("{}".getBytes(StandardCharsets.UTF_8)); }
+        @Override public void disconnect() { }
+        @Override public boolean usingProxy() { return false; }
+        @Override public void connect() { }
+        @Override public String getCipherSuite() { return "QA-sin-red"; }
+        @Override public java.security.cert.Certificate[] getLocalCertificates() { return new java.security.cert.Certificate[0]; }
+        @Override public java.security.cert.Certificate[] getServerCertificates() { return new java.security.cert.Certificate[0]; }
+    }
 }

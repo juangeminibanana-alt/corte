@@ -17,7 +17,8 @@ android {
     sourceSets {
         main {
             java.srcDirs = ['src/main/java', '../app/src/main/java']
-            java.includes = ['app/creatorhub/Nucleo.java', 'app/creatorhub/datos/**', 'app/creatorhub/red/**', 'app/creatorhub/qa/**']
+            java.includes = ['app/creatorhub/Nucleo.java', 'app/creatorhub/datos/**', 'app/creatorhub/red/**', 'app/creatorhub/qa/**',
+                    'app/creatorhub/web/ProxyHub.java', 'app/creatorhub/web/ServidorAssets.java']
         }
     }
 }

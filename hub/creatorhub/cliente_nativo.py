@@ -192,6 +192,22 @@ class CacheNativa:
         return (cabeceras.get('etag') == etiqueta and cabeceras.get('content-type', '').split(';')[0]
                 in ('image/jpeg', 'image/png', 'image/webp', 'image/gif'))
 
+    def respaldo_imagen(self, ruta: str) -> RespuestaHttp | None:
+        """La copia SM del mismo recurso/version sirve de respaldo, sin guardarla como MD/original."""
+        u = urllib.parse.urlsplit(ruta)
+        if not u.path.startswith('/img/'):
+            return None
+        query = urllib.parse.parse_qs(u.query, keep_blank_values=True)
+        versiones, variantes = query.get('v', []), query.get('t', [])
+        if (len(versiones) != 1 or not re.fullmatch(r'[0-9a-f]{8}', versiones[0])
+                or len(variantes) > 1 or (variantes and variantes[0] not in ('', 'xs', 'md'))):
+            return None
+        copia = self.leer(u.path + '?v=' + versiones[0] + '&t=sm')
+        if copia is None:
+            return None
+        headers = [(k, v) for k, v in copia.cabeceras if k.lower() != 'cache-control']
+        return RespuestaHttp(200, [*headers, ('Cache-Control', 'private, no-store')], copia.cuerpo)
+
     def pendientes(self, todos: bool = False) -> list[dict]:
         with self.db() as db:
             rows = db.execute('SELECT op FROM cola' + ('' if todos else " WHERE estado='pendiente'") + ' ORDER BY rowid').fetchall()
@@ -607,11 +623,15 @@ class DespachadorNativo:
                 return r
             completa = ruta + ('?' + consulta if consulta else '')
             if metodo == 'GET' and not c.connected:
-                cached = c.cache.leer(completa)
+                cached = c.cache.leer(completa) or c.cache.respaldo_imagen(completa)
                 c.despertar.set()
                 return cached or error('sin_conexion', 'Esta vista todavía no está en la copia guardada.', 503)
             try:
                 r = c.remoto(metodo, completa, json.loads(cuerpo) if cuerpo else None)
+                if metodo == 'GET' and r.status in (404, 429, 503):
+                    respaldo = c.cache.respaldo_imagen(completa)
+                    if respaldo is not None:
+                        return respaldo
                 if metodo == 'GET' and r.status == 200:
                     if ruta == '/api/session':
                         d = json.loads(r.cuerpo)
@@ -622,7 +642,7 @@ class DespachadorNativo:
                     c.cache.guardar(completa, r)
                 return r
             except SinRed:
-                cached = c.cache.leer(completa) if metodo == 'GET' else None
+                cached = (c.cache.leer(completa) or c.cache.respaldo_imagen(completa)) if metodo == 'GET' else None
                 return cached or error('sin_conexion', 'Sin conexión. Puedes consultar la copia guardada.', 503)
         except ErrorDominio as exc:
             return respuesta(exc.a_respuesta(tuple(c.vault.secretos_vivos())), exc.http)

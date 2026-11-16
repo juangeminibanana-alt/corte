@@ -51,6 +51,10 @@
         ]
       }
     ],
+    "redirects": [
+      { "source": "/descargas/Corte-Windows-1.1.0.zip", "destination": "/descargas/Corte-Windows-1.1.1.zip", "type": 302 },
+      { "source": "/descargas/Corte-Android-1.1.0.apk", "destination": "/descargas/Corte-Android-1.1.1.apk", "type": 302 }
+    ],
     "rewrites": [
       {
         "source": "/api/**",
