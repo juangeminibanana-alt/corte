@@ -20,6 +20,7 @@ _log = logging.getLogger('creatorhub.analitica')
 TOP_VIDEOS_COPIA = 100           # SnapshotResponse.videos: top 100 por comisión
 DIAS_ORDENES_COPIA = 90          # SnapshotResponse.ordenes_recientes: últimos 90 días…
 MAX_ORDENES_COPIA = 500          # …máximo 500 pedidos (los más recientes)
+MAX_FICHAS_COPIA = 100           # Galería/SKU ya almacenados; muestras pendientes primero, sin red.
 
 
 class AnaliticaSqlite:
@@ -129,6 +130,7 @@ class AnaliticaSqlite:
             f_ord = F.FiltrosOrdenes(desde=desde_ord, hasta=None, estados=None, tienda=None, producto=None, video=None,
                                      q=None, pagina=1, por_pagina=200)
             pendientes = v.pendientes()
+            productos = v.productos_todos(None, None)
             tiendas_extra = {m['tienda_key'] for m in pendientes if m['tienda_key']}
             tiendas_extra |= {a['tienda_key'] for a in v.avisos if a['tienda_key'] in v.S}
             extras = {
@@ -138,6 +140,7 @@ class AnaliticaSqlite:
                              for m in pendientes},
                 'tiendas': {tk: {'plantilla_sugerida': v.plantilla_tienda(tk, v.es_socio(tk)), 'serie': v.serie_tienda(tk)}
                             for tk in sorted(tiendas_extra) if tk in v.S},
+                'productos': self._productos_copia(v, pendientes, muestras, productos),
             }
             cuenta_out = None
             if cuenta:
@@ -152,7 +155,7 @@ class AnaliticaSqlite:
                 'dashboard': {'30d': v.dashboard('30d', con), 'todo': v.dashboard('todo', con)},
                 'muestras': muestras, 'tiendas': tiendas,
                 'videos': v.videos(None, None, TOP_VIDEOS_COPIA)[0],
-                'productos': v.productos_todos(None, None),
+                'productos': productos,
                 'ordenes_recientes': v.ordenes(f_ord, max_items=MAX_ORDENES_COPIA)['items'],
                 'series': {'mes': v.serie('mes', todo.desde, todo.hasta), 'semana': v.serie('semana', todo.desde, todo.hasta)},
                 'local': {'planes': v.planes, 'notas': v.notas, 'recordatorios': v.recordatorios, 'avisos': v.avisos_vista(),
@@ -167,6 +170,27 @@ class AnaliticaSqlite:
             resp['meta_imagenes'] = meta
             resp['imagenes'] = [u + '&t=sm' for u in meta]   # solo las ya descargadas (C45): el celular precarga 'sm'
             return resp
+
+    @staticmethod
+    def _productos_copia(v: Vista, pendientes: list[Json], muestras: list[Json], productos: list[Json]) -> Json:
+        """Sólo fichas representadas en la copia y con vitrina/SKU ya consultados. No consulta TikTok.
+
+        La galería conserva sus URLs versionadas para que meta_para/imagenes incluyan también las fotos 'g'.
+        El límite evita convertir una copia de trabajo en una descarga del catálogo completo.
+        """
+        cacheados = {r['product_id'] for r in v.filas(
+            'SELECT product_id FROM vitrina UNION SELECT product_id FROM muestra_etiquetas WHERE huella IS NOT NULL')}
+        candidatos = [m['product_id'] for m in pendientes]
+        candidatos += [m['producto']['product_id'] for m in muestras]
+        candidatos += [p['product_id'] for p in productos]
+        salida: Json = {}
+        for pid in candidatos:
+            if pid not in cacheados or pid in salida:
+                continue
+            salida[pid] = v.producto_extendido(pid)
+            if len(salida) >= MAX_FICHAS_COPIA:
+                break
+        return salida
 
     def etag(self) -> str:
         with self.almacen.lector() as conn:

@@ -12,7 +12,7 @@ Convenciones: éxito sin envoltorio; errores `ErrorRespuesta` (ErrorDominio.a_re
 `Accept-Encoding: gzip` y el cuerpo pasa de 1 KB, `Cache-Control: no-store` salvo las lecturas compuestas, que llevan
 `ETag: W/"dv<N>-lr<M>-ir<K>-<hash>"` (el hash cubre la ruta, la query ordenada y la fecha local de hoy, porque hay
 campos como `dias_restantes` que cambian con el día) y responden `304` a `If-None-Match`. `GET /api/snapshot` lleva
-la forma exacta del contrato, `W/"dv<N>-lr<M>-ir<K>"`, armada con las versiones del propio cuerpo.
+la forma del contrato, `W/"dv<N>-lr<M>-ir<K>-f1"`, armada con las versiones del propio cuerpo y su representación.
 La ruta llega SIN decodificar: se parte en segmentos y cada segmento se decodifica por separado (nunca se normaliza la
 ruta completa). Ya no existe `POST /local/activar` (C40).
 """
@@ -38,6 +38,7 @@ TIPO_JSON = 'application/json; charset=utf-8'
 GZIP_DESDE = 1024
 MAX_CUERPO = config.MAX_CUERPO_BYTES
 MAX_CAMPOS_QUERY = 64
+REV_SNAPSHOT = 'f1'               # Incluye fichas extendidas; invalida copias anteriores aun sin cambios de datos.
 ModoLan = Literal['lectura', 'escritura', 'local']
 TipoEtag = Literal['lectura', 'snapshot'] | None
 
@@ -319,7 +320,7 @@ class DespachadorHub:
 
     def _etiqueta(self, versiones: str, p: Peticion, tipo: TipoEtag) -> str:
         if tipo == 'snapshot':
-            return f'W/"{versiones}"'
+            return f'W/"{versiones}-{REV_SNAPSHOT}"'
         canon = '&'.join(f'{k}={v}' for k, v in sorted(p.query.items()))
         hoy = comun.fecha_local(self.hub.reloj.ahora())
         h = hashlib.sha256(f'{p.ruta}?{canon}|{hoy}'.encode('utf-8')).hexdigest()[:12]

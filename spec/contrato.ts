@@ -727,8 +727,8 @@ export interface ProductoDetalleResponse {
 /**
  * rev. 4 (15/11) · Todo lo que la API OFICIAL de afiliados da de un producto (solo endpoints de LECTURA; no hay
  * scraper). Cada parte es null o [] mientras su fase de la sincronización no haya traído datos (corren dentro del paso
- * 'productos_ventas', con TTL y topes por sync). Lo que ningún endpoint de creador da (descripción del vendedor,
- * reseñas, guía de tallas, envío, stock exacto por SKU, datos de la tienda) no está aquí.
+ * 'productos_ventas', con TTL y topes por sync). La integración actual de creador no obtiene descripción del vendedor,
+ * reseñas, guía de tallas, envío, stock exacto por SKU ni datos de la tienda; no forman parte de este contrato.
  */
 export interface ProductoExtendido {
   /** Galería de tu vitrina (showcases/products main_images[], hasta 12 fotos, en su orden): '/img/g/<product_id>-<n>?v=…'
@@ -1305,7 +1305,8 @@ export interface OpsResultado {
 export interface OpsResponse { resultados: OpsResultado[]; local_rev: number }
 
 // ============================================================================ copia sin conexión (Android)
-/** GET /api/snapshot — ETag "dv<data_version>-lr<local_rev>-ir<img_rev>" (rev. 3.1, C45); If-None-Match -> 304; gzip. */
+/** GET /api/snapshot — ETag W/"dv<data_version>-lr<local_rev>-ir<img_rev>-f1"; If-None-Match -> 304; gzip.
+ *  f1 identifica la representación con fichas extendidas; img_rev del cuerpo es autoritativo. */
 export interface SnapshotResponse {
   /** 02_visual §8.2: el celular guarda LQIP y color junto con la copia para pintar sin conexión. */
   meta_imagenes?: MetaImagenes;
@@ -1338,6 +1339,9 @@ export interface SnapshotResponse {
 
 /** rev. 3 · Datos derivados que la interfaz no recalcula (las reglas viven en el hub, 03 §5.8–5.10). */
 export interface ExtrasSinConexion {
+  /** Galería, variantes y demás datos de hasta 100 fichas ya consultadas; muestras pendientes primero.
+   *  Sólo productos presentes en la copia. Opcional para seguir leyendo copias anteriores. */
+  productos?: Record<string, ProductoExtendido>;
   muestras: Record<string, {
     plantilla_sugerida: string;
     videos_del_producto: VideoDeProducto[];
