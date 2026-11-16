@@ -66,6 +66,12 @@ class GatewayTests(unittest.TestCase):
         self.assertNotIn('Origin', sent)
         self.assertNotIn('X-CH-Hub', sent)
 
+    def test_opaque_cache_scope_reaches_backend_for_atomic_outbox_guard(self):
+        self.client.post('/api/local/ops', json={'ops': []}, base_url=self.base,
+                         headers={'Origin': self.base, 'X-CH-Hub': '1', 'X-Corte-Cache-Scope': 'a' * 64})
+        sent = self.transport.request.call_args.kwargs['headers']
+        self.assertEqual(next(v for k, v in sent.items() if k.lower() == 'x-corte-cache-scope'), 'a' * 64)
+
     def test_cookies_redirects_and_no_store_are_preserved_without_following(self):
         self.transport.request.return_value = upstream(b'', 303,
             {'Location': '/#/inicio', 'Connection': 'keep-alive, X-Remove', 'X-Remove': 'remove', 'Content-Length': '0'},

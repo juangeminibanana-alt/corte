@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 import subprocess
 import textwrap
+import threading
 import tempfile
 import time
 import unittest
@@ -350,6 +351,7 @@ class FirebaseTests(unittest.TestCase):
             claims = self.claims()
             firebase.verify_session.return_value = claims
             hub = Mock()
+            hub._candado_mutacion = threading.RLock()
             settings = Settings('https://corte.example', 'test-session-secret-' * 4, '', folder, folder,
                                 auth_provider='firebase')
             client = create_app(settings, hub, firebase).test_client()

@@ -104,6 +104,17 @@ class LoginLimiter:
             return True
 
 
+def opaque_client_scopes(claims: Any, creator: Any = None) -> dict[str, str]:
+    """Opaque cache namespaces, bound to verified Google identity and creator."""
+    uid = (claims.get('uid') or claims.get('sub')) if isinstance(claims, dict) else None
+    if not isinstance(uid, str) or not uid:
+        return {}
+    scopes = {'owner_scope': hashlib.sha256(('corte-owner:' + uid).encode('utf-8')).hexdigest()}
+    if isinstance(creator, str) and creator:
+        scopes['cache_scope'] = hashlib.sha256(('corte-cache-v1\0' + uid + '\0' + creator).encode('utf-8')).hexdigest()
+    return scopes
+
+
 def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any = None) -> Flask:
     settings = settings or Settings.from_env()
     app = Flask(__name__, static_folder=None)
@@ -266,6 +277,7 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
         username = account.get('username') if isinstance(account, dict) else None
         return jsonify(authenticated=True, device_id=actor['device_id'], expires_at=actor['expires_at'],
                        owner={'uid': actor['claims']['uid'], 'email': actor['claims']['email']},
+                       **opaque_client_scopes(actor['claims'], identity),
                        **({'tiktok_open_id': identity} if isinstance(identity, str) and identity else {}),
                        **({'username': username} if isinstance(username, str) and username else {}))
 
@@ -323,7 +335,14 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
 
     @app.get('/api/cloud/session')
     def cloud_session() -> Any:
-        return jsonify(cloud=True, authenticated=authenticated())
+        active = authenticated()
+        scopes = {}
+        if active and isinstance(getattr(g, 'firebase_claims', None), dict):
+            with hub._candado_mutacion:
+                stored = hub.boveda.leer()
+                creator = stored.get('open_id') if isinstance(stored, dict) else None
+                scopes = opaque_client_scopes(getattr(g, 'firebase_claims', None), creator)
+        return jsonify(cloud=True, authenticated=active, **scopes)
 
     @app.get('/api/cloud/config')
     def cloud_config() -> Any:
@@ -345,9 +364,16 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
             # without invalidating every table on each 3-second active-sync poll.
             'sync': {key: sync.get(key) for key in ('en_curso', 'sync_id', 'ultima_estado', 'ultima_ok_at', 'ultimo_error')},
         }
+        scopes = {}
+        if isinstance(getattr(g, 'firebase_claims', None), dict):
+            with hub._candado_mutacion:
+                stored = hub.boveda.leer()
+                creator = stored.get('open_id') if isinstance(stored, dict) else None
+                scopes = opaque_client_scopes(g.firebase_claims, creator)
+        state['cache_scope'] = scopes.get('cache_scope')
         revision = hashlib.sha256(json.dumps(state, sort_keys=True, separators=(',', ':'),
                                              ensure_ascii=False).encode('utf-8')).hexdigest()
-        return jsonify(revision=revision, sync=sync)
+        return jsonify(revision=revision, sync=sync, **scopes)
 
     @app.post('/api/cloud/login')
     def login() -> Any:
@@ -598,8 +624,24 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
             return error('no_disponible_en_nube', 'Esta función pertenece a la aplicación de escritorio.', 410)
         dispatcher = display if es_ruta_display(route) else hub.despachador
         business_headers = {key: value for key, value in request.headers.items() if key.lower() != 'authorization'}
-        result = dispatcher.despachar(request.method, route, request.query_string.decode('utf-8', errors='replace'),
-                                      business_headers, request.get_data(), CTX_UI)
+        def dispatch_business() -> Any:
+            return dispatcher.despachar(request.method, route, request.query_string.decode('utf-8', errors='replace'),
+                                         business_headers, request.get_data(), CTX_UI)
+
+        expected_scope = request.headers.get('X-Corte-Cache-Scope')
+        if route == '/api/local/ops' and request.method == 'POST' and expected_scope is not None:
+            # New clients bind pending operations to the exact owner + creator.
+            # Keep the comparison and mutation atomic with account changes.
+            with hub._candado_mutacion:
+                stored = hub.boveda.leer()
+                creator = stored.get('open_id') if isinstance(stored, dict) else None
+                current_scope = opaque_client_scopes(getattr(g, 'firebase_claims', None), creator).get('cache_scope')
+                if (len(expected_scope) != 64 or any(c not in '0123456789abcdef' for c in expected_scope)
+                        or current_scope is None or not hmac.compare_digest(expected_scope, current_scope)):
+                    return error('cuenta_cambio_sin_aplicar', 'La cuenta cambió. Tus cambios anteriores se conservan sin aplicar.', 409)
+                result = dispatch_business()
+        else:
+            result = dispatch_business()
         if (g.native_actor and request.method == 'POST' and result.status == 200
                 and route in ('/api/auth/link', '/api/display/conectar')):
             try:

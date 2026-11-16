@@ -20,7 +20,7 @@ from cloud.native_auth import BEARER_RE
 MAX_BYTES = 20 * 1024 * 1024
 HOP_HEADERS = frozenset({'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
                          'te', 'trailer', 'transfer-encoding', 'upgrade', 'content-length'})
-FORWARD_HEADERS = frozenset({'accept', 'content-type', 'origin', 'x-ch-hub', 'if-none-match', 'last-event-id'})
+FORWARD_HEADERS = frozenset({'accept', 'content-type', 'origin', 'x-ch-hub', 'if-none-match', 'last-event-id', 'x-corte-cache-scope'})
 
 
 @dataclass(frozen=True)

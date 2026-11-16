@@ -232,6 +232,62 @@ class NativeWebTests(unittest.TestCase):
         self.assertEqual(revoked.status_code, 200)
         self.assertEqual(self.client.get('/api/snapshot', headers=headers, base_url=self.base).status_code, 401)
 
+    def test_cookie_and_native_have_same_opaque_owner_and_creator_scopes(self):
+        self.hub.boveda.leer.return_value = {'open_id': 'synthetic-private-creator'}
+        grant = self.grant()
+        native = self.client.get('/api/native/session', headers={'Authorization': 'Bearer ' + grant['token']}, base_url=self.base).json
+        cookie = self.owner.get('/api/cloud/session', base_url=self.base)
+        self.assertEqual(cookie.json['owner_scope'], native['owner_scope'])
+        self.assertEqual(cookie.json['cache_scope'], native['cache_scope'])
+        self.assertRegex(cookie.json['owner_scope'], r'^[a-f0-9]{64}$')
+        self.assertRegex(cookie.json['cache_scope'], r'^[a-f0-9]{64}$')
+        self.assertNotIn(self.claims['uid'], cookie.text)
+        self.assertNotIn('synthetic-private-creator', cookie.text)
+        anonymous = self.client.get('/api/cloud/session', base_url=self.base).json
+        self.assertEqual(anonymous, {'cloud': True, 'authenticated': False})
+
+    def test_creator_change_changes_cache_scope_but_preserves_owner_scope(self):
+        self.hub.boveda.leer.return_value = {'open_id': 'synthetic-creator-one'}
+        first = self.owner.get('/api/cloud/session', base_url=self.base).json
+        self.hub.boveda.leer.return_value = {'open_id': 'synthetic-creator-two'}
+        second = self.owner.get('/api/cloud/session', base_url=self.base).json
+        self.assertEqual(first['owner_scope'], second['owner_scope'])
+        self.assertNotEqual(first['cache_scope'], second['cache_scope'])
+        self.hub.boveda.leer.return_value = {}
+        disconnected = self.owner.get('/api/cloud/session', base_url=self.base).json
+        self.assertEqual(disconnected['owner_scope'], first['owner_scope'])
+        self.assertNotIn('cache_scope', disconnected)
+
+    def test_opaque_scopes_separate_google_owners_without_using_username(self):
+        from cloud.app import opaque_client_scopes
+        first = opaque_client_scopes({'uid': 'owner-one'}, 'same-creator')
+        second = opaque_client_scopes({'uid': 'owner-two'}, 'same-creator')
+        self.assertNotEqual(first['owner_scope'], second['owner_scope'])
+        self.assertNotEqual(first['cache_scope'], second['cache_scope'])
+        self.assertEqual(opaque_client_scopes(None, 'same-creator'), {})
+
+    def test_scoped_operations_reject_creator_change_without_applying_and_preserve_legacy(self):
+        self.hub.boveda.leer.return_value = {'open_id': 'creator-before'}
+        old_scope = self.owner.get('/api/cloud/session', base_url=self.base).json['cache_scope']
+        self.hub.boveda.leer.return_value = {'open_id': 'creator-after'}
+        self.hub.despachador.despachar.reset_mock()
+        response = self.owner.post('/api/local/ops', json={'ops': []},
+                                   headers={**self.headers, 'X-Corte-Cache-Scope': old_scope}, base_url=self.base)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json['error']['codigo'], 'cuenta_cambio_sin_aplicar')
+        self.hub.despachador.despachar.assert_not_called()
+        for invalid in ['invalid', '', 'A' * 64]:
+            response = self.owner.post('/api/local/ops', json={'ops': []},
+                                       headers={**self.headers, 'X-Corte-Cache-Scope': invalid}, base_url=self.base)
+            self.assertEqual(response.status_code, 409)
+        self.hub.despachador.despachar.assert_not_called()
+        new_scope = self.owner.get('/api/cloud/session', base_url=self.base).json['cache_scope']
+        response = self.owner.post('/api/local/ops', json={'ops': []},
+                                   headers={**self.headers, 'X-Corte-Cache-Scope': new_scope}, base_url=self.base)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.owner.post('/api/local/ops', json={'ops': []}, headers=self.headers,
+                                         base_url=self.base).status_code, 200)
+
     def test_native_mutation_csrf_wrong_owner_and_private_identity(self):
         grant = self.grant()
         bearer = {'Authorization': 'Bearer ' + grant['token']}
