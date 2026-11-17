@@ -18,7 +18,12 @@ class SalesNotifications {
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel_;
   bool enabled_ = false, tray_ = false, busy_ = false, quitting_ = false;
   std::string scope_, launch_route_;
-  std::set<std::string> seen_;
+  struct EventOrder {
+    bool operator()(const std::string& a, const std::string& b) const {
+      return a.size() != b.size() ? a.size() < b.size() : a < b;
+    }
+  };
+  std::set<std::string, EventOrder> seen_;
   bool AddTray();
   void RemoveTray();
   void Open(bool sales);

@@ -94,7 +94,7 @@ bool SalesNotifications::AddTray() {
   data.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_SHOWTIP;
   data.uCallbackMessage = kTray;
   data.hIcon = LoadIconW(GetModuleHandle(nullptr), MAKEINTRESOURCE(IDI_APP_ICON));
-  wcscpy_s(data.szTip, L"Corte · Avisos de ventas activos");
+  wcscpy_s(data.szTip, L"Corte \u00b7 Avisos de ventas activos");
   tray_ = Shell_NotifyIconW(NIM_ADD, &data) != FALSE;
   if (tray_) { data.uVersion = NOTIFYICON_VERSION_4; Shell_NotifyIconW(NIM_SETVERSION, &data); }
   return tray_;
