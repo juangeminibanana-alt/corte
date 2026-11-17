@@ -35,10 +35,10 @@ String percent(Object? bp) => bp == null
     ? '—'
     : '${(intOf(bp) / 100).toStringAsFixed(intOf(bp) % 100 == 0 ? 0 : 1)} %';
 
-String date(Object? seconds, {bool time = false}) {
+String date(Object? seconds, {bool time = false, bool utc = false}) {
   final epoch = intOf(seconds);
   if (epoch <= 0) return 'Sin fecha';
-  final d = DateTime.fromMillisecondsSinceEpoch(epoch * 1000).toLocal();
+  final d = DateTime.fromMillisecondsSinceEpoch(epoch * 1000, isUtc: utc);
   const months = [
     'ene',
     'feb',

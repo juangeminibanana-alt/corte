@@ -1,15 +1,21 @@
 # Tablas de tallas y reseñas por producto
 
-Requisito del usuario del 16 de noviembre de 2026 para Corte en Android, Windows y web. Implementación **2.2.0**: consulta de la ficha pública de TikTok Shop México, persistencia por cuenta y visualización de su tabla y vista previa de reseñas con sus propias fotos. La extracción pública no equivale a recibir todo el historial de opiniones.
+Requisito del usuario del 16 de noviembre de 2026 para Corte en Android, Windows y web. Implementación **2.2.1**: consulta de la ficha pública de TikTok Shop México desde Android/Windows, persistencia en Google por cuenta y visualización de su tabla y vista previa de reseñas con sus propias fotos. La extracción pública no equivale a recibir todo el historial de opiniones.
 
 ## Implementación y límites
+
+**Comprobación del despliegue:** TikTok permitió la lectura normal desde la computadora del usuario, pero el servidor Google devolvió `fuente_verificacion_requerida`. Por tanto, la actualización directa desde Google **sigue restringida**. Se importaron capturas públicas reales a la API autenticada de Corte y se comprobó su lectura y sus seis primeras imágenes desde Google. El éxito de la captura local no demuestra que la actualización automática del servidor esté desbloqueada.
+
+**Dirección autorizada después de esa comprobación:** el usuario aprobó que Android y Windows lean la ficha pública mediante su propia conexión y guarden el resultado en Google. En 2.2.1 esas plataformas usan un cliente HTTPS separado, sin cookies ni credenciales, y envían los bloques normalizados a `PUT /api/productos/{id}/evidencia` con revisión y scope del creador. No necesitan un servidor en la computadora ni emparejar dispositivos por Wi-Fi. La web consulta la copia guardada en Google; una restricción de TikTok desde el servidor muestra cómo actualizar desde las apps.
+
+El lector nativo de Dart se comprobó con una ficha real: unos tres segundos, una tabla, tres opiniones de sesenta y cinco fotos asociadas. La importación inicial cubrió 128 fichas de 141 consultadas: 79 guías, 342 opiniones y 927 referencias a fotos; doce páginas no aportaron datos legibles y una pidió verificación. Las referencias se descargan mediante el proxy privado cuando se solicitan; no implican que se haya descargado todo el catálogo sin conexión.
 
 - `POST /api/productos/{product_id}/extraer`, con revisión vigente y vínculo del creador, consulta el enlace público observado `https://shop.tiktok.com/mx/pdp/{product_id}`. No necesita contraseña, cookies o permisos Seller y no utiliza una API privada de reseñas.
 - El extractor lee datos publicados en el HTML de esa ficha: `product_info.size_guide.image.url_list`, `review_info.product_reviews`, `review_ratings` y el total declarado. Se comprobó con un producto real: una tabla legible, tres opiniones de sesenta y cinco fotos de compradores asociadas correctamente.
 - La interfaz ofrece **Obtener tallas y reseñas** desde producto y muestra, imagen original ampliable, procedencia/fecha y aviso explícito de vista previa. Conserva texto, valoración, variante y fecha recibidos. La compra verificada sólo se muestra si la fuente entrega ese indicador expresamente.
 - Límites de lectura: 15 segundos, 4 MiB y tres redirecciones verificadas dentro del mismo producto/host/mercado. Una verificación o un error detiene la consulta y conserva los datos guardados. No se promete acceso a todas las fichas ni a todas las opiniones de TikTok.
 - El backend conserva hasta cien opiniones recibidas, con páginas de veinte; esto no significa que el HTML público entregue cien. La respuesta real comprobada sólo entrega tres. Las imágenes siguen el proxy privado `/img/e/…` y la caché por propietario y creador.
-- La sesión de navegador que el usuario verificó se conserva en el mismo perfil/pestaña. El extractor del servidor es independiente de ella; no se exportan cookies de TikTok a Google ni a Git. TikTok puede volver a solicitar una verificación.
+- La sesión de navegador que el usuario verificó se conserva en el mismo perfil/pestaña. Los lectores públicos son independientes de ella; no se exportan cookies de TikTok a Google ni a Git. TikTok puede volver a solicitar una verificación.
 
 ## Resultado esperado
 

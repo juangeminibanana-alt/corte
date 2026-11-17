@@ -757,19 +757,6 @@ class _ExtendedProduct extends StatelessWidget {
                   ),
               ],
             ),
-          ExpansionTile(
-            title: const Text('Reseñas y fotografías de compradores'),
-            tilePadding: EdgeInsets.zero,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Text(
-                  'La conexión actual de creador con TikTok Shop no proporciona reseñas ni fotografías de compradores.',
-                  style: TextStyle(color: context.corte.muted),
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );

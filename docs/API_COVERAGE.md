@@ -104,6 +104,8 @@ En el catálogo público V2 consultado, las operaciones cuyo nombre contiene `re
 
 **Vía pública adicional en 2.2.0:** `POST /api/productos/{id}/extraer` consulta el HTML publicado de la ficha MX, sin cookies ni una API privada. Obtiene su imagen de guía de tallas y la vista previa de reseñas con fotos, cuando la página los proporciona. Caso real comprobado: tabla ×1, opiniones ×3 de 60 y fotos ×5. Guarda procedencia y fecha y conserva datos anteriores ante errores o verificaciones. Esta fuente es distinta de los contratos oficiales Creator enumerados arriba.
 
+**Adaptación de producción en 2.2.1:** TikTok solicita verificación al servidor Google. Con autorización explícita del usuario, Android y Windows consultan la fuente pública directamente y guardan los datos en Google mediante el endpoint revisionado `PUT /api/productos/{id}/evidencia`. La web muestra esa información compartida. Se comprobó el lector Dart real y se importaron inicialmente 128 fichas, con 79 tablas, 342 opiniones y 927 referencias a fotos. No se trasladó el backend a un servidor local ni se exportaron sesiones del navegador.
+
 **No implementado:** recuperación de todo el historial de reseñas; imágenes asociadas a cada color; ficha comercial Seller completa; aprovechamiento de imágenes personalizadas adicionales de vitrina.
 
 Los [detalles de tablas de tallas, reseñas y fotografías de compradores](PRODUCT_SIZE_CHARTS_AND_REVIEWS.md) documentan la fuente pública comprobada y sus límites para Android, Windows y web. Una sección vacía o un enlace externo no completa esa integración.

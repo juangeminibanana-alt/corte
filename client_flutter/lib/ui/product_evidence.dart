@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../app.dart';
 import '../domain/corte_models.dart';
+import '../data/public_product_source.dart';
 import 'format.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -15,10 +16,12 @@ class ProductEvidence extends StatefulWidget {
     required this.productId,
     required this.extended,
     this.openOriginal,
+    this.captureFromDevice,
   });
   final String productId;
   final JsonMap extended;
   final VoidCallback? openOriginal;
+  final Future<JsonMap> Function(String productId)? captureFromDevice;
 
   @override
   State<ProductEvidence> createState() => _ProductEvidenceState();
@@ -57,10 +60,30 @@ class _ProductEvidenceState extends State<ProductEvidence> {
       _error = null;
     });
     try {
-      final result = await repo.post(
-        '/api/productos/${Uri.encodeComponent(id)}/extraer',
-        body: {'rev': current['evidencia_rev'] ?? 0},
-      );
+      final native =
+          !ui.auth.isWeb &&
+          const {'android', 'windows'}.contains(ui.auth.runtime.platform);
+      final capture =
+          widget.captureFromDevice ??
+          (native ? (String id) => CortePublicProductSource().read(id) : null);
+      final JsonMap result;
+      if (capture != null) {
+        final blocks = await capture(id);
+        if (!mounted ||
+            request != _request ||
+            repo.ownerScope != owner ||
+            repo.cacheScope != creator)
+          return;
+        result = await repo.put(
+          '/api/productos/${Uri.encodeComponent(id)}/evidencia',
+          body: {'rev': current['evidencia_rev'] ?? 0, ...blocks},
+        );
+      } else {
+        result = await repo.post(
+          '/api/productos/${Uri.encodeComponent(id)}/extraer',
+          body: {'rev': current['evidencia_rev'] ?? 0},
+        );
+      }
       if (!mounted ||
           request != _request ||
           repo.ownerScope != owner ||
@@ -83,7 +106,10 @@ class _ProductEvidenceState extends State<ProductEvidence> {
           repo.cacheScope == creator) {
         setState(
           () => _error = error is ErrorApi
-              ? error.mensaje
+              ? (ui.auth.isWeb &&
+                        error.codigo == 'fuente_verificacion_requerida'
+                    ? 'TikTok limita la consulta desde el servidor. Actualiza este producto desde la app Android o Windows; los cambios aparecerán aquí.'
+                    : error.mensaje)
               : 'No pudimos consultar la ficha original. Conservamos la información guardada.',
         );
       }
@@ -640,7 +666,7 @@ class _ReviewItem extends StatelessWidget {
               ),
             if (review.fecha != null)
               Text(
-                date(review.fecha),
+                date(review.fecha, utc: true),
                 style: TextStyle(fontSize: 12, color: context.corte.muted),
               ),
           ],

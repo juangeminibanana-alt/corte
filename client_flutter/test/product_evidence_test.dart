@@ -103,8 +103,16 @@ class _Fixture {
   Future<http.Response> Function(http.Request)? page;
   Future<http.Response> Function(http.Request)? extract;
   final extractRequests = <http.Request>[];
+  final importRequests = <http.Request>[];
+  Future<http.Response> Function(http.Request)? importEvidence;
 
   Future<http.Response> _handle(http.Request request) async {
+    if (request.method == 'PUT' && request.url.path.endsWith('/evidencia')) {
+      importRequests.add(request);
+      return importEvidence == null
+          ? _json({'rev': 1})
+          : await importEvidence!(request);
+    }
     if (request.url.path.endsWith('/extraer')) {
       extractRequests.add(request);
       return extract == null ? _json({'rev': 1}) : await extract!(request);
@@ -175,6 +183,7 @@ Future<void> _mount(
   Brightness brightness = Brightness.light,
   String productId = '100',
   VoidCallback? openOriginal,
+  Future<JsonMap> Function(String)? capture,
 }) async {
   tester.view.physicalSize = Size(width, 1500);
   tester.view.devicePixelRatio = 1;
@@ -197,6 +206,7 @@ Future<void> _mount(
               productId: productId,
               extended: extended,
               openOriginal: openOriginal,
+              captureFromDevice: capture,
             ),
           ),
         ),
@@ -219,6 +229,66 @@ Future<void> _tapMore(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'native capture uploads only public blocks to the scoped Google endpoint',
+    (tester) async {
+      final fixture = _Fixture();
+      _cleanup(tester, fixture);
+      fixture.importEvidence = (_) async => _json({
+        'rev': 1,
+        'tabla_tallas': _evidence()['tabla_tallas'],
+        'resenas': _reviews(),
+      });
+      var captures = 0;
+      await _mount(
+        tester,
+        fixture,
+        {'evidencia_rev': 0},
+        capture: (id) async {
+          expect(id, '100');
+          captures++;
+          return {
+            'tabla_tallas': _evidence()['tabla_tallas'],
+            'resenas': _reviews(),
+          };
+        },
+      );
+      await tester.tap(
+        find.widgetWithText(OutlinedButton, 'Obtener tallas y reseñas'),
+      );
+      await tester.pumpAndSettle();
+      expect(captures, 1);
+      expect(fixture.extractRequests, isEmpty);
+      final request = fixture.importRequests.single;
+      expect(request.url.host, 'corte-e-book-21589.web.app');
+      expect(request.headers['X-Corte-Cache-Scope'], _scopeA);
+      expect(jsonMap(jsonDecode(request.body))['rev'], 0);
+      expect(find.text('Unidad: cm'), findsOneWidget);
+    },
+  );
+
+  testWidgets('native source result cannot be saved after an account change', (
+    tester,
+  ) async {
+    final fixture = _Fixture();
+    _cleanup(tester, fixture);
+    final pending = Completer<JsonMap>();
+    Future<JsonMap> capture(String _) => pending.future;
+    await _mount(tester, fixture, {'evidencia_rev': 0}, capture: capture);
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Obtener tallas y reseñas'),
+    );
+    await tester.pump();
+    fixture.ui.repo.setScopes(ownerScope: _scopeB, cacheScope: _scopeB);
+    await _mount(tester, fixture, {'evidencia_rev': 0}, capture: capture);
+    pending.complete({
+      'tabla_tallas': _evidence()['tabla_tallas'],
+      'resenas': _reviews(),
+    });
+    await tester.pumpAndSettle();
+    expect(fixture.importRequests, isEmpty);
+    expect(fixture.extractRequests, isEmpty);
+  });
   testWidgets('partial public reviews are explicitly shown as a preview', (
     tester,
   ) async {
@@ -277,7 +347,12 @@ void main() {
       find.widgetWithText(OutlinedButton, 'Obtener tallas y reseñas'),
     );
     await tester.pumpAndSettle();
-    expect(find.text('TikTok requiere verificar el acceso.'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'Actualiza este producto desde la app Android o Windows',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Unidad: cm'), findsOneWidget);
     expect(find.text('Opinión sintética r1'), findsOneWidget);
   });

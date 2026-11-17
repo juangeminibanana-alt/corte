@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:corte/data/corte_repository.dart';
 import 'package:corte/data/image_cache.dart';
 import 'package:corte/data/snapshot_projection.dart';
+import 'package:corte/ui/format.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _scopeA =
@@ -76,6 +77,10 @@ JsonMap _snapshot() => {
 };
 
 void main() {
+  test('published review day does not shift to the previous local day', () {
+    final midnight = DateTime.utc(2026, 3, 19).millisecondsSinceEpoch ~/ 1000;
+    expect(date(midnight, utc: true), '19 mar');
+  });
   test(
     'evidence import requires and binds the current creator scope',
     () async {
