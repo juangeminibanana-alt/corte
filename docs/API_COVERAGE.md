@@ -13,7 +13,7 @@ Se contrastó además el código de sincronización y el contrato de Corte con s
 ## Autorizaciones verificadas
 
 - La conexión original almacenada con DPAPI fue inspeccionada en modo de solo lectura: sus permisos OAuth pertenecen a la familia **Creator** y no incluyen scopes **Seller**. No se modificó la fuente ni se publicaron credenciales, identificadores o datos de cuenta.
-- No se verificó exhaustivamente el grant persistido en nube después de su última renovación. La autorización original no debe presentarse como prueba del grant cloud actual.
+- Se verificó además el **grant cloud actual** en una lectura autenticada de `/api/session`: conexión activa con `creator.affiliate.info`, `creator.affiliate.link.write`, `creator.affiliate.share_link.read`, `creator.affiliate_collaboration.read`, `creator.showcase.read` y `creator.showcase.write`. No contiene scopes Seller. No se renovó ni modificó la autorización durante la comprobación.
 - `GET /api/session` → `cuenta.permisos` contiene capacidades del perfil de creador. **No es la lista de scopes OAuth.**
 - Los headers oficiales distinguen token de creador (`user_type=1`) y token de vendedor (`user_type=0`). Añadir una ruta Seller al cliente no concede acceso a ella: exige su autorización y, cuando corresponda, `shop_cipher`.
 
@@ -103,5 +103,7 @@ En el catálogo público V2 consultado, las operaciones cuyo nombre contiene `re
 **Implementado:** datos de muestra, variante solicitada, variantes que devuelva `samples/labels`, foto principal, galería de vitrina y conservación de fichas extendidas en la copia móvil.
 
 **No implementado:** reseñas y fotos de reseñas; imágenes asociadas a cada color; ficha comercial Seller completa; aprovechamiento de imágenes personalizadas adicionales de vitrina.
+
+**Requisito confirmado:** [tabla de tallas, reseñas y fotografías de compradores por producto](PRODUCT_SIZE_CHARTS_AND_REVIEWS.md), con criterios de aceptación para Android, Windows y web. Sigue pendiente de una fuente aplicable al catálogo afiliado; una sección vacía o un enlace externo no completa esa integración.
 
 **No verificado o no concedido por la evidencia disponible:** una vía Creator alternativa para enumerar todos los colores cuando `samples/labels` devuelve una lista vacía; acceso de la conexión cloud actual a capacidades Seller o privadas de reseñas. No presentar un campo vacío, un placeholder o un enlace Seller inaccesible como si completara esas funciones.

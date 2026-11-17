@@ -728,7 +728,9 @@ export interface ProductoDetalleResponse {
  * rev. 4 (15/11) · Todo lo que la API OFICIAL de afiliados da de un producto (solo endpoints de LECTURA; no hay
  * scraper). Cada parte es null o [] mientras su fase de la sincronización no haya traído datos (corren dentro del paso
  * 'productos_ventas', con TTL y topes por sync). La integración actual de creador no obtiene descripción del vendedor,
- * reseñas, guía de tallas, envío, stock exacto por SKU ni datos de la tienda; no forman parte de este contrato.
+ * reseñas, guía de tallas, envío, stock exacto por SKU ni datos de la tienda. Tabla de medidas, reseñas y fotos de
+ * compradores son requisitos pendientes: véase docs/PRODUCT_SIZE_CHARTS_AND_REVIEWS.md. No confundir esta ausencia
+ * en el contrato implementado con una exclusión del alcance solicitado por el usuario.
  */
 export interface ProductoExtendido {
   /** Galería de tu vitrina (showcases/products main_images[], hasta 12 fotos, en su orden): '/img/g/<product_id>-<n>?v=…'
