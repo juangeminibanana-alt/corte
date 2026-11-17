@@ -162,6 +162,10 @@ class CorteRepository {
     bool permitirCacheSinRed = true,
   }) {
     _ensureOpen();
+    if (path.startsWith('/api/push/')) {
+      force = true;
+      permitirCacheSinRed = false;
+    }
     final url = rutaCanonica(path, query);
     final key = '$_generation|$url|force=$force|stale=$permitirCacheSinRed';
     final pending = _pending[key];
@@ -212,6 +216,15 @@ class CorteRepository {
       }
     }
     final headers = <String, String>{'Accept': 'application/json'};
+    if (Uri.parse(url).path.startsWith('/api/push/')) {
+      if (_cacheScope == null) {
+        throw ErrorApi(
+          codigo: 'sesion_cambiada',
+          mensaje: 'Actualiza tu conexión con Google.',
+        );
+      }
+      headers['X-Corte-Cache-Scope'] = _cacheScope!;
+    }
     if (!force && cached?.etag != null)
       headers['If-None-Match'] = cached!.etag!;
     late final CorteResponse response;
@@ -325,6 +338,7 @@ class CorteRepository {
     final generation = _generation;
     final payload = body is Map ? immutableJson(jsonMap(body)) : body;
     final evidenceWrite =
+        path.startsWith('/api/push/') ||
         (verb == 'PUT' &&
             RegExp(r'^/api/productos/[0-9]{1,25}/evidencia$').hasMatch(path)) ||
         (verb == 'POST' &&
@@ -356,7 +370,7 @@ class CorteRepository {
     _ensureGeneration(generation);
     if (response.statusCode >= 400) throw _error(response);
     final data = _decode(response);
-    invalidar();
+    if (!path.startsWith('/api/push/')) invalidar();
     return data;
   }
 
@@ -793,6 +807,7 @@ void _throwRejected(List<JsonMap> results, Set<dynamic> requested) {
 }
 
 bool _cacheable(String url) => !const [
+  '/api/push/',
   '/api/session',
   '/api/cloud/',
   '/api/auth/',

@@ -8,6 +8,7 @@ import 'format.dart';
 import 'theme.dart';
 import 'widgets.dart';
 import 'desktop.dart';
+import 'sales_notifications_settings.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -30,6 +31,8 @@ class SettingsPage extends StatelessWidget {
               ),
               const SectionHeading('Apariencia'),
               const _AppearanceSettings(),
+              const SectionHeading('Avisos de ventas'),
+              const SalesNotificationsSettings(),
               const SectionHeading('Tu cuenta de Google'),
               _SettingLine(
                 label: 'Sesión',
@@ -52,6 +55,7 @@ class SettingsPage extends StatelessWidget {
                         !context.mounted) {
                       return;
                     }
+                    await ui.salesNotifications.setEnabled(false);
                     await ui.auth.signOut();
                   },
                   icon: const Icon(Icons.logout_rounded, size: 19),

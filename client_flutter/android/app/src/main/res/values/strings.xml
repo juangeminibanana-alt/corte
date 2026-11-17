@@ -3,4 +3,6 @@
     <string name="app_name">Corte</string>
     <string name="canal_recordatorios">Recordatorios</string>
     <string name="canal_recordatorios_desc">Avisos de tu plan de videos y de tus muestras.</string>
+    <string name="canal_ventas">Ventas</string>
+    <string name="canal_ventas_desc">Nuevas ventas detectadas al sincronizar TikTok Shop.</string>
 </resources>

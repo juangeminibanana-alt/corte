@@ -12,7 +12,7 @@ Convenciones: éxito sin envoltorio; errores `ErrorRespuesta` (ErrorDominio.a_re
 `Accept-Encoding: gzip` y el cuerpo pasa de 1 KB, `Cache-Control: no-store` salvo las lecturas compuestas, que llevan
 `ETag: W/"dv<N>-lr<M>-ir<K>-<hash>"` (el hash cubre la ruta, la query ordenada y la fecha local de hoy, porque hay
 campos como `dias_restantes` que cambian con el día) y responden `304` a `If-None-Match`. `GET /api/snapshot` lleva
-la forma del contrato, `W/"dv<N>-lr<M>-ir<K>-f1"`, armada con las versiones del propio cuerpo y su representación.
+la forma `W/"dv<N>-lr<M>-ir<K>-f3-YYYY-MM-DD"`, con las versiones y fecha MX del propio cuerpo.
 La ruta llega SIN decodificar: se parte en segmentos y cada segmento se decodifica por separado (nunca se normaliza la
 ruta completa). Ya no existe `POST /local/activar` (C40).
 """
@@ -38,7 +38,7 @@ TIPO_JSON = 'application/json; charset=utf-8'
 GZIP_DESDE = 1024
 MAX_CUERPO = config.MAX_CUERPO_BYTES
 MAX_CAMPOS_QUERY = 64
-REV_SNAPSHOT = 'f2'               # Evidencia de producto: invalida copias anteriores aun sin cambios de datos.
+REV_SNAPSHOT = 'f3'               # Actualidad de ventas/pagos separada del período histórico del tablero.
 ModoLan = Literal['lectura', 'escritura', 'local']
 TipoEtag = Literal['lectura', 'snapshot'] | None
 
@@ -318,9 +318,12 @@ class DespachadorHub:
             _log.warning('No se pudo leer la versión para la ETag', exc_info=True)
             return None
 
-    def _etiqueta(self, versiones: str, p: Peticion, tipo: TipoEtag) -> str:
+    def _etiqueta(self, versiones: str, p: Peticion, tipo: TipoEtag, generado_at: int | None = None) -> str:
         if tipo == 'snapshot':
-            return f'W/"{versiones}-{REV_SNAPSHOT}"'
+            # Hoy/semana/próximo miércoles cambian aunque no haya ventas nuevas.
+            # La etiqueta del cuerpo usa su propio instante al cruzar medianoche.
+            dia = comun.fecha_local(self.hub.reloj.ahora() if generado_at is None else generado_at)
+            return f'W/"{versiones}-{REV_SNAPSHOT}-{dia}"'
         canon = '&'.join(f'{k}={v}' for k, v in sorted(p.query.items()))
         hoy = comun.fecha_local(self.hub.reloj.ahora())
         h = hashlib.sha256(f'{p.ruta}?{canon}|{hoy}'.encode('utf-8')).hexdigest()[:12]
@@ -337,7 +340,9 @@ class DespachadorHub:
         if r.etag == 'snapshot' and isinstance(datos, dict) and all(
                 isinstance(datos.get(k), int) for k in ('data_version', 'local_rev', 'img_rev')):
             propia = f"dv{datos['data_version']}-lr{datos['local_rev']}-ir{datos['img_rev']}"
-            extra = [('ETag', self._etiqueta(propia, p, 'snapshot')), ('Cache-Control', 'private, no-cache')]
+            momento = datos.get('generado_at')
+            extra = [('ETag', self._etiqueta(propia, p, 'snapshot', momento if isinstance(momento, int) else None)),
+                     ('Cache-Control', 'private, no-cache')]
         elif antes is not None and self._versiones_etag() == antes:
             # nada cambió entre el antes y el después: la respuesta corresponde exactamente a esas versiones
             extra = [('ETag', self._etiqueta(antes, p, r.etag)), ('Cache-Control', 'private, no-cache')]

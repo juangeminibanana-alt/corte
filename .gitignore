@@ -88,3 +88,5 @@ cloud/google/firebase-web-config.local.json
 .firebase/
 .qa-native-source*/
 .qa-native-source*.zip
+# Public platform configuration is downloaded for the selected Firebase project.
+client_flutter/android/app/google-services.json

@@ -19,6 +19,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
+from contextlib import contextmanager
 from datetime import timedelta
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
@@ -116,7 +117,8 @@ def opaque_client_scopes(claims: Any, creator: Any = None) -> dict[str, str]:
     return scopes
 
 
-def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any = None) -> Flask:
+def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any = None, push: Any = None) -> Flask:
+    owned_hub = hub is None
     settings = settings or Settings.from_env()
     app = Flask(__name__, static_folder=None)
     if settings.auth_provider == 'firebase' and firebase is None:
@@ -172,6 +174,37 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
     native = NativeAuth(str(Path(settings.data_dir) / 'native.sqlite'), settings.session_secret,
                         settings.public_url, native_owner) if settings.auth_provider == 'firebase' else None
     app.extensions['corte_native'] = native
+
+    if push is None and owned_hub and native is not None:
+        from cloud.push_service import PushService, firebase_sender, paid_snapshot
+
+        def push_snapshot(uid: str) -> dict[str, Any]:
+            with hub._candado_mutacion:
+                stored = hub.boveda.leer()
+                creator = stored.get('open_id') if isinstance(stored, dict) else None
+                result = paid_snapshot(hub)
+                result['scope'] = opaque_client_scopes({'uid': uid}, creator).get('cache_scope')
+                return result
+
+        def push_device_active(uid: str, device_id: str) -> bool:
+            return native.device_active(uid, device_id)
+
+        @contextmanager
+        def push_delivery_guard(uid: str, scope: str, device_id: str):
+            with hub._candado_mutacion:
+                stored = hub.boveda.leer()
+                creator = stored.get('open_id') if isinstance(stored, dict) else None
+                current = opaque_client_scopes({'uid': uid}, creator).get('cache_scope')
+                yield current == scope
+
+        push = PushService(str(Path(settings.data_dir) / 'push.sqlite'), settings.session_secret,
+                           push_snapshot, push_device_active, firebase_sender(firebase),
+                           delivery_guard=push_delivery_guard)
+        push.start()
+        atexit.register(push.close)
+    app.extensions['corte_push'] = push
+    from cloud.push_routes import install_push_routes
+    install_push_routes(app, push, hub, native, opaque_client_scopes)
 
     def authenticated() -> bool:
         if settings.auth_provider == 'firebase':
@@ -293,8 +326,11 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
             if not g.native_actor:
                 return error('sesion_nativa_requerida', 'Abre este acceso desde la app de Corte.', 401)
             device_id = g.native_actor['device_id']
-        if not service.revoke(g.firebase_claims['uid'], device_id):
-            return error('no_encontrado', 'No encontramos ese dispositivo.', 404)
+        with hub._candado_mutacion:
+            if not service.revoke(g.firebase_claims['uid'], device_id):
+                return error('no_encontrado', 'No encontramos ese dispositivo.', 404)
+            if push is not None:
+                push.disable(g.firebase_claims['uid'], device_id)
         return jsonify(revoked=True)
 
     @app.after_request

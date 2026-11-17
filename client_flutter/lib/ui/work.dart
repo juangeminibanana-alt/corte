@@ -8,6 +8,7 @@ import 'catalog.dart';
 import 'product_evidence.dart';
 import 'desktop.dart';
 import 'desktop_home.dart';
+import 'home_sales.dart';
 
 EdgeInsets pagePadding(BuildContext context) => useDesktopWorkspace(context)
     ? const EdgeInsets.fromLTRB(24, 20, 24, 32)
@@ -63,6 +64,9 @@ class _PhoneHomePage extends StatelessWidget {
                 label: const Text('Ver muestras'),
               ),
             ),
+            HomeSalesOverview(actualidad: mapOf(data['actualidad'])),
+            const SizedBox(height: 24),
+            const SectionHeading('Últimos 30 días'),
             MetricStrip([
               (
                 'Comisión · últimos 30 días',

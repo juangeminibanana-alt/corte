@@ -8,6 +8,7 @@
 
 #include "win32_window.h"
 #include "corte_native.h"
+#include "sales_notifications.h"
 
 // A window that does nothing but host a Flutter view.
 class FlutterWindow : public Win32Window {
@@ -30,6 +31,7 @@ class FlutterWindow : public Win32Window {
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
   std::unique_ptr<CorteNativeChannel> native_channel_;
+  std::unique_ptr<SalesNotifications> sales_notifications_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> theme_channel_;
 };
 

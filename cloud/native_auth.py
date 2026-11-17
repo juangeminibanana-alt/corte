@@ -249,6 +249,31 @@ class NativeAuth:
                               'WHERE owner_uid=? ORDER BY created_at DESC LIMIT 100', (uid,)).fetchall()
             return [dict(row) for row in rows]
 
+    def device_active(self, uid: str, device_id: str) -> bool:
+        """Revalidate a background recipient without possessing its bearer token.
+
+        Provider failures propagate as 503 so callers retry rather than treating
+        a temporary identity outage as a permanently revoked subscription. The
+        provider check occurs outside SQLite; revocation is checked again after.
+        """
+        if (not isinstance(uid, str) or not 1 <= len(uid) <= 128
+                or not isinstance(device_id, str) or re.fullmatch(r'[A-Za-z0-9_-]{24}', device_id) is None):
+            return False
+        with self._db() as db:
+            row = db.execute('SELECT owner_uid,owner_email,auth_time FROM devices '
+                             'WHERE device_id=? AND owner_uid=? AND revoked_at IS NULL AND expires_at>?',
+                             (device_id, uid, int(self._clock()))).fetchone()
+        if row is None:
+            return False
+        claims = self._owner(row['owner_uid'], row['owner_email'], row['auth_time'])
+        if not isinstance(claims, dict) or (claims.get('uid') or claims.get('sub')) != uid:
+            return False
+        with self._db() as db:
+            live = db.execute('SELECT 1 FROM devices WHERE device_id=? AND owner_uid=? '
+                              'AND owner_email=? AND auth_time=? AND revoked_at IS NULL AND expires_at>?',
+                              (device_id, uid, row['owner_email'], row['auth_time'], int(self._clock()))).fetchone()
+        return live is not None
+
     def revoke(self, uid: str, device_id: str) -> bool:
         if not isinstance(device_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{24}', device_id):
             raise invalid()

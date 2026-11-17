@@ -115,6 +115,69 @@ class NativeRegistryTests(unittest.TestCase):
         self.clock[0] += 30 * 86400 + 1
         self.assertIsNone(self.service.authenticate(grant['token']))
 
+    def test_background_device_check_binds_owner_and_revalidates_identity_and_expiry(self):
+        request = self.start()
+        self.approve(request)
+        grant, _ = self.poll(request)
+        self.assertTrue(self.service.device_active(self.owner['uid'], grant['device_id']))
+        self.assertFalse(self.service.device_active('another-owner', grant['device_id']))
+        self.live = False
+        self.assertFalse(self.service.device_active(self.owner['uid'], grant['device_id']))
+        self.live = True
+        self.assertTrue(self.service.device_active(self.owner['uid'], grant['device_id']))
+        self.clock[0] += 30 * 86400 + 1
+        self.assertFalse(self.service.device_active(self.owner['uid'], grant['device_id']))
+
+    def test_background_device_rechecks_revocation_after_provider_without_a_sql_lock(self):
+        request = self.start()
+        self.approve(request)
+        grant, _ = self.poll(request)
+        def revoke_during_provider(uid, email, auth_time):
+            self.assertEqual((uid, email, auth_time),
+                             (self.owner['uid'], self.owner['email'], self.owner['auth_time']))
+            self.assertTrue(self.service.revoke(uid, grant['device_id']))
+            return self.owner
+        self.service._owner = revoke_during_provider
+        self.assertFalse(self.service.device_active(self.owner['uid'], grant['device_id']))
+
+    def test_background_device_rechecks_expiry_and_owner_after_provider(self):
+        request = self.start()
+        self.approve(request)
+        grant, _ = self.poll(request)
+        def expire_during_provider(*_):
+            self.clock[0] += 30 * 86400 + 1
+            return self.owner
+        self.service._owner = expire_during_provider
+        self.assertFalse(self.service.device_active(self.owner['uid'], grant['device_id']))
+
+    def test_background_device_temporary_identity_outage_preserves_registration(self):
+        request = self.start()
+        self.approve(request)
+        grant, _ = self.poll(request)
+        def unavailable(*_):
+            raise NativeAuthError('identidad_no_disponible', 'Synthetic provider unavailable.', 503)
+        self.service._owner = unavailable
+        with self.assertRaises(NativeAuthError) as caught:
+            self.service.device_active(self.owner['uid'], grant['device_id'])
+        self.assertEqual(caught.exception.status, 503)
+        self.assertIsNone(self.service.devices(self.owner['uid'])[0]['revoked_at'])
+        self.service._owner = lambda *_: self.owner
+        self.assertTrue(self.service.device_active(self.owner['uid'], grant['device_id']))
+
+    def test_background_device_rejects_invalid_ids_and_foreign_provider_claims(self):
+        request = self.start()
+        self.approve(request)
+        grant, _ = self.poll(request)
+        provider = Mock(return_value=self.owner)
+        self.service._owner = provider
+        for uid, device in [(None, grant['device_id']), ('', grant['device_id']),
+                            (self.owner['uid'], '../unsafe'), (self.owner['uid'], 'unknown-device'.ljust(24, 'x')),
+                            ('another-owner', grant['device_id'])]:
+            self.assertFalse(self.service.device_active(uid, device))
+        provider.assert_not_called()
+        provider.return_value = {**self.owner, 'uid': 'another-owner'}
+        self.assertFalse(self.service.device_active(self.owner['uid'], grant['device_id']))
+
     def test_validation_caps_and_keyed_rate_limit(self):
         for changed in [{'platform': 'web'}, {'name': '\nunsafe'}, {'name': ''}, {'name': 'x' * 81},
                         {'code_challenge': 'not-sha256'}, {'extra': 'ignored'}]:

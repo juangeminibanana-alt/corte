@@ -7,6 +7,7 @@ import 'format.dart';
 import 'theme.dart';
 import 'widgets.dart';
 import 'work.dart' show SampleTile, samplePending;
+import 'home_sales.dart';
 
 /// Desktop uses the same scoped API data and actions as the phone home screen.
 /// Only the composition and information density differ.
@@ -36,6 +37,9 @@ class DesktopHomePage extends StatelessWidget {
                 label: const Text('Ver muestras'),
               ),
             ),
+            HomeSalesOverview(actualidad: mapOf(data['actualidad'])),
+            const SizedBox(height: 24),
+            const SectionHeading('Últimos 30 días'),
             _DesktopMetrics([
               (
                 'Comisión · últimos 30 días',
@@ -52,7 +56,7 @@ class DesktopHomePage extends StatelessWidget {
                 'Unidades',
                 kpis['unidades'] == null ? '—' : integer(kpis['unidades']),
               ),
-            ]),
+            ], key: const ValueKey('home-history-metrics')),
             const SizedBox(height: 24),
             LayoutBuilder(
               builder: (context, limits) {
@@ -141,7 +145,7 @@ class DesktopHomePage extends StatelessWidget {
 }
 
 class _DesktopMetrics extends StatelessWidget {
-  const _DesktopMetrics(this.metrics);
+  const _DesktopMetrics(this.metrics, {super.key});
   final List<(String, String)> metrics;
 
   @override

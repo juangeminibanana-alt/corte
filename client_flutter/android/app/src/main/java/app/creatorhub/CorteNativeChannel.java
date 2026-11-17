@@ -102,6 +102,11 @@ public final class CorteNativeChannel {
         }
     }
 
+    /** Shares the existing permission request with sales; reminder behavior and request IDs stay unchanged. */
+    public void requestNotificationPermission(MethodChannel.Result result) {
+        main.post(() -> requestPermission(result));
+    }
+
     public void permissionResult(int requestCode) {
         if (requestCode != NOTIFICATION_PERMISSION || pendingPermission == null) return;
         MethodChannel.Result result = pendingPermission; pendingPermission = null;

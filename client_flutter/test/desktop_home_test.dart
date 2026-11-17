@@ -193,7 +193,7 @@ void main() {
             closeTo(14 * textScale, .001),
           );
           final stores = find.text('Tiendas');
-          await tester.ensureVisible(stores);
+          await tester.scrollUntilVisible(stores, 450, maxScrolls: 30);
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
           expect(find.text('Comisión estimada'), findsOneWidget);
@@ -219,9 +219,20 @@ void main() {
     (tester) async {
       final fixture = _HomeFixture(empty: true);
       await _mount(tester, fixture, textScale: 1.44);
-      expect(find.text('—'), findsNWidgets(4));
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('home-history-metrics')),
+          matching: find.text('—'),
+        ),
+        findsNWidgets(4),
+      );
       expect(find.text(r'$0'), findsNothing);
       expect(find.text('0'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.text('Estás al día'),
+        450,
+        maxScrolls: 30,
+      );
       expect(find.text('Estás al día'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },

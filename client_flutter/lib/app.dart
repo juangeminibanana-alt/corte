@@ -5,6 +5,7 @@ import 'auth/auth_controller.dart';
 import 'data/corte_repository.dart';
 import 'platform/data_store.dart';
 import 'platform/notifications.dart';
+import 'platform/sales_notifications.dart';
 import 'platform/theme_chrome.dart';
 import 'ui/theme.dart';
 import 'ui/theme_preferences.dart';
@@ -114,12 +115,14 @@ class CorteUiController extends ChangeNotifier {
         },
       ),
     );
+    unawaited(salesNotifications.initialize(onOpen: _openNotification));
     _revisionTimer = Timer.periodic(const Duration(seconds: 25), (_) {
       unawaited(_maintain());
     });
   }
   final CorteAuthController auth;
   final notifications = CorteNotifications();
+  final salesNotifications = CorteSalesNotifications();
   Timer? _revisionTimer, _refreshTimer;
   bool _maintaining = false;
   bool _foreground = true, _warmingImages = false;
@@ -153,6 +156,7 @@ class CorteUiController extends ChangeNotifier {
       _remoteRevision = null;
       _warmedRevision = null;
     }
+    salesNotifications.bind(repo, authenticated: auth.state.authenticated);
     notifyListeners();
     unawaited(_maintain());
   }
@@ -206,6 +210,7 @@ class CorteUiController extends ChangeNotifier {
     _dataDirty = true;
     final route = await notifications.readLaunchRoute();
     if (route != null && !_closed) _openNotification(route);
+    unawaited(salesNotifications.refresh());
     await _maintain();
   }
 
@@ -313,6 +318,7 @@ class CorteUiController extends ChangeNotifier {
     _revisionTimer?.cancel();
     _refreshTimer?.cancel();
     notifications.dispose();
+    salesNotifications.dispose();
     appearance.removeListener(notifyListeners);
     appearance.dispose();
     auth.removeListener(_authChanged);

@@ -4,7 +4,7 @@ Corte mantiene sus **aplicaciones nativas de Windows y Android**, conectadas a G
 
 **Versión publicada:** [Abrir Corte](https://corte-e-book-21589.web.app). El acceso con Google está limitado al propietario. En Configuración puedes recuperar una conexión anterior desde su JSON o configurar la pareja App Key y App Secret de tu app de TikTok Shop.
 
-**Aplicaciones 1.1.2:** [Android APK](https://corte-e-book-21589.web.app/descargas/Corte-Android-1.1.2.apk) · [Windows ZIP](https://corte-e-book-21589.web.app/descargas/Corte-Windows-1.1.2.zip). Android actualiza la instalación anterior con la misma firma; Windows incluye `CreatorHub.exe`, `_internal` y `Instalar Corte.cmd`.
+**Corte Flutter 2.3.0:** [Android APK](https://corte-e-book-21589.web.app/descargas/Corte-Android-2.3.0.apk) · [Windows x64 ZIP](https://corte-e-book-21589.web.app/descargas/Corte-Windows-2.3.0.zip) · [Web](https://corte-e-book-21589.web.app/flutter/). Android conserva la firma histórica. Inicio separa ventas de hoy, ventas semanales y calendario del miércoles; el importe del próximo depósito sigue por confirmar porque la conexión Creator no lo proporciona. [Avisos de ventas](docs/SALE_NOTIFICATIONS.md) · [Datos y pagos](docs/SALES_AND_PAYOUTS.md).
 
 - **Inicio simplificado:** resultados, hasta cinco prioridades y accesos directos. El detalle permanece en Muestras, Tiendas, Ventas, Videos y Productos.
 - **Muestras y productos:** lista con fotos reales, filtros y acciones; ficha con galería completa, variante recibida y opciones disponibles para solicitar muestras. La copia sin conexión conserva las fichas consultadas y precarga sus imágenes ya descargadas.

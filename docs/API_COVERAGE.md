@@ -12,6 +12,8 @@ Se contrastó además el código de sincronización y el contrato de Corte con s
 
 ## Autorizaciones verificadas
 
+**Actualización sobre ventas y pagos:** el [contrato de actualidad](SALES_AND_PAYOUTS.md) separa ventas pagadas, comisiones pendientes y calendario del miércoles. La ruta histórica `orders/trace/search` fue retirada globalmente el 15 de agosto de 2026 según el [aviso oficial](https://partner.tiktokshop.com/docv2/page/si5r1bv3); la metadata antigua de `SETTLE_TIME` no prueba disponibilidad actual. El reemplazo 202410 no aporta saldo de retiro ni fecha de depósito.
+
 - La conexión original almacenada con DPAPI fue inspeccionada en modo de solo lectura: sus permisos OAuth pertenecen a la familia **Creator** y no incluyen scopes **Seller**. No se modificó la fuente ni se publicaron credenciales, identificadores o datos de cuenta.
 - Se verificó además el **grant cloud actual** en una lectura autenticada de `/api/session`: conexión activa con `creator.affiliate.info`, `creator.affiliate.link.write`, `creator.affiliate.share_link.read`, `creator.affiliate_collaboration.read`, `creator.showcase.read` y `creator.showcase.write`. No contiene scopes Seller. No se renovó ni modificó la autorización durante la comprobación.
 - `GET /api/session` → `cuenta.permisos` contiene capacidades del perfil de creador. **No es la lista de scopes OAuth.**
@@ -60,7 +62,7 @@ Una lista vacía de SKU de muestra significa que esta consulta no aportó varian
 - El proveedor también documenta `addition.customized_main_images[]` en la vitrina. Corte no lo integra como una galería adicional; no se confirmó que explique un caso de fotos ausentes. Es un campo pendiente de aprovechamiento, no una API de reseñas ni una asociación foto–SKU.
 - Desde la representación `f1`, `/api/snapshot` incluye `extras.productos` con hasta 100 `ProductoExtendido` ya almacenados y representados en la copia. Prioriza muestras pendientes; no consulta TikTok ni descarga todo el catálogo para construir el snapshot.
 - **Solo las imágenes ya descargadas y versionadas** entran en `meta_imagenes` y `imagenes[]` para la precarga móvil. Las fotos diferidas conservan una ruta `?v=0`; necesitan conexión al solicitarse por primera vez. No se prometen todas las galerías disponibles sin conexión ni una precarga de 1.200 imágenes.
-- El ETag `W/"dv…-lr…-ir…-f1"` distingue esta representación de las copias anteriores. Una copia antigua recibe el nuevo cuerpo aunque las versiones de datos no hayan cambiado. `version_esquema` sigue siendo `1`; `img_rev` del cuerpo es autoritativo.
+- El ETag actual `W/"dv…-lr…-ir…-f3-YYYY-MM-DD"` distingue la representación y cambia en la medianoche mexicana aunque no haya ventas nuevas. La fecha corresponde a `generado_at` del propio cuerpo. `version_esquema` sigue siendo `1`; `img_rev` del cuerpo es autoritativo.
 
 Las portadas de video provienen de la autorización separada [TikTok Display API](https://developers.tiktok.com/docs/en/tiktok-api-v2-video-object). Esa conexión no concede permisos para variantes o reseñas de TikTok Shop. Una foto de producto nunca debe presentarse como portada del video.
 

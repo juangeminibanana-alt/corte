@@ -5,6 +5,21 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services") apply false
+}
+
+val firebaseConfiguration = file("google-services.json")
+if (firebaseConfiguration.isFile) {
+    apply(plugin = "com.google.gms.google-services")
+    // The isolated .dev application must not register with the production Firebase application.
+    tasks.configureEach {
+        if (name == "processDebugGoogleServices") enabled = false
+    }
+}
+
+dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
+    implementation("com.google.firebase:firebase-messaging")
 }
 
 val historicalStore = file(providers.environmentVariable("CORTE_KEYSTORE_PATH")
@@ -60,6 +75,7 @@ android {
 // An update must keep the installed certificate. CI builds only the isolated .dev variant.
 gradle.taskGraph.whenReady {
     if (allTasks.any { it.name.contains("Release", ignoreCase = true) }) {
+        check(firebaseConfiguration.isFile) { "Download the real Firebase Android configuration before building Corte release." }
         check(historicalStore.isFile) { "Restore the historical Corte keystore before building an update." }
         val expected = rootProject.projectDir.resolve("../../android/firma_esperada.txt")
         check(expected.isFile) { "Missing reviewed historical certificate fingerprint." }

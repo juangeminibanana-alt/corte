@@ -31,6 +31,7 @@ from typing import Any, Iterable, Mapping
 from .. import comun
 from ..local import serial
 from . import display as display_api
+from .actualidad import resumen_actualidad
 from . import filtros as F
 from . import reglas as R
 from .display import DatosDisplay as DisplayDatos
@@ -1278,6 +1279,7 @@ class Vista:
                 'serie': {'granularidad': per.granularidad, 'puntos': self.serie(per.granularidad, per.desde, per.hasta)},
                 'top_tiendas': ts[:5], 'top_videos': vs, 'top_productos': ps,
                 'alertas': self.alertas(rm, ts, k, conexion), 'data_version': self.data_version, 'generado_at': self.ahora,
+                'actualidad': resumen_actualidad(self.conn, self.ahora),
                 **self._perfil_tiktok()}
 
     # ================================================================== rev. 5 (15/11): Display API (métricas de tus videos)

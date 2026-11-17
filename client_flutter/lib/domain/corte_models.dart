@@ -61,6 +61,7 @@ class DashboardDto extends RespuestaDto {
   DashboardDto(super.value);
   JsonMap? get periodo => object('periodo');
   JsonMap? get kpis => object('kpis');
+  JsonMap? get actualidad => object('actualidad');
   JsonMap? get kpisAnterior => object('kpis_anterior');
   JsonMap? get muestras => object('muestras');
   JsonMap? get serie => object('serie');

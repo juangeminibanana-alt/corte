@@ -1081,6 +1081,53 @@ export interface Alerta {
   accion: { etiqueta: string; ruta: string } | null;
 }
 
+/** Resumen nuevo de ventas PAGADAS; no redefine la métrica histórica kpis.pedidos_validos. */
+export interface VentasActuales {
+  /** Sólo To-SETTLE / SETTLED, sin pedidos de muestra ni unidades devueltas completamente. */
+  pedidos_validos: number;
+  /** AWAITING PAYMENT todavía no es venta pagada; se informa aparte. */
+  pedidos_pendientes_pago: number;
+  unidades: number;
+  /** null si falta el importe, la moneda MXN o la orden está incompleta; cero real se conserva. */
+  ventas_centavos: Centavos | null;
+  comision_estimada_centavos: Centavos | null;
+  ultima_venta_at: EpochS | null;
+  datos_parciales: boolean;
+}
+
+/** Fechas de compra en México y calendario declarado; no representa una liquidación bancaria. */
+export interface ActualidadDashboard {
+  zona_horaria: 'America/Mexico_City';
+  moneda: 'MXN';
+  generado_at: EpochS;
+  hoy: VentasActuales & { fecha: FechaLocal };
+  /** Semana natural lunes-domingo, independiente del corte de pagos. */
+  semana: VentasActuales & {
+    desde: FechaLocal;
+    hasta: FechaLocal;
+    comision_generada_estimada_centavos: Centavos | null;
+  };
+  pendiente: {
+    /** Acumulado de todos los To-SETTLE conocidos, no importe del miércoles siguiente. */
+    comision_por_liquidar_centavos: Centavos | null;
+    comision_retenida_centavos: Centavos | null;
+    comision_pedidos_sin_pagar_centavos: Centavos | null;
+  };
+  pago_semana: {
+    estado: 'no_disponible';
+    monto_centavos: null;
+    /** La API no proporciona una fecha confirmada del depósito. */
+    fecha_prevista: null;
+    /** Día ISO del calendario indicado por el usuario: miércoles. */
+    dia_pago: 3;
+    horario: 'madrugada';
+    /** Próximo miércoles inclusive hoy, sólo calendario; sin hora exacta. */
+    fecha_programada: FechaLocal;
+    origen_calendario: 'usuario';
+    motivo: string;
+  };
+}
+
 /** GET /api/dashboard?periodo=30d */
 export interface DashboardResponse {
   meta_imagenes?: MetaImagenes;
@@ -1095,6 +1142,8 @@ export interface DashboardResponse {
   alertas: Alerta[];
   data_version: number;
   generado_at: EpochS;
+  /** Independiente del período histórico seleccionado; también va en los dos dashboard del snapshot. */
+  actualidad?: ActualidadDashboard;
   /** rev. 5 · Resumen de tu perfil de TikTok para Inicio (Display API). AUSENTE si nunca se trajo el perfil. */
   perfil_tiktok?: ResumenPerfilTikTok;
 }
@@ -1374,8 +1423,9 @@ export interface OpsResultado {
 export interface OpsResponse { resultados: OpsResultado[]; local_rev: number }
 
 // ============================================================================ copia sin conexión (Android)
-/** GET /api/snapshot — ETag W/"dv<data_version>-lr<local_rev>-ir<img_rev>-f1"; If-None-Match -> 304; gzip.
- *  f1 identifica la representación con fichas extendidas; img_rev del cuerpo es autoritativo. */
+/** GET /api/snapshot — ETag W/"dv<data_version>-lr<local_rev>-ir<img_rev>-f3-YYYY-MM-DD"; If-None-Match -> 304; gzip.
+ *  f3 incluye actualidad; la fecha MX es la de generado_at y evita conservar las ventas de ayer como hoy.
+ *  img_rev del cuerpo es autoritativo. */
 export interface SnapshotResponse {
   /** 02_visual §8.2: el celular guarda LQIP y color junto con la copia para pintar sin conexión. */
   meta_imagenes?: MetaImagenes;

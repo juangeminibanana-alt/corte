@@ -29,6 +29,7 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   native_channel_ = std::make_unique<CorteNativeChannel>(flutter_controller_->engine()->messenger());
+  sales_notifications_ = std::make_unique<SalesNotifications>(GetHandle(), flutter_controller_->engine()->messenger());
   theme_channel_ =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
           flutter_controller_->engine()->messenger(), "corte/window",
@@ -65,6 +66,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  sales_notifications_ = nullptr;
   if (theme_channel_) {
     theme_channel_->SetMethodCallHandler(nullptr);
     theme_channel_ = nullptr;
@@ -81,6 +83,9 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (sales_notifications_) {
+    if (auto result = sales_notifications_->Handle(message, wparam, lparam)) return *result;
+  }
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =

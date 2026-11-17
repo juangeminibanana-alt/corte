@@ -3,7 +3,8 @@ locals {
   apis = toset([
     "compute.googleapis.com", "artifactregistry.googleapis.com", "cloudbuild.googleapis.com",
     "secretmanager.googleapis.com", "iam.googleapis.com", "logging.googleapis.com",
-    "storage.googleapis.com", "identitytoolkit.googleapis.com", "serviceusage.googleapis.com", "run.googleapis.com"
+    "storage.googleapis.com", "identitytoolkit.googleapis.com", "serviceusage.googleapis.com", "run.googleapis.com",
+    "fcm.googleapis.com", "fcmregistrations.googleapis.com"
   ])
   runtime_config = {
     CORTE_PUBLIC_URL          = "https://${var.hosting_site_id}.web.app"
@@ -57,6 +58,19 @@ resource "google_project_iam_custom_role" "firebase_session" {
 resource "google_project_iam_member" "firebase_session" {
   project = var.project_id
   role    = google_project_iam_custom_role.firebase_session.name
+  member  = "serviceAccount:${google_service_account.runtime.email}"
+}
+
+resource "google_project_iam_custom_role" "sale_notifications" {
+  role_id     = "corteSaleNotifications"
+  title       = "Corte sale notifications sender"
+  permissions = ["cloudmessaging.messages.create"]
+  depends_on  = [google_project_service.api]
+}
+
+resource "google_project_iam_member" "sale_notifications" {
+  project = var.project_id
+  role    = google_project_iam_custom_role.sale_notifications.name
   member  = "serviceAccount:${google_service_account.runtime.email}"
 }
 
