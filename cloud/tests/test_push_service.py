@@ -457,6 +457,109 @@ class PushServiceTests(unittest.TestCase):
         finally:
             other.close()
 
+    def test_android_test_selects_only_latest_android_and_never_windows(self):
+        self.register('android', TOKEN)
+        self.now += 10
+        self.service.register(UID, SCOPE, 'e' * 24,
+            {'platform': 'android', 'permission': 'concedido', 'token': TOKEN + '-new'})
+        self.now += 10
+        self.service.register(UID, SCOPE, 'w' * 24, {'platform': 'windows', 'permission': 'concedido'})
+        result = self.service.test_notification(UID, SCOPE, 'w' * 24, {'platform': 'android'})
+        self.assertEqual(result['targets'], 1)
+        self.assertEqual(result['platforms'], {'android': 1, 'windows': 0})
+        self.assertEqual(self.events(), [])  # older Android
+        self.assertEqual(self.service.events(UID, SCOPE, 'w' * 24, '0')['items'], [])
+        self.assertEqual(len(self.service.events(UID, SCOPE, 'e' * 24, '0')['items']), 1)
+        self.service.tick()
+        self.assertEqual(self.sender.call_count, 1)
+        self.assertEqual(self.sender.call_args.args[0], TOKEN + '-new')
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM observed_sales').fetchone()[0], 0)
+
+    def test_platform_selection_skips_revoked_latest_and_breaks_after_one_active(self):
+        self.register('android', TOKEN)
+        self.now += 10
+        self.service.register(UID, SCOPE, 'e' * 24,
+            {'platform': 'android', 'permission': 'concedido', 'token': TOKEN + '-new'})
+        validity = Mock(side_effect=lambda uid, device: device != 'e' * 24)
+        self.service.device_active = validity
+        result = self.service.test_notification(UID, SCOPE, DEVICE, {'platform': 'android'})
+        self.assertEqual(result['targets'], 1)
+        self.assertEqual([call.args[1] for call in validity.call_args_list], ['e' * 24, DEVICE])
+        self.assertEqual(len(self.events()), 1)
+        self.assertEqual(self.service.events(UID, SCOPE, 'e' * 24, '0')['items'], [])
+
+    def test_platform_selection_with_equal_times_is_deterministic(self):
+        self.service.register(UID, SCOPE, 'f' * 24,
+            {'platform': 'android', 'permission': 'concedido', 'token': TOKEN + '-f'})
+        self.service.register(UID, SCOPE, 'e' * 24,
+            {'platform': 'android', 'permission': 'concedido', 'token': TOKEN + '-e'})
+        self.service.test_notification(UID, SCOPE, DEVICE, {'platform': 'android'})
+        self.assertEqual(len(self.service.events(UID, SCOPE, 'e' * 24, '0')['items']), 1)
+        self.assertEqual(self.service.events(UID, SCOPE, 'f' * 24, '0')['items'], [])
+
+    def test_android_test_without_android_target_never_falls_back_to_windows(self):
+        self.register()
+        with self.assertRaises(ErrorDominio) as error:
+            self.service.test_notification(UID, SCOPE, DEVICE, {'platform': 'android'})
+        self.assertEqual(error.exception.http, 409)
+        self.assertEqual(error.exception.detalle, {'targets': 0, 'platforms': {'android': 0, 'windows': 0}})
+        self.assertEqual(self.events(), [])
+        self.sender.assert_not_called()
+        for platform in (None, '', 'Android', 'web', [], True):
+            with self.subTest(platform=platform), self.assertRaises(ErrorDominio) as error:
+                self.service.test_notification(UID, SCOPE, DEVICE, {'platform': platform})
+            self.assertEqual(error.exception.http, 422)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM push_tests').fetchone()[0], 0)
+
+    def test_test_replay_cannot_change_or_widen_platform(self):
+        self.register()
+        self.service.register(UID, SCOPE, 'e' * 24,
+            {'platform': 'android', 'permission': 'concedido', 'token': TOKEN})
+        rid = '847b13e0-7af9-438e-a4da-7b6857a3ad04'
+        body = {'request_id': rid, 'platform': 'android'}
+        first = self.service.test_notification(UID, SCOPE, DEVICE, body)
+        self.assertEqual(self.service.test_notification(UID, SCOPE, DEVICE, body), first)
+        for requested in ({'request_id': rid}, {'request_id': rid, 'platform': 'windows'}):
+            with self.subTest(requested=requested), self.assertRaises(ErrorDominio) as error:
+                self.service.test_notification(UID, SCOPE, DEVICE, requested)
+            self.assertEqual(error.exception.http, 409)
+            self.assertEqual(error.exception.codigo, 'prueba_destino_incompatible')
+        self.assertEqual(self.events(), [])  # no Windows notification was queued
+        self.now += 60
+        broad_id = '91be6c27-08a8-4828-90a6-57dfcc6474b8'
+        broad = self.service.test_notification(UID, SCOPE, DEVICE, {'request_id': broad_id})
+        self.assertEqual(broad['targets'], 2)  # existing {} semantics remain intact
+        with self.assertRaises(ErrorDominio) as error:
+            self.service.test_notification(UID, SCOPE, DEVICE, {'request_id': broad_id, 'platform': 'android'})
+        self.assertEqual(error.exception.http, 409)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM events').fetchone()[0], 3)
+
+    def test_legacy_test_metadata_gets_additive_platform_migration_without_retargeting(self):
+        legacy_path = str(Path(self.folder.name) / 'legacy-push.sqlite')
+        rid = '847b13e0-7af9-438e-a4da-7b6857a3ad04'
+        with closing(sqlite3.connect(legacy_path)) as db:
+            db.execute('CREATE TABLE push_tests(uid TEXT,scope TEXT,request_id TEXT,at INTEGER,android_targets INTEGER,'
+                       'windows_targets INTEGER,provider_accepted INTEGER DEFAULT 0,acknowledged INTEGER DEFAULT 0,'
+                       'PRIMARY KEY(uid,scope,request_id))')
+            db.execute('INSERT INTO push_tests VALUES(?,?,?,?,0,1,0,1)', (UID, SCOPE, rid, self.now))
+            db.commit()
+        legacy = PushService(legacy_path, 'synthetic-encryption-secret' * 3,
+            lambda uid: copy.deepcopy(self.snapshot), lambda uid, device: True, self.sender, lambda: self.now)
+        try:
+            with closing(sqlite3.connect(legacy_path)) as db:
+                self.assertIsNone(db.execute('SELECT target_platform FROM push_tests').fetchone()[0])
+                self.assertEqual(db.execute('SELECT acknowledged FROM push_tests').fetchone()[0], 1)
+            with self.assertRaises(ErrorDominio) as error:
+                legacy.test_notification(UID, SCOPE, DEVICE, {'request_id': rid, 'platform': 'android'})
+            self.assertEqual(error.exception.http, 409)
+            self.assertEqual(legacy.status(UID, SCOPE, DEVICE)['last_test']['platforms'], {'android': 0, 'windows': 1})
+            self.assertEqual(legacy.events(UID, SCOPE, DEVICE, '0')['items'], [])
+        finally:
+            legacy.close()
+
 
 class PaidSaleSnapshotTests(unittest.TestCase):
     def test_complete_paid_mxn_net_quantities_group_without_samples_or_unpaid(self):

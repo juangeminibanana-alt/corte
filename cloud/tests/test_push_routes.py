@@ -126,6 +126,14 @@ class PushRouteTests(unittest.TestCase):
         self.assertEqual(self.call('POST', '/api/push/test', {}, missing_scope).status_code, 409)
         self.assertEqual(self.call('POST', '/api/push/test', {'uid': 'other-owner'}).status_code, 422)
 
+    def test_android_only_route_cannot_fall_back_to_registered_windows(self):
+        self.call('POST', '/api/push/register', {'platform': 'windows', 'permission': 'concedido'})
+        no_android = self.call('POST', '/api/push/test', {'platform': 'android'})
+        self.assertEqual(no_android.status_code, 409)
+        self.assertEqual(no_android.json['error']['detalle']['platforms'], {'android': 0, 'windows': 0})
+        self.assertEqual(self.call('GET', '/api/push/events').json['items'], [])
+        self.assertEqual(self.call('POST', '/api/push/test', {'platform': 'web'}).status_code, 422)
+
 
 if __name__ == '__main__':
     unittest.main()

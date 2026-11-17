@@ -29,6 +29,7 @@ _TOKEN = re.compile(r'[A-Za-z0-9_:\-]{20,4096}')
 _ID = re.compile(r'[0-9]{1,25}')
 PAID_STATES = ('To-SETTLE', 'SETTLED')
 ALERT_TTL_SECONDS = 24 * 3600
+_UNSPECIFIED_TARGET = object()
 
 
 def _invalid() -> ErrorDominio:
@@ -110,9 +111,17 @@ class PushService:
                     uid TEXT NOT NULL,scope TEXT NOT NULL,request_id TEXT NOT NULL,at INTEGER NOT NULL,
                     android_targets INTEGER NOT NULL,windows_targets INTEGER NOT NULL,
                     provider_accepted INTEGER NOT NULL DEFAULT 0,acknowledged INTEGER NOT NULL DEFAULT 0,
+                    target_platform TEXT CHECK(target_platform IS NULL OR target_platform IN ('android','windows')),
                     PRIMARY KEY(uid,scope,request_id));
                 CREATE INDEX IF NOT EXISTS push_tests_latest ON push_tests(uid,scope,at);
             ''')
+            # Additive upgrade of this notification-only DB; existing tests retain
+            # their original all-device recipient policy (NULL).
+            db.execute('BEGIN IMMEDIATE')
+            columns = {r[1] for r in db.execute('PRAGMA table_info(push_tests)')}
+            if 'target_platform' not in columns:
+                db.execute("ALTER TABLE push_tests ADD COLUMN target_platform TEXT "
+                           "CHECK(target_platform IS NULL OR target_platform IN ('android','windows'))")
         Path(path).chmod(0o600)
 
     @contextmanager
@@ -201,7 +210,14 @@ class PushService:
                 'android_push_configured': self.send is not None,
                 'last_test': self._test_summary(uid, scope)}
 
-    def _test_summary(self, uid: str, scope: str, request_id: str | None = None) -> dict[str, Any] | None:
+    @staticmethod
+    def _check_test_target(stored: str | None, requested: str | None) -> None:
+        if stored != requested:
+            raise ErrorDominio('prueba_destino_incompatible',
+                'Esta solicitud de prueba pertenece a otro destino. Usa un identificador nuevo.', http=409)
+
+    def _test_summary(self, uid: str, scope: str, request_id: str | None = None,
+                      target_platform: Any = _UNSPECIFIED_TARGET) -> dict[str, Any] | None:
         cutoff = int(self.clock()) - ALERT_TTL_SECONDS
         with self._db() as db:
             if request_id is None:
@@ -212,6 +228,8 @@ class PushService:
                                  (uid, scope, request_id)).fetchone()
             if row is None:
                 return None
+            if target_platform is not _UNSPECIFIED_TARGET:
+                self._check_test_target(row['target_platform'], target_platform)
             order = 'test:' + row['request_id']
             queued = db.execute("SELECT count(*) FROM events WHERE uid=? AND scope=? AND order_id=? "
                                 "AND product_id='notification-test' AND acked=0 AND at>? AND state IN ('pending','retry','sending')",
@@ -228,9 +246,12 @@ class PushService:
                              'acknowledged': row['acknowledged'], 'expired': expired}}
 
     def test_notification(self, uid: str, scope: str, device: str, body: Any) -> dict[str, Any]:
-        """Queue one explicitly labelled test per active device; never insert a sale."""
+        """Queue a labelled test; a requested platform targets only its latest active device."""
         self._identity(uid, scope, device)
-        if not isinstance(body, dict) or set(body) - {'request_id'}:
+        if not isinstance(body, dict) or set(body) - {'request_id', 'platform'}:
+            raise _invalid()
+        target_platform = body.get('platform')
+        if 'platform' in body and target_platform not in ('android', 'windows'):
             raise _invalid()
         request_id = body.get('request_id')
         if 'request_id' in body:
@@ -240,7 +261,7 @@ class PushService:
                 request_id = str(UUID(request_id))
             except (ValueError, AttributeError):
                 raise _invalid() from None
-            existing = self._test_summary(uid, scope, request_id)
+            existing = self._test_summary(uid, scope, request_id, target_platform)
             if existing is not None:
                 return existing
         else:
@@ -248,9 +269,10 @@ class PushService:
         now = int(self.clock())
         with self._db() as db:
             db.execute('BEGIN IMMEDIATE')
-            persisted = db.execute('SELECT 1 FROM push_tests WHERE uid=? AND scope=? AND request_id=?',
-                                   (uid, scope, request_id)).fetchone() is not None
-            if persisted:
+            persisted = db.execute('SELECT target_platform FROM push_tests WHERE uid=? AND scope=? AND request_id=?',
+                                   (uid, scope, request_id)).fetchone()
+            if persisted is not None:
+                self._check_test_target(persisted['target_platform'], target_platform)
                 candidates = []
             else:
                 previous = db.execute('SELECT MAX(at) FROM push_tests WHERE uid=? AND scope=?', (uid, scope)).fetchone()[0]
@@ -258,16 +280,25 @@ class PushService:
                     raise ErrorDominio('demasiados_intentos', 'Espera un minuto antes de enviar otra prueba.', http=429,
                                        reintentar_en_s=max(1, 60 - (now - previous)))
                 candidates = [dict(r) for r in db.execute('SELECT * FROM subscriptions WHERE uid=? AND scope=? '
-                    "AND enabled=1 AND (platform='windows' OR (platform='android' AND token IS NOT NULL))", (uid, scope))]
-        if persisted:
-            return self._test_summary(uid, scope, request_id)
-        active = [s for s in candidates if self.device_active(uid, s['device'])]
+                    "AND enabled=1 AND (platform='windows' OR (platform='android' AND token IS NOT NULL)) "
+                    'AND (? IS NULL OR platform=?) ORDER BY updated_at DESC,device ASC',
+                    (uid, scope, target_platform, target_platform))]
+        if persisted is not None:
+            return self._test_summary(uid, scope, request_id, target_platform)
+        active = []
+        for candidate in candidates:
+            if self.device_active(uid, candidate['device']):
+                active.append(candidate)
+                if target_platform is not None:
+                    break
         with self._db() as db:
             db.execute('BEGIN IMMEDIATE')
             # Recheck after provider identity validation and serialize concurrent requests.
-            existing = db.execute('SELECT 1 FROM push_tests WHERE uid=? AND scope=? AND request_id=?',
+            existing = db.execute('SELECT target_platform FROM push_tests WHERE uid=? AND scope=? AND request_id=?',
                                   (uid, scope, request_id)).fetchone()
-            if existing is None:
+            if existing is not None:
+                self._check_test_target(existing['target_platform'], target_platform)
+            else:
                 previous = db.execute('SELECT MAX(at) FROM push_tests WHERE uid=? AND scope=?', (uid, scope)).fetchone()[0]
                 if previous is not None and now - previous < 60:
                     raise ErrorDominio('demasiados_intentos', 'Espera un minuto antes de enviar otra prueba.', http=429,
@@ -276,16 +307,17 @@ class PushService:
                 for sub in active:
                     live = db.execute('SELECT enabled,platform,token FROM subscriptions WHERE uid=? AND scope=? AND device=?',
                                       (uid, scope, sub['device'])).fetchone()
-                    if live and live['enabled'] and (live['platform'] == 'windows'
-                            or live['platform'] == 'android' and live['token'] is not None):
+                    if (live and live['enabled'] and (target_platform is None or live['platform'] == target_platform)
+                            and (live['platform'] == 'windows'
+                            or live['platform'] == 'android' and live['token'] is not None)):
                         targets.append((sub['device'], live['platform']))
                 if not targets:
                     raise ErrorDominio('avisos_no_activados', 'Activa los avisos de ventas antes de enviar la prueba.', http=409,
                         detalle={'targets': 0, 'platforms': {'android': 0, 'windows': 0}})
                 android = sum(platform == 'android' for _, platform in targets)
                 windows = sum(platform == 'windows' for _, platform in targets)
-                db.execute('INSERT INTO push_tests(uid,scope,request_id,at,android_targets,windows_targets) VALUES(?,?,?,?,?,?)',
-                           (uid, scope, request_id, now, android, windows))
+                db.execute('INSERT INTO push_tests(uid,scope,request_id,at,android_targets,windows_targets,target_platform) '
+                           'VALUES(?,?,?,?,?,?,?)', (uid, scope, request_id, now, android, windows, target_platform))
                 payload = {'kind': 'test', 'titulo': 'PRUEBA · Corte',
                     'texto': 'Esta es una notificación de prueba. No corresponde a una venta y no modifica tus cifras.',
                     'ruta': '#/ventas', 'at': now, 'order_id': 'test:' + request_id, 'product_id': 'notification-test'}
@@ -293,7 +325,7 @@ class PushService:
                     db.execute('INSERT OR IGNORE INTO events(uid,scope,device,order_id,product_id,at,payload) VALUES(?,?,?,?,?,?,?)',
                         (uid, scope, target, payload['order_id'], payload['product_id'], now,
                          json.dumps(payload, ensure_ascii=False, separators=(',', ':'))))
-        result = self._test_summary(uid, scope, request_id)
+        result = self._test_summary(uid, scope, request_id, target_platform)
         if result is None:
             raise RuntimeError('Notification test was not persisted')
         return result
