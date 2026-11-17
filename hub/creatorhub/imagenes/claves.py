@@ -25,15 +25,16 @@ from typing import NamedTuple
 
 from .. import config
 
-TIPOS: tuple[str, ...] = ('p', 'a', 'g', 'm', 'v')  # rev. 5: 'v' = portada de la Display API (reservada hasta la rev. 4)
-TIPOS_DIFERIDOS: tuple[str, ...] = ('g', 'm')       # rev. 4: se descargan solo cuando alguien las pide
+TIPOS: tuple[str, ...] = ('p', 'a', 'g', 'm', 'v', 'e')
+TIPOS_DIFERIDOS: tuple[str, ...] = ('g', 'm', 'e')  # evidencia también se descarga al pedirla
 MAX_GALERIA = 12                                    # fotos de la galería de vitrina que se guardan por producto
 REF_CUENTA = 'cuenta'
 _RE_REF = re.compile(r'[0-9]{1,25}')                # dígitos ASCII (\d de Python aceptaría dígitos Unicode)
 _RE_GALERIA = re.compile(r'[0-9]{1,25}-(?:[0-9]|1[01])')   # '<product_id>-<n>' con n en 0..11 (MAX_GALERIA)
+_RE_EVIDENCIA = re.compile(r'[0-9]{1,25}-[0-9a-f]{16}')
 _RE_VERSION = re.compile(r'[0-9a-f]{8}')
 _RE_OG = re.compile(r'^(?P<base>.+)_og\.(?P<ext>jpg|png|webp|gif)$')
-_RE_ARCHIVO = re.compile(r'^(?:[0-9]{1,25}(?:-[0-9]{1,2})?|cuenta)_[0-9a-f]{8}_(?:og|xs|sm|md)\.(?:jpg|png|webp|gif)$')
+_RE_ARCHIVO = re.compile(r'^(?:[0-9]{1,25}(?:-(?:[0-9]{1,2}|[0-9a-f]{16}))?|cuenta)_[0-9a-f]{8}_(?:og|xs|sm|md)\.(?:jpg|png|webp|gif)$')
 _PROHIBIDOS_URL = frozenset('\\ \t\r\n\x0b\x0c"<>`{}|^')
 MAX_LARGO_URL = 4096
 
@@ -65,6 +66,8 @@ def ref_valido(tipo: object, ref_id: object) -> bool:
         return ref_id == REF_CUENTA
     if tipo == 'g':
         return _RE_GALERIA.fullmatch(ref_id) is not None
+    if tipo == 'e':
+        return _RE_EVIDENCIA.fullmatch(ref_id) is not None
     return False
 
 

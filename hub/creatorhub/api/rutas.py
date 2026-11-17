@@ -38,7 +38,7 @@ TIPO_JSON = 'application/json; charset=utf-8'
 GZIP_DESDE = 1024
 MAX_CUERPO = config.MAX_CUERPO_BYTES
 MAX_CAMPOS_QUERY = 64
-REV_SNAPSHOT = 'f1'               # Incluye fichas extendidas; invalida copias anteriores aun sin cambios de datos.
+REV_SNAPSHOT = 'f2'               # Evidencia de producto: invalida copias anteriores aun sin cambios de datos.
 ModoLan = Literal['lectura', 'escritura', 'local']
 TipoEtag = Literal['lectura', 'snapshot'] | None
 
@@ -386,6 +386,14 @@ class DespachadorHub:
             R('GET', 'api/videos/{content_id}', lambda p: a().video_detalle(p.params['content_id']), L, 'lectura'),
             R('GET', 'api/productos/{product_id}', lambda p: a().producto_detalle(p.params['product_id']),
               L, 'lectura'),
+            R('GET', 'api/productos/{product_id}/evidencia',
+              lambda p: h.evidencia.leer(p.params['product_id']), L, 'lectura'),
+            R('PUT', 'api/productos/{product_id}/evidencia',
+              lambda p: h.evidencia.guardar(p.params['product_id'], p.objeto(), p.ctx), E),
+            R('POST', 'api/productos/{product_id}/extraer',
+              lambda p: h.evidencia.extraer(p.params['product_id'], p.objeto(), p.ctx), E),
+            R('GET', 'api/productos/{product_id}/resenas',
+              lambda p: h.evidencia.resenas(p.params['product_id'], p.query), L, 'lectura'),
             R('GET', 'api/ordenes', lambda p: a().ordenes(p.query), L, 'lectura'),
             R('GET', 'api/snapshot', self._snapshot, L, 'snapshot'),
             # ---------------------------------------------------------- estado local (✓ GET · ✓* mutaciones)

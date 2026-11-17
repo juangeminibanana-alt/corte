@@ -31,8 +31,9 @@ FROM imagenes
 SQL_REGLA_C45 = _SQL_COLUMNAS_C45 + "WHERE tipo IN ('p', 'a')\n"
 _REF_VALIDA = re.compile(r'^(?:\d{1,25}|cuenta)$')
 _REF_DIFERIDA = {'g': re.compile(r'^\d{1,25}-(?:\d|1[01])$'), 'm': re.compile(r'^\d{1,25}$'),
-                 'v': re.compile(r'^\d{1,25}$')}       # rev. 5: portada de la Display API (se carga por clave)
-_PREFIJOS_POR_CLAVE = ('g:', 'm:', 'v:')
+                 'v': re.compile(r'^\d{1,25}$'),
+                 'e': re.compile(r'^[0-9]{1,25}-[0-9a-f]{16}$')}
+_PREFIJOS_POR_CLAVE = ('g:', 'm:', 'v:', 'e:')
 
 
 class ResolutorImagenes:

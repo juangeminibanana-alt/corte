@@ -1,6 +1,15 @@
 # Tablas de tallas y reseñas por producto
 
-Requisito del usuario del 16 de noviembre de 2026 para Corte en Android, Windows y web. **Pendiente de integración de una fuente de datos aplicable a los productos afiliados.** No está implementado ni publicado como función completa.
+Requisito del usuario del 16 de noviembre de 2026 para Corte en Android, Windows y web. Implementación **2.2.0**: consulta de la ficha pública de TikTok Shop México, persistencia por cuenta y visualización de su tabla y vista previa de reseñas con sus propias fotos. La extracción pública no equivale a recibir todo el historial de opiniones.
+
+## Implementación y límites
+
+- `POST /api/productos/{product_id}/extraer`, con revisión vigente y vínculo del creador, consulta el enlace público observado `https://shop.tiktok.com/mx/pdp/{product_id}`. No necesita contraseña, cookies o permisos Seller y no utiliza una API privada de reseñas.
+- El extractor lee datos publicados en el HTML de esa ficha: `product_info.size_guide.image.url_list`, `review_info.product_reviews`, `review_ratings` y el total declarado. Se comprobó con un producto real: una tabla legible, tres opiniones de sesenta y cinco fotos de compradores asociadas correctamente.
+- La interfaz ofrece **Obtener tallas y reseñas** desde producto y muestra, imagen original ampliable, procedencia/fecha y aviso explícito de vista previa. Conserva texto, valoración, variante y fecha recibidos. La compra verificada sólo se muestra si la fuente entrega ese indicador expresamente.
+- Límites de lectura: 15 segundos, 4 MiB y tres redirecciones verificadas dentro del mismo producto/host/mercado. Una verificación o un error detiene la consulta y conserva los datos guardados. No se promete acceso a todas las fichas ni a todas las opiniones de TikTok.
+- El backend conserva hasta cien opiniones recibidas, con páginas de veinte; esto no significa que el HTML público entregue cien. La respuesta real comprobada sólo entrega tres. Las imágenes siguen el proxy privado `/img/e/…` y la caché por propietario y creador.
+- La sesión de navegador que el usuario verificó se conserva en el mismo perfil/pestaña. El extractor del servidor es independiente de ella; no se exportan cookies de TikTok a Google ni a Git. TikTok puede volver a solicitar una verificación.
 
 ## Resultado esperado
 
@@ -18,7 +27,7 @@ La información debe ser accesible desde la ficha del producto y desde la muestr
 - Se revisaron los campos completos de las 26 operaciones del catálogo público Affiliate Creator. Los contratos consultados no declaran tablas de medidas ni opiniones/fotos de compradores para los productos afiliados.
 - Los SKU actuales proceden de `samples/labels` y sus propiedades de color/talla. La galería procede de `showcases/products`. Ninguno de esos datos demuestra que se haya obtenido una tabla de medidas o una reseña.
 - La base original y la base local actual no contienen una integración de tablas de tallas o reseñas que se haya perdido durante la migración. Esto describe el código y los datos inspeccionados; no sustituye el requisito nuevo.
-- Se intentó consultar una ficha pública real de un producto ya registrado. El navegador mostró una verificación CAPTCHA y el proveedor de extracción no entregó el contenido. No se verificó una fuente pública utilizable automáticamente. No desplegar un extractor basado en una respuesta no comprobada.
+- La URL genérica inicial mostró un CAPTCHA. Tras completarlo el usuario se identificó la URL pública canónica de México; tanto esa URL como la ruta numérica publicada por TikTok respondieron HTTP 200 a una petición normal sin cookies. Se verificaron el HTML, el normalizador, el contrato de guardado y la imagen real. El estado de una URL genérica no debe extrapolarse a la ficha canónica comprobada.
 
 ### Rutas oficiales que no equivalen al acceso actual
 
@@ -41,4 +50,4 @@ El esquema vigente de tablas estructuradas usa `data.size_chart[].size_chart_dat
 - Las imágenes nuevas deben seguir las validaciones de origen, límites y versiones de contenido existentes. La caché debe conservar el aislamiento Firebase UID + creador. No incrustar URLs privadas sin control ni publicar respuestas de clientes en Git.
 - Verificar con datos reales una tabla, una reseña con fotografías y un producto sin acceso, en móvil y escritorio y en ambos temas. Probar paginación, actualización, cambio de cuenta y lectura de la copia sin conexión. Las fixtures sintéticas sirven para pruebas, no como demostración de una integración real.
 
-Hasta tener esa fuente comprobada, la función permanece pendiente. Abrir el enlace original de TikTok puede ser un acceso externo útil, pero no equivale a sincronizar la tabla, las reseñas y las fotos dentro de Corte.
+La consulta de fuente pública y el almacenamiento están implementados. La recuperación de **todas** las reseñas sigue fuera de lo que entrega esta fuente comprobada. Abrir el enlace original permite consultar la ficha completa en TikTok; se distingue de los datos efectivamente conservados dentro de Corte.

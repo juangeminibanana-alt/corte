@@ -324,12 +324,29 @@ class CorteRepository {
     final url = rutaCanonica(path, query);
     final generation = _generation;
     final payload = body is Map ? immutableJson(jsonMap(body)) : body;
+    final evidenceWrite =
+        (verb == 'PUT' &&
+            RegExp(r'^/api/productos/[0-9]{1,25}/evidencia$').hasMatch(path)) ||
+        (verb == 'POST' &&
+            RegExp(r'^/api/productos/[0-9]{1,25}/extraer$').hasMatch(path));
+    final scope = _cacheScope;
+    if (evidenceWrite && scope == null) {
+      throw ErrorApi(
+        codigo: 'sesion_cambiada',
+        mensaje:
+            'Actualiza la conexión antes de guardar información del producto.',
+      );
+    }
     late final CorteResponse response;
     try {
       response = await _adapter.request(
         verb,
         url,
-        headers: {'Accept': 'application/json', ...headers},
+        headers: {
+          'Accept': 'application/json',
+          ...headers,
+          if (evidenceWrite) 'X-Corte-Cache-Scope': scope!,
+        },
         body: payload,
       );
     } on CorteTransportException catch (error) {

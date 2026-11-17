@@ -7,6 +7,7 @@ import 'theme.dart';
 import 'widgets.dart';
 import 'desktop.dart';
 import 'work.dart';
+import 'product_evidence.dart';
 
 Future<void> openPublicLink(BuildContext context, String? value) async {
   final url = Uri.tryParse(value ?? '');
@@ -488,6 +489,13 @@ class ProductDetailPage extends StatelessWidget {
             ),
             _SkuExplorer(key: ValueKey(id), eligibility: eligibility),
           ],
+          ProductEvidence(
+            productId: id,
+            extended: extended,
+            openOriginal: textOf(p['enlace']).isEmpty
+                ? null
+                : () => openPublicLink(context, textOf(p['enlace'])),
+          ),
           if (row.isNotEmpty) ...[
             const SectionHeading('Tus resultados con este producto'),
             MetricStrip([

@@ -5,6 +5,7 @@ import 'format.dart';
 import 'theme.dart';
 import 'widgets.dart';
 import 'catalog.dart';
+import 'product_evidence.dart';
 import 'desktop.dart';
 import 'desktop_home.dart';
 
@@ -1149,6 +1150,20 @@ class SampleDetailPage extends StatelessWidget {
                   mainHeight: MediaQuery.sizeOf(context).width < 700
                       ? 220
                       : null,
+                ),
+                const SizedBox(height: 12),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: const Text('Tallas, reseñas y fotos de compradores'),
+                  children: [
+                    ProductEvidence(
+                      productId: textOf(p['product_id']),
+                      extended: mapOf(product['extendido']),
+                      openOriginal: textOf(p['enlace']).isEmpty
+                          ? null
+                          : () => openPublicLink(context, textOf(p['enlace'])),
+                    ),
+                  ],
                 ),
               ],
             ),

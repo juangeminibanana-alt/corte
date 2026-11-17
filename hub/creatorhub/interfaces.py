@@ -92,9 +92,8 @@ class RespuestaImagen:
 
 @dataclass(frozen=True)
 class PedidoImagen:
-    tipo: Literal['p', 'a', 'g', 'm']   # rev. 4 (15/11): 'g' galería de vitrina y 'm' producto parecido (diferidas:
-                                        # se registran y solo se descargan cuando alguien las pide por /img/g|m/…)
-    ref_id: str                         # ^\d{1,25}$ o 'cuenta'; en 'g': '<product_id>-<n>' (n = 0..11)
+    tipo: Literal['p', 'a', 'g', 'm', 'v', 'e']   # 'e' = evidencia aportada por el dueño; nunca fotos simuladas
+    ref_id: str                         # numérico, 'cuenta', '<pid>-<n>' (g) o '<pid>-<16hex>' (e)
     url: str                            # url de origen (CDN de la lista blanca)
     prioridad: int = 0                  # 0 = muestras/avatar · 1 = ventas/vitrina · 2 = resto
     fuente: str = ''                    # 'ficha' | 'vitrina' | 'perfil' | 'galeria' | 'parecido'
@@ -215,6 +214,14 @@ class Analitica(Protocol):                                          # analitica.
     def etag(self) -> str: ...                                      # 'dv<N>-lr<M>-ir<K>' leído en la misma transacción
 
 
+class EvidenciaProducto(Protocol):
+    """Datos aportados explícitamente por el dueño; no implica extracción automática del proveedor."""
+    def leer(self, product_id: str) -> Json: ...
+    def resenas(self, product_id: str, query: Mapping[str, str]) -> Json: ...
+    def guardar(self, product_id: str, datos: Json, ctx: Contexto) -> Json: ...
+    def extraer(self, product_id: str, datos: Json, ctx: Contexto) -> Json: ...
+
+
 class EstadoLocal(Protocol):                                        # local.crear_estado_local(almacen, bus, reloj)
     def sembrar(self) -> None: ...                                  # ÚNICO que siembra: 11 plantillas + preferencias (idempotente)
     def plan_listar(self, filtros: Mapping[str, str]) -> Json: ...
@@ -302,6 +309,7 @@ class HubProto(Protocol):                                           # hub.inicia
     puerto_ui: int
     puerto_respaldo: bool
     bus: Bus
+    evidencia: EvidenciaProducto
     def url_arranque(self) -> str: ...                  # 'http://127.0.0.1:<p>/boot?t=<token 60 s, un uso>'
     def sincronizar_ahora(self, origen: str = 'usuario') -> None: ...
     def ruta_imagen_original(self, ruta_img: str) -> str | None: ...   # '/img/p/<id>?v=…' → archivo og de la caché

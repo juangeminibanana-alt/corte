@@ -285,7 +285,7 @@ class _ImageRoute {
     // Canonical source routes only; no aliases, encoded separators, fragments,
     // credentials or unrelated query parameters can share an offline identity.
     final match = RegExp(
-      r'^(/img/(?:(?:p|a|m)/[A-Za-z0-9_-]{1,64}|v/[0-9]{1,25}|g/[0-9]{1,25}-(?:[0-9]|1[01])))\?(.+)$',
+      r'^(/img/(?:(?:p|a|m)/[A-Za-z0-9_-]{1,64}|v/[0-9]{1,25}|g/[0-9]{1,25}-(?:[0-9]|1[01])|e/[0-9]{1,25}-[0-9a-f]{16}))\?(.+)$',
     ).firstMatch(path);
     if (match == null) return null;
     final parameters = <String, String>{};

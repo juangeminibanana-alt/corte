@@ -246,7 +246,7 @@ CREATE TABLE IF NOT EXISTS videos (
 
 CREATE TABLE IF NOT EXISTS "imagenes" (
   img_key TEXT PRIMARY KEY,         -- 'p:<product_id>' | 'v:<content_id>' | 'a:cuenta' | rev. 4: 'g:<product_id>-<n>' | 'm:<product_id>'
-  tipo TEXT NOT NULL CHECK (tipo IN ('p','v','a','g','m')),   -- rev. 4: g = galería de vitrina, m = producto parecido
+  tipo TEXT NOT NULL CHECK (tipo IN ('p','v','a','g','m','e')),   -- e = tabla o foto de reseña importada explícitamente
   ref_id TEXT NOT NULL,             -- ^\d{1,25}$ (o 'cuenta' para tipo a; '<product_id>-<n>' para g): se valida antes de armar rutas
   url_origen TEXT,
   url_huella TEXT,                  -- sha1(host + path) sin query volátil
@@ -839,4 +839,12 @@ SELECT t.tienda_key, t.nombre, t.shop_id,
 FROM tiendas t LEFT JOIN ms USING (tienda_key) LEFT JOIN vs USING (tienda_key)
 WHERE t.tienda_key NOT IN (SELECT alias FROM tienda_alias);
 
-PRAGMA user_version = 5;
+-- Evidencia aportada explícitamente: no es una respuesta simulada de Affiliate Creator.
+CREATE TABLE IF NOT EXISTS producto_evidencia (
+  product_id TEXT PRIMARY KEY,
+  evidencia_json TEXT NOT NULL CHECK (length(evidencia_json) <= 196608 AND json_valid(evidencia_json)),
+  rev INTEGER NOT NULL CHECK (rev >= 1),
+  actualizado_at INTEGER NOT NULL
+) STRICT;
+
+PRAGMA user_version = 6;

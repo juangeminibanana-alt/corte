@@ -179,7 +179,8 @@ class AnaliticaSqlite:
         El límite evita convertir una copia de trabajo en una descarga del catálogo completo.
         """
         cacheados = {r['product_id'] for r in v.filas(
-            'SELECT product_id FROM vitrina UNION SELECT product_id FROM muestra_etiquetas WHERE huella IS NOT NULL')}
+            'SELECT product_id FROM vitrina UNION SELECT product_id FROM muestra_etiquetas WHERE huella IS NOT NULL '
+            'UNION SELECT product_id FROM producto_evidencia')}
         candidatos = [m['product_id'] for m in pendientes]
         candidatos += [m['producto']['product_id'] for m in muestras]
         candidatos += [p['product_id'] for p in productos]

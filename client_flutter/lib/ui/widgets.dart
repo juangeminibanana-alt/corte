@@ -267,12 +267,14 @@ class CortePhoto extends StatefulWidget {
     this.radius = 9,
     this.label = 'Foto del producto',
     this.video = false,
+    this.original = false,
   });
   final String? path;
   final double width, height, radius;
   final BoxFit fit;
   final String label;
   final bool video;
+  final bool original;
   @override
   State<CortePhoto> createState() => _CortePhotoState();
 }
@@ -284,13 +286,13 @@ class _CortePhotoState extends State<CortePhoto> {
   Widget build(BuildContext context) {
     final ui = CorteScope.of(context);
     final path = widget.path;
-    final key =
-        '${ui.repo.ownerScope}:${ui.repo.cacheScope}:$path:${widget.width > 160 ? 'md' : 'sm'}';
+    final size = widget.original ? null : (widget.width > 160 ? 'md' : 'sm');
+    final key = '${ui.repo.ownerScope}:${ui.repo.cacheScope}:$path:$size';
     if (_key != key) {
       _key = key;
       _future = path == null || path.isEmpty
           ? null
-          : ui.repo.imagen(path, tamano: widget.width > 160 ? 'md' : 'sm');
+          : ui.repo.imagen(path, tamano: size);
     }
     final placeholder = ColoredBox(
       color: context.corte.soft,

@@ -728,11 +728,17 @@ export interface ProductoDetalleResponse {
  * rev. 4 (15/11) · Todo lo que la API OFICIAL de afiliados da de un producto (solo endpoints de LECTURA; no hay
  * scraper). Cada parte es null o [] mientras su fase de la sincronización no haya traído datos (corren dentro del paso
  * 'productos_ventas', con TTL y topes por sync). La integración actual de creador no obtiene descripción del vendedor,
- * reseñas, guía de tallas, envío, stock exacto por SKU ni datos de la tienda. Tabla de medidas, reseñas y fotos de
- * compradores son requisitos pendientes: véase docs/PRODUCT_SIZE_CHARTS_AND_REVIEWS.md. No confundir esta ausencia
- * en el contrato implementado con una exclusión del alcance solicitado por el usuario.
+ * reseñas, guía de tallas, envío, stock exacto por SKU ni datos de la tienda. En 2.2 tabla_tallas/resenas proceden de
+ * una captura explícita de la ficha pública MX, distinta de la API Creator. Esa ficha entrega una vista previa de
+ * opiniones, no necesariamente todas: véase docs/PRODUCT_SIZE_CHARTS_AND_REVIEWS.md.
  */
 export interface ProductoExtendido {
+  /** Revisión de evidencia importada; 0 cuando todavía no se ha obtenido. */
+  evidencia_rev?: number;
+  /** Datos de medidas de una fuente identificada; null si todavía no se han obtenido. */
+  tabla_tallas?: TablaTallasProducto | null;
+  /** Primera página (hasta 20) de opiniones de una fuente identificada. No es una API Creator nueva. */
+  resenas?: ResenasProducto | null;
   /** Galería de tu vitrina (showcases/products main_images[], hasta 12 fotos, en su orden): '/img/g/<product_id>-<n>?v=…'
    *  ('?v=0' si aún no se descarga: el hub la baja al pedirla, tope 5 s). [] si el producto no está en tu vitrina. */
   galeria: UrlImagen[];
@@ -757,6 +763,67 @@ export interface ProductoExtendido {
   /** 'sin_permiso' = la app aún no tiene el permiso de orders/trace/search (código 105005) y no hay datos: mostrar la
    *  nota discreta «Origen de cada venta: requiere un permiso extra en Partner Center». null en cualquier otro caso. */
   origen_ventas_aviso: 'sin_permiso' | null;
+}
+
+/** Evidencia explícita aportada a Corte. No implica extracción automática ni verificación de compra por Corte. */
+export type EstadoEvidenciaProducto = 'disponible' | 'no_disponible' | 'no_aplica' | 'error' | 'pendiente';
+export interface FuenteEvidenciaProducto {
+  tipo: 'captura_tiktok' | 'vendedor';
+  /** Enlace público sin query ni credenciales; una captura TikTok debe corresponder al mismo product_id. */
+  url: string;
+  nombre: string;
+}
+export interface BloqueEvidenciaProducto {
+  estado: EstadoEvidenciaProducto;
+  fuente: FuenteEvidenciaProducto | null;
+  consultado_at: EpochS | null;
+}
+export interface TablaTallasProducto extends BloqueEvidenciaProducto {
+  tabla: {
+    columnas: string[];
+    /** Valores y unidades originales, sin completar medidas ausentes. */
+    filas: string[][];
+    unidad: string | null;
+    imagenes: UrlImagen[];
+  } | null;
+}
+export interface ResenaProducto {
+  id: string;
+  texto: string;
+  estrellas: 1 | 2 | 3 | 4 | 5 | null;
+  fecha: EpochS | null;
+  variante: string | null;
+  /** Sólo true cuando la fuente lo señala expresamente; null no significa false. */
+  compra_verificada: boolean | null;
+  /** Exclusivamente fotos de esta reseña. Nunca fotos del catálogo como sustituto. */
+  imagenes: UrlImagen[];
+}
+export interface ResenasProducto extends BloqueEvidenciaProducto {
+  promedio: number | null;
+  /** Total declarado por la fuente; null si no se obtuvo. */
+  total: number | null;
+  items: ResenaProducto[];
+  /** Número de opiniones conservadas en Corte, distinto del total global de la fuente. */
+  cargadas: number;
+  siguiente_cursor: string | null;
+}
+/** GET/PUT /api/productos/{product_id}/evidencia. PUT requiere rev vigente y vínculo de cuenta cloud. */
+export interface EvidenciaProductoResponse {
+  product_id: string;
+  rev: number;
+  actualizado_at: EpochS | null;
+  tabla_tallas: TablaTallasProducto | null;
+  resenas: ResenasProducto | null;
+  meta_imagenes?: MetaImagenes;
+}
+/** POST /api/productos/{product_id}/extraer: {rev:number}. HTTP público acotado; no modifica datos si falla. */
+export type ExtraerProductoResponse = EvidenciaProductoResponse;
+/** GET /api/productos/{product_id}/resenas?cursor=20. No unir páginas de revisiones distintas. */
+export interface ResenasProductoResponse {
+  product_id: string;
+  rev: number;
+  resenas: ResenasProducto | null;
+  meta_imagenes?: MetaImagenes;
 }
 
 /** rev. 4 · Datos de showcases/products (precios de tu vitrina; las tres fuentes de precio vienen como rango). */

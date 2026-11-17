@@ -200,6 +200,30 @@ JsonMap? proyectarSnapshot(
           .toList(),
     });
   }
+  if (uri.pathSegments.length == 4 && path.startsWith('/api/productos/')) {
+    final id = uri.pathSegments[2];
+    final stored = (extras['productos'] as Map?)?[id];
+    if (stored is! Map) return null;
+    final extended = jsonMap(stored);
+    if (uri.pathSegments.last == 'evidencia') {
+      return result({
+        'product_id': id,
+        'rev': extended['evidencia_rev'] ?? 0,
+        'tabla_tallas': extended['tabla_tallas'],
+        'resenas': extended['resenas'],
+      });
+    }
+    if (uri.pathSegments.last == 'resenas' &&
+        (query['cursor'] == null || query['cursor'] == '0')) {
+      return result({
+        'product_id': id,
+        'rev': extended['evidencia_rev'] ?? 0,
+        'resenas': extended['resenas'],
+      });
+    }
+    // A first-page snapshot cannot prove the contents of subsequent pages.
+    return null;
+  }
   if (uri.pathSegments.length == 3 && path.startsWith('/api/productos/')) {
     final id = uri.pathSegments.last;
     final matches = samples

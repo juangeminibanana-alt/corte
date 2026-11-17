@@ -1100,8 +1100,12 @@ class Vista:
         """ProductoExtendido (contrato rev. 4): todo lo que la API oficial de afiliados da de un producto y que la ficha
         básica no traía. Cada parte es null (o []) mientras su fase de la sync no haya traído datos."""
         origen = self.origen_ventas(pid)
+        from ..productos_evidencia import leer_evidencia
+        evidencia = leer_evidencia(self.conn, self.img, pid)
         estado_trazas = self.fila("SELECT valor FROM sync_cursores WHERE clave = 'trazas.estado'")
         return {'galeria': self.galeria_vitrina(pid), 'vitrina': self.vitrina_extendida(pid),
+                'tabla_tallas': evidencia['tabla_tallas'], 'resenas': evidencia['resenas'],
+                'evidencia_rev': evidencia['rev'],
                 'muestra': self.elegibilidad_muestra(pid), 'solicitudes_recuperadas': self.solicitudes_recuperadas(pid),
                 'planes_dirigidos': self.planes_dirigidos(pid), 'comision_real': self.comision_real(pid),
                 'parecidos': self.parecidos(pid), 'origen_ventas': origen,

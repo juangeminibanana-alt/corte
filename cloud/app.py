@@ -13,6 +13,7 @@ import hmac
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import sys
 import threading
@@ -629,7 +630,13 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
                                          business_headers, request.get_data(), CTX_UI)
 
         expected_scope = request.headers.get('X-Corte-Cache-Scope')
-        if route == '/api/local/ops' and request.method == 'POST' and expected_scope is not None:
+        evidence_write = ((request.method == 'PUT'
+                           and re.fullmatch(r'/api/productos/[0-9]{1,25}/evidencia', route) is not None)
+                          or (request.method == 'POST'
+                              and re.fullmatch(r'/api/productos/[0-9]{1,25}/extraer', route) is not None))
+        if evidence_write and expected_scope is None:
+            return error('cuenta_cambio_sin_aplicar', 'Actualiza la ficha antes de importar información del producto.', 409)
+        if evidence_write or route == '/api/local/ops' and request.method == 'POST' and expected_scope is not None:
             # New clients bind pending operations to the exact owner + creator.
             # Keep the comparison and mutation atomic with account changes.
             with hub._candado_mutacion:

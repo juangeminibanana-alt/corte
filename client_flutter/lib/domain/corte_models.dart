@@ -164,6 +164,17 @@ class ElegibilidadMuestraDto extends JsonDto {
 
 class ProductoExtendidoDto extends JsonDto {
   ProductoExtendidoDto(super.value);
+  int? get evidenciaRev => integer('evidencia_rev');
+  TablaTallasDto? get tablaTallas {
+    final value = object('tabla_tallas');
+    return value == null ? null : TablaTallasDto(value);
+  }
+
+  ResenasProductoDto? get resenas {
+    final value = object('resenas');
+    return value == null ? null : ResenasProductoDto(value);
+  }
+
   List<String> get galeria => strings('galeria');
   JsonMap? get vitrina => object('vitrina');
   ElegibilidadMuestraDto? get muestra {
@@ -178,6 +189,74 @@ class ProductoExtendidoDto extends JsonDto {
   JsonMap? get parecidos => object('parecidos');
   JsonMap? get origenVentas => object('origen_ventas');
   String? get origenVentasAviso => text('origen_ventas_aviso');
+}
+
+class FuenteProductoDto extends JsonDto {
+  FuenteProductoDto(super.value);
+  String? get tipo => text('tipo');
+  String? get nombre => text('nombre');
+  String? get url => text('url');
+}
+
+class EvidenciaBloqueDto extends JsonDto {
+  EvidenciaBloqueDto(super.value);
+  String? get estado => text('estado');
+  int? get consultadoAt => integer('consultado_at');
+  FuenteProductoDto? get fuente {
+    final value = object('fuente');
+    return value == null ? null : FuenteProductoDto(value);
+  }
+}
+
+class DatosTablaTallasDto extends JsonDto {
+  DatosTablaTallasDto(super.value);
+  List<String> get columnas => strings('columnas');
+  String? get unidad => text('unidad');
+  List<String> get imagenes => strings('imagenes');
+  List<List<String>> get filas {
+    final value = raw['filas'];
+    if (value == null) return const [];
+    if (value is! List ||
+        value.any(
+          (row) => row is! List || row.any((cell) => cell is! String),
+        )) {
+      throw const FormatException(
+        'La tabla de tallas contiene una fila inválida.',
+      );
+    }
+    return List.unmodifiable(
+      value.map((row) => List<String>.unmodifiable(row as List)),
+    );
+  }
+}
+
+class TablaTallasDto extends EvidenciaBloqueDto {
+  TablaTallasDto(super.value);
+  DatosTablaTallasDto? get tabla {
+    final value = object('tabla');
+    return value == null ? null : DatosTablaTallasDto(value);
+  }
+}
+
+class ResenaProductoDto extends JsonDto {
+  ResenaProductoDto(super.value);
+  String get id => requiredText('id');
+  String? get texto => text('texto');
+  num? get estrellas => number('estrellas');
+  int? get fecha => integer('fecha');
+  String? get variante => text('variante');
+  bool? get compraVerificada => flag('compra_verificada');
+  List<String> get imagenes => strings('imagenes');
+}
+
+class ResenasProductoDto extends EvidenciaBloqueDto {
+  ResenasProductoDto(super.value);
+  num? get promedio => number('promedio');
+  int? get total => integer('total');
+  int? get cargadas => integer('cargadas');
+  String? get siguienteCursor => text('siguiente_cursor');
+  List<ResenaProductoDto> get items =>
+      List.unmodifiable(objects('items').map(ResenaProductoDto.new));
 }
 
 class ProductoDto extends ProductoResumenDto {

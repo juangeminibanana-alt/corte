@@ -61,6 +61,7 @@ from .interfaces import (Almacen, Analitica, ArchivoConfig, Boveda, Bus, Cliente
 from .lan import crear_servicio_lan
 from .local import crear_estado_local
 from .planificador import crear_planificador
+from .productos_evidencia import ServicioEvidencia
 from .reloj import crear_reloj
 from .sincronizador import crear_sincronizador
 from .tiktok.cliente import crear_cliente
@@ -211,6 +212,7 @@ class Hub:
         self.abrir_url: Callable[[str], None] = _abrir_en_navegador
         self.resolver_enlace: Callable[[str], str | None] = resolver_enlace_corto
         self._candado_mutacion = threading.RLock()
+        self.evidencia = ServicioEvidencia(almacen, imagenes, bus, reloj, self._candado_mutacion)
         self._parar = threading.Event()
         self._hilos: list[threading.Thread] = []
         self._sub_eventos: Any = None

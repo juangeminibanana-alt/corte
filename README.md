@@ -14,7 +14,7 @@ Corte mantiene sus **aplicaciones nativas de Windows y Android**, conectadas a G
 
 La configuración, los requisitos y la publicación están en [Corte en la nube](cloud/README.md). Firebase Authentication y Storage comparten el proyecto de Google Cloud donde se ejecuta el backend Python. El repositorio por sí solo no activa estos servicios.
 
-El [inventario de API y sus límites](docs/API_COVERAGE.md) distingue lo que obtiene la autorización de creador de las API que requieren una tienda de vendedor. La [tabla de tallas, las reseñas y las fotos de compradores por producto](docs/PRODUCT_SIZE_CHARTS_AND_REVIEWS.md) son requisitos pendientes de una fuente de datos aplicable; aún no están implementados. La [dirección visual elegida](ui/DESIGN.md) documenta composición, accesibilidad y diferencias intencionales respecto de los conceptos.
+El [inventario de API y sus límites](docs/API_COVERAGE.md) distingue la autorización de creador, las API que requieren una tienda y la fuente pública de producto. Corte 2.2 puede obtener la [imagen de tallas y la vista previa de reseñas con fotos](docs/PRODUCT_SIZE_CHARTS_AND_REVIEWS.md) de la ficha pública MX cuando están disponibles; el historial completo de opiniones no está integrado. La [dirección visual elegida](ui/DESIGN.md) documenta composición, accesibilidad y diferencias intencionales respecto de los conceptos.
 
 ## Desarrollo de la versión web
 
