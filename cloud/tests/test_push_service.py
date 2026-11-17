@@ -283,6 +283,57 @@ class PushServiceTests(unittest.TestCase):
         client.post.assert_called_once()
         client.post.return_value.close.assert_called_once()
 
+    def test_48_hour_old_fcm_delivery_is_not_replayed_by_feed_or_counted_unread(self):
+        self.register('android', TOKEN)
+        self.now += 1
+        self.snapshot['sales'] = [sale(at=self.now)]
+        self.service.tick()
+        self.assertEqual(self.sender.call_count, 1)
+        self.assertEqual(len(self.events()), 1)
+        self.now += 48 * 3600
+        # Reads are safe even before the resident worker gets its next turn.
+        self.assertEqual(self.events(), [])
+        self.assertEqual(self.service.status(UID, SCOPE, DEVICE)['unread'], 0)
+        self.service.tick()
+        self.assertEqual(self.sender.call_count, 1)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute('SELECT state,acked FROM events').fetchone(), ('expired', 1))
+        self.assertEqual(len(self.snapshot['sales']), 1)  # notification expiry does not delete sales
+
+    def test_expired_failed_outbox_is_not_sent_and_future_sales_still_work(self):
+        self.register('android', TOKEN)
+        self.sender.side_effect = RuntimeError('Synthetic provider unavailable')
+        self.now += 1
+        self.snapshot['sales'] = [sale(at=self.now)]
+        with self.assertLogs('corte.push', level='WARNING'):
+            self.service.tick()
+        self.assertEqual(self.sender.call_count, 1)
+        self.now += 48 * 3600
+        self.sender.side_effect = None
+        self.service.tick()
+        self.assertEqual(self.sender.call_count, 1)
+        self.assertEqual(self.events(), [])
+        self.assertTrue(self.service.status(UID, SCOPE, DEVICE)['enabled'])
+        self.snapshot['sales'].append(sale('102', at=self.now))
+        self.service.tick()
+        self.assertEqual(self.sender.call_count, 2)
+        self.assertEqual([e['order_id'] for e in self.events()], ['102'])
+
+    def test_fcm_retry_ttl_is_remaining_lifetime_and_expired_event_never_calls_provider(self):
+        from cloud.push_service import ExpiredNotification
+        app = SimpleNamespace(project_id='corte-test', credential=Mock())
+        data = {'type': 'sale', 'expires_at': str(self.now + 60)}
+        with patch('google.auth.transport.requests.AuthorizedSession') as session_class, \
+                patch('cloud.push_service.time.time', return_value=self.now):
+            client = session_class.return_value.__enter__.return_value
+            client.post.return_value.status_code = 200
+            firebase_sender(SimpleNamespace(app=app))(TOKEN, data)
+            self.assertEqual(client.post.call_args.kwargs['json']['message']['android']['ttl'], '60s')
+            client.post.reset_mock()
+            with patch('cloud.push_service.time.time', return_value=self.now + 60), self.assertRaises(ExpiredNotification):
+                firebase_sender(SimpleNamespace(app=app))(TOKEN, data)
+            client.post.assert_not_called()
+
 
 class PaidSaleSnapshotTests(unittest.TestCase):
     def test_complete_paid_mxn_net_quantities_group_without_samples_or_unpaid(self):

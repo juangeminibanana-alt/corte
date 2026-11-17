@@ -27,6 +27,7 @@ _SCOPE = re.compile('[a-f0-9]{64}')
 _TOKEN = re.compile(r'[A-Za-z0-9_:\-]{20,4096}')
 _ID = re.compile(r'[0-9]{1,25}')
 PAID_STATES = ('To-SETTLE', 'SETTLED')
+ALERT_TTL_SECONDS = 24 * 3600
 
 
 def _invalid() -> ErrorDominio:
@@ -186,8 +187,8 @@ class PushService:
         with self._db() as db:
             sub = db.execute('SELECT enabled,platform,cursor FROM subscriptions WHERE uid=? AND scope=? AND device=?',
                              identity).fetchone()
-            unread = db.execute('SELECT count(*) FROM events WHERE uid=? AND scope=? AND device=? AND acked=0',
-                                identity).fetchone()[0]
+            unread = db.execute('SELECT count(*) FROM events WHERE uid=? AND scope=? AND device=? AND acked=0 AND at>?',
+                                (*identity, int(self.clock()) - ALERT_TTL_SECONDS)).fetchone()[0]
         return {'enabled': bool(sub and sub['enabled']), 'platform': sub['platform'] if sub else None,
                 'cursor': str(sub['cursor']) if sub else '0', 'unread': unread,
                 'android_push_configured': self.send is not None}
@@ -199,7 +200,8 @@ class PushService:
         with self._db() as db:
             sub = db.execute('SELECT enabled FROM subscriptions WHERE uid=? AND scope=? AND device=?', identity).fetchone()
             rows = db.execute('SELECT id,payload FROM events WHERE uid=? AND scope=? AND device=? '
-                              'AND acked=0 AND id>? ORDER BY id LIMIT 51', (*identity, int(after))).fetchall() if sub and sub[0] else []
+                              'AND acked=0 AND id>? AND at>? ORDER BY id LIMIT 51',
+                              (*identity, int(after), int(self.clock()) - ALERT_TTL_SECONDS)).fetchall() if sub and sub[0] else []
         selected = rows[:50]
         return {'items': [dict(json.loads(row['payload']), id=str(row['id'])) for row in selected],
                 'cursor': str(selected[-1]['id']) if selected else after, 'has_more': len(rows) > 50,
@@ -223,10 +225,13 @@ class PushService:
         return self.status(*identity)
 
     def tick(self) -> None:
+        now = int(self.clock())
         with self._db() as db:
+            # Expire notification deliveries only; sales in the hub are untouched.
+            db.execute("UPDATE events SET state='expired',acked=1 WHERE at<=? AND state<>'expired'",
+                       (now - ALERT_TTL_SECONDS,))
             subscriptions = [dict(r) for r in db.execute('SELECT * FROM subscriptions WHERE enabled=1')]
         snapshots: dict[str, dict[str, Any]] = {}
-        now = int(self.clock())
         for sub in subscriptions:
             identity = sub['uid'], sub['scope'], sub['device']
             if not self.device_active(sub['uid'], sub['device']):
@@ -274,7 +279,8 @@ class PushService:
             due = [dict(r) for r in db.execute('''SELECT e.*,s.token FROM events e JOIN subscriptions s
                 ON e.uid=s.uid AND e.scope=s.scope AND e.device=s.device
                 WHERE s.enabled=1 AND s.platform='android' AND s.token IS NOT NULL AND e.acked=0
-                  AND e.state IN ('pending','retry','sending') AND e.next_at<=? ORDER BY e.id LIMIT 20''', (now,))]
+                  AND e.state IN ('pending','retry','sending') AND e.next_at<=? AND e.at>?
+                ORDER BY e.id LIMIT 20''', (now, now - ALERT_TTL_SECONDS))]
         batch_limit = time.monotonic() + 12
         for event in due:
             if now < self._provider_backoff_until or time.monotonic() + 10 > batch_limit:
@@ -293,6 +299,10 @@ class PushService:
                     self.disable(event['uid'], event['device'], event['scope'])
                     continue
                 with self._db() as db:
+                    send_now = int(self.clock())
+                    if event['at'] <= send_now - ALERT_TTL_SECONDS:
+                        db.execute("UPDATE events SET state='expired',acked=1 WHERE id=?", (event['id'],))
+                        continue
                     live_token = db.execute('SELECT token,token_hash FROM subscriptions WHERE uid=? AND scope=? '
                                             'AND device=? AND enabled=1', identity).fetchone()
                     if live_token is None or live_token['token'] is None:
@@ -305,10 +315,14 @@ class PushService:
                 payload = json.loads(event['payload'])
                 data = {'type': 'sale', 'event_id': str(event['id']), 'cache_scope': event['scope'],
                         'titulo': payload['titulo'], 'texto': payload['texto'], 'ruta': '#/ventas',
-                        'order_id': event['order_id'], 'product_id': event['product_id']}
+                        'order_id': event['order_id'], 'product_id': event['product_id'],
+                        'expires_at': str(event['at'] + ALERT_TTL_SECONDS)}
                 try:
                     token = self._cipher.decrypt(live_token['token']).decode('utf-8')
                     self.send(token, data)
+                except ExpiredNotification:
+                    with self._db() as db:
+                        db.execute("UPDATE events SET state='expired',acked=1 WHERE id=?", (event['id'],))
                 except Exception as error:
                     permanent = type(error).__name__ in ('UnregisteredError', 'SenderIdMismatchError')
                     if permanent:
@@ -359,6 +373,10 @@ class SenderIdMismatchError(Exception):
     pass
 
 
+class ExpiredNotification(Exception):
+    pass
+
+
 def firebase_sender(firebase: Any) -> Callable[[str, dict[str, str]], None]:
     """Official FCM HTTP v1 with Firebase's ADC, bounded I/O and no hidden retries.
 
@@ -376,6 +394,10 @@ def firebase_sender(firebase: Any) -> Callable[[str, dict[str, str]], None]:
         credential = with_scopes_if_required(firebase.app.credential.get_credential(),
                                              ['https://www.googleapis.com/auth/firebase.messaging'])
         deadline = time.monotonic() + 10
+        expires = data.get('expires_at')
+        ttl = min(ALERT_TTL_SECONDS, max(0, int(expires) - int(time.time()))) if expires is not None else ALERT_TTL_SECONDS
+        if ttl <= 0:
+            raise ExpiredNotification()
         with requests.Session() as auth_session:
             auth_session.trust_env = False
             auth_session.mount('https://', requests.adapters.HTTPAdapter(max_retries=0))
@@ -394,7 +416,7 @@ def firebase_sender(firebase: Any) -> Callable[[str, dict[str, str]], None]:
                 if remaining <= 0:
                     raise requests.Timeout('FCM send deadline')
                 response = session.post(f'https://fcm.googleapis.com/v1/projects/{project}/messages:send',
-                    json={'message': {'token': token, 'data': data, 'android': {'priority': 'HIGH', 'ttl': '86400s'}}},
+                    json={'message': {'token': token, 'data': data, 'android': {'priority': 'HIGH', 'ttl': f'{ttl}s'}}},
                     timeout=(min(2, remaining), min(5, remaining)), max_allowed_time=remaining, allow_redirects=False)
                 try:
                     if time.monotonic() > deadline:
