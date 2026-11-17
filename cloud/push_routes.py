@@ -47,14 +47,20 @@ def install_push_routes(app: Any, push: Any, hub: Any, native: Any,
                     result = push.events(uid, current, device, request.args.get('after', '0'))
                 elif action == 'ack':
                     result = push.ack(uid, current, device, request.get_json(silent=True))
+                elif action == 'test':
+                    result = push.test_notification(uid, current, device, request.get_json(silent=True))
                 else:
                     result = push.status(uid, current, device)
-            return jsonify(result)
+            return (jsonify(result), 202) if action == 'test' else jsonify(result)
         except ErrorDominio as error:
-            return jsonify(error.a_respuesta()), error.http
+            response = jsonify(error.a_respuesta())
+            if error.reintentar_en_s is not None:
+                response.headers['Retry-After'] = str(error.reintentar_en_s)
+            return response, error.http
 
     app.add_url_rule('/api/push/register', 'push_register', lambda: invoke('register'), methods=['POST'])
     app.add_url_rule('/api/push/register', 'push_disable', lambda: invoke('disable'), methods=['DELETE'])
     app.add_url_rule('/api/push/status', 'push_status', lambda: invoke('status'), methods=['GET'])
     app.add_url_rule('/api/push/events', 'push_events', lambda: invoke('events'), methods=['GET'])
     app.add_url_rule('/api/push/ack', 'push_ack', lambda: invoke('ack'), methods=['POST'])
+    app.add_url_rule('/api/push/test', 'push_test', lambda: invoke('test'), methods=['POST'])

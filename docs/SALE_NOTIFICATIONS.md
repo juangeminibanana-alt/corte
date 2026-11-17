@@ -25,3 +25,9 @@ Los endpoints `/api/push/register`, `/status`, `/events` y `/ack` requieren aute
 FCM usa la credencial ADC existente, sin descargar claves privadas. El rol de ejecución recibe únicamente `cloudmessaging.messages.create` para enviar mensajes. Android usa el paquete histórico `app.creatorhub` y conserva su certificado de actualización. La configuración pública del proyecto se obtiene con Firebase CLI en `client_flutter/android/app/google-services.json`; no se incluye en Git. Los paquetes `.dev` de CI no registran push de producción y la compilación release exige la configuración real.
 
 Las pruebas de servidor y cliente usan ventas sintéticas. No se insertan ventas de prueba en la cuenta real ni se mandan notificaciones de prueba automáticamente.
+
+## Envío de prueba solicitado
+
+`POST /api/push/test` permite solicitar una notificación identificada como **PRUEBA**, dirigida únicamente a los dispositivos activos del mismo propietario y creador. Usa la cola de notificaciones existente y no modifica pedidos, ventas, comisiones ni la referencia de ventas observadas. Requiere la misma autenticación nativa, origen y scope que los demás endpoints.
+
+El cuerpo admite `{}` o `{ "request_id": "UUID" }`. Repetir el mismo UUID consulta el resultado sin enviar otra prueba. Se permite una prueba nueva por minuto. Si no hay dispositivos activos, devuelve un error y no consume el límite. El resultado y `status.last_test` muestran sólo cantidades por plataforma y etapas de entrega; la aceptación de Firebase y la confirmación del cliente son datos distintos y no prueban que el usuario haya visto la alerta.

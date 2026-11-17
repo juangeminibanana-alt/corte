@@ -1,10 +1,12 @@
 """Synthetic sale notifications only: no live FCM sends or device registrations."""
 import copy
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing, contextmanager
 from pathlib import Path
 import sqlite3
 import sys
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
@@ -333,6 +335,127 @@ class PushServiceTests(unittest.TestCase):
             with patch('cloud.push_service.time.time', return_value=self.now + 60), self.assertRaises(ExpiredNotification):
                 firebase_sender(SimpleNamespace(app=app))(TOKEN, data)
             client.post.assert_not_called()
+
+    def test_explicit_test_targets_only_own_active_scope_and_never_creates_observed_sales(self):
+        self.register('android', TOKEN)
+        self.service.register(UID, SCOPE, 'w' * 24, {'platform': 'windows', 'permission': 'concedido'})
+        self.service.register('other-owner', SCOPE, 'x' * 24, {'platform': 'windows', 'permission': 'concedido'})
+        self.snapshot['scope'] = 'b' * 64
+        self.service.register(UID, 'b' * 64, 'y' * 24, {'platform': 'windows', 'permission': 'concedido'})
+        self.snapshot['scope'] = SCOPE
+        snapshot_reader = self.service.snapshot
+        self.service.snapshot = Mock(side_effect=AssertionError('A test must not read or mutate sales'))
+        result = self.service.test_notification(UID, SCOPE, DEVICE, {})
+        self.service.snapshot = snapshot_reader
+        self.assertEqual(result['targets'], 2)
+        self.assertEqual(result['platforms'], {'android': 1, 'windows': 1})
+        self.assertEqual(result['delivery']['provider_accepted'], 0)
+        self.assertEqual(result['delivery']['acknowledged'], 0)
+        rows = self.events()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['kind'], 'test')
+        self.assertEqual(rows[0]['titulo'], 'PRUEBA · Corte')
+        self.assertIn('No corresponde a una venta', rows[0]['texto'])
+        self.assertTrue(rows[0]['order_id'].startswith('test:'))
+        self.assertEqual(rows[0]['product_id'], 'notification-test')
+        self.assertEqual(rows[0]['ruta'], '#/ventas')
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM observed_sales').fetchone()[0], 0)
+            self.assertEqual(db.execute('SELECT count(*) FROM events').fetchone()[0], 2)
+        self.assertEqual(self.service.events('other-owner', SCOPE, 'x' * 24, '0')['items'], [])
+        self.assertIsNone(self.service.status('other-owner', SCOPE, 'x' * 24)['last_test'])
+        self.assertNotIn(TOKEN, str(result))
+        self.assertNotIn(DEVICE, str(result))
+
+    def test_test_idempotency_and_minute_rate_limit_are_persistent(self):
+        self.register()
+        rid = '847b13e0-7af9-438e-a4da-7b6857a3ad04'
+        first = self.service.test_notification(UID, SCOPE, DEVICE, {'request_id': rid})
+        second = self.service.test_notification(UID, SCOPE, DEVICE, {'request_id': rid})
+        self.assertEqual(first, second)
+        self.service = self.create()
+        self.assertEqual(self.service.test_notification(UID, SCOPE, DEVICE, {'request_id': rid}), first)
+        self.assertEqual(len(self.events()), 1)
+        with self.assertRaises(ErrorDominio) as error:
+            self.service.test_notification(UID, SCOPE, DEVICE, {})
+        self.assertEqual(error.exception.http, 429)
+        self.assertEqual(error.exception.reintentar_en_s, 60)
+        self.now += 59
+        with self.assertRaises(ErrorDominio) as error:
+            self.service.test_notification(UID, SCOPE, DEVICE, {})
+        self.assertEqual(error.exception.reintentar_en_s, 1)
+        self.now += 1
+        self.service.test_notification(UID, SCOPE, DEVICE, {})
+        self.assertEqual(len(self.events()), 2)
+
+    def test_test_receipts_distinguish_provider_acceptance_ack_and_cleanup(self):
+        self.register('android', TOKEN)
+        self.service.register(UID, SCOPE, 'w' * 24, {'platform': 'windows', 'permission': 'concedido'})
+        initial = self.service.test_notification(UID, SCOPE, DEVICE, {})
+        self.assertEqual(initial['delivery']['queued'], 2)
+        self.service.tick()
+        self.assertEqual(self.sender.call_count, 1)
+        self.assertEqual(self.sender.call_args.args[1]['type'], 'sale')  # existing 2.3 clients
+        self.assertEqual(self.sender.call_args.args[1]['titulo'], 'PRUEBA · Corte')
+        accepted = self.service.status(UID, SCOPE, DEVICE)['last_test']
+        self.assertEqual(accepted['delivery']['provider_accepted'], 1)
+        self.assertEqual(accepted['delivery']['acknowledged'], 0)
+        self.assertEqual(accepted['delivery']['queued'], 1)
+        own_id = self.events()[0]['id']
+        self.service.ack(UID, SCOPE, DEVICE, {'ids': [own_id, own_id]})
+        self.service.ack(UID, SCOPE, DEVICE, {'ids': [own_id]})
+        self.assertEqual(self.service.status(UID, SCOPE, DEVICE)['last_test']['delivery']['acknowledged'], 1)
+        self.service.disable(UID, 'w' * 24, SCOPE)
+        self.now += 48 * 3600
+        self.service.tick()
+        final = self.service.status(UID, SCOPE, DEVICE)['last_test']
+        self.assertEqual(final['delivery']['provider_accepted'], 1)
+        self.assertEqual(final['delivery']['acknowledged'], 1)  # disable/expiry never forge a device ACK
+        self.assertEqual(final['delivery']['expired'], 2)
+
+    def test_test_empty_target_and_invalid_body_do_not_consume_rate_limit(self):
+        with self.assertRaises(ErrorDominio) as error:
+            self.service.test_notification(UID, SCOPE, DEVICE, {})
+        self.assertEqual(error.exception.http, 409)
+        self.assertEqual(error.exception.detalle['platforms']['android'], 0)
+        self.register()
+        for body in (None, [], {'token': TOKEN}, {'uid': 'other-owner'}, {'request_id': 'not-uuid'},
+                     {'request_id': None}, {'request_id': '847b13e07af9438ea4da7b6857a3ad04'}):
+            with self.subTest(body=body), self.assertRaises(ErrorDominio) as error:
+                self.service.test_notification(UID, SCOPE, DEVICE, body)
+            self.assertEqual(error.exception.http, 422)
+        self.assertEqual(self.service.test_notification(UID, SCOPE, DEVICE, {})['targets'], 1)
+
+    def test_expired_test_summary_and_old_ack_are_safe_before_worker_tick(self):
+        self.register()
+        self.service.test_notification(UID, SCOPE, DEVICE, {})
+        event_id = self.events()[0]['id']
+        self.now += 24 * 3600
+        summary = self.service.status(UID, SCOPE, DEVICE)['last_test']
+        self.assertEqual(summary['state'], 'expired')
+        self.assertEqual(summary['delivery']['queued'], 0)
+        self.assertEqual(summary['delivery']['expired'], 1)
+        self.assertEqual(summary['delivery']['acknowledged'], 0)
+        response = self.service.ack(UID, SCOPE, DEVICE, {'ids': [event_id]})
+        self.assertEqual(response['last_test']['delivery']['acknowledged'], 0)
+        self.assertEqual(response['last_test']['state'], 'expired')
+        self.sender.assert_not_called()
+
+    def test_concurrent_same_request_is_idempotent_across_service_instances(self):
+        self.register()
+        other = self.create()
+        gate = threading.Barrier(2)
+        self.service.device_active = other.device_active = lambda *identity: gate.wait(timeout=5) is not None
+        body = {'request_id': '847b13e0-7af9-438e-a4da-7b6857a3ad04'}
+        try:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                responses = list(pool.map(lambda service: service.test_notification(UID, SCOPE, DEVICE, body),
+                                          [self.service, other]))
+            self.assertEqual(responses[0], responses[1])
+            self.assertEqual(len(self.events()), 1)
+            self.assertEqual(responses[0]['targets'], 1)
+        finally:
+            other.close()
 
 
 class PaidSaleSnapshotTests(unittest.TestCase):

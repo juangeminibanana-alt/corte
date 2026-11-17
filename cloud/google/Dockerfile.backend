@@ -1,0 +1,7 @@
+# Backend-only updates inherit the previously reviewed image by digest.
+# The deployment operator verifies that requirements, hub and UI are unchanged.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG SOURCE_COMMIT
+LABEL org.opencontainers.image.revision="${SOURCE_COMMIT}"
+COPY --chown=corte:corte cloud/*.py /app/cloud/

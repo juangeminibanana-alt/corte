@@ -82,6 +82,50 @@ class PushRouteTests(unittest.TestCase):
         self.assertFalse(self.push.status(self.fixture.claims['uid'], self.scope, self.grant['device_id'])['enabled'])
         self.assertEqual(self.call('GET', '/api/push/status').status_code, 401)
 
+    def test_test_route_requires_active_targets_and_returns_only_scoped_counts(self):
+        empty = self.call('POST', '/api/push/test', {})
+        self.assertEqual(empty.status_code, 409)
+        self.assertEqual(empty.json['error']['detalle']['targets'], 0)
+        self.call('POST', '/api/push/register', {'platform': 'windows', 'permission': 'concedido'})
+        result = self.call('POST', '/api/push/test', {})
+        self.assertEqual(result.status_code, 202)
+        self.assertEqual(result.headers['Cache-Control'], 'no-store')
+        self.assertEqual(result.json['platforms'], {'windows': 1, 'android': 0})
+        self.assertEqual(result.json['state'], 'queued')
+        self.assertEqual(result.json['delivery']['provider_accepted'], 0)
+        self.assertEqual(result.json['delivery']['acknowledged'], 0)
+        self.assertNotIn(self.grant['device_id'], result.text)
+        self.assertNotIn(self.grant['token'], result.text)
+        event = self.call('GET', '/api/push/events?after=0').json['items'][0]
+        self.assertEqual(event['kind'], 'test')
+        self.assertEqual(event['titulo'], 'PRUEBA · Corte')
+        self.call('POST', '/api/push/ack', {'ids': [event['id']]})
+        self.assertEqual(self.call('GET', '/api/push/status').json['last_test']['delivery']['acknowledged'], 1)
+
+    def test_test_request_id_is_idempotent_and_rate_limit_includes_retry_after(self):
+        self.call('POST', '/api/push/register', {'platform': 'windows', 'permission': 'concedido'})
+        body = {'request_id': '847b13e0-7af9-438e-a4da-7b6857a3ad04'}
+        first = self.call('POST', '/api/push/test', body)
+        repeat = self.call('POST', '/api/push/test', body)
+        self.assertEqual(first.status_code, 202)
+        self.assertEqual(repeat.status_code, 202)
+        self.assertEqual(first.json, repeat.json)
+        self.assertEqual(len(self.call('GET', '/api/push/events').json['items']), 1)
+        limited = self.call('POST', '/api/push/test', {})
+        self.assertEqual(limited.status_code, 429)
+        self.assertIn('Retry-After', limited.headers)
+        self.assertGreaterEqual(int(limited.headers['Retry-After']), 1)
+
+    def test_test_route_rejects_browser_missing_scope_csrf_or_body_target_override(self):
+        f = self.fixture
+        denied = f.owner.post('/api/push/test', json={},
+            headers={**f.headers, 'X-Corte-Cache-Scope': self.scope}, base_url=f.base)
+        self.assertEqual(denied.status_code, 401)
+        self.assertEqual(self.call('POST', '/api/push/test', {}, headers={}).status_code, 403)
+        missing_scope = {k: v for k, v in self.headers.items() if k != 'X-Corte-Cache-Scope'}
+        self.assertEqual(self.call('POST', '/api/push/test', {}, missing_scope).status_code, 409)
+        self.assertEqual(self.call('POST', '/api/push/test', {'uid': 'other-owner'}).status_code, 422)
+
 
 if __name__ == '__main__':
     unittest.main()

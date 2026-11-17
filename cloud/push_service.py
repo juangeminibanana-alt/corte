@@ -17,6 +17,7 @@ import sqlite3
 import threading
 import time
 from typing import Any, Callable
+from uuid import UUID, uuid4
 
 from cryptography.fernet import Fernet
 
@@ -105,6 +106,12 @@ class PushService:
                     attempts INTEGER NOT NULL DEFAULT 0,next_at INTEGER NOT NULL DEFAULT 0,
                     UNIQUE(uid,scope,device,order_id,product_id));
                 CREATE INDEX IF NOT EXISTS events_feed ON events(uid,scope,device,id);
+                CREATE TABLE IF NOT EXISTS push_tests (
+                    uid TEXT NOT NULL,scope TEXT NOT NULL,request_id TEXT NOT NULL,at INTEGER NOT NULL,
+                    android_targets INTEGER NOT NULL,windows_targets INTEGER NOT NULL,
+                    provider_accepted INTEGER NOT NULL DEFAULT 0,acknowledged INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY(uid,scope,request_id));
+                CREATE INDEX IF NOT EXISTS push_tests_latest ON push_tests(uid,scope,at);
             ''')
         Path(path).chmod(0o600)
 
@@ -191,7 +198,105 @@ class PushService:
                                 (*identity, int(self.clock()) - ALERT_TTL_SECONDS)).fetchone()[0]
         return {'enabled': bool(sub and sub['enabled']), 'platform': sub['platform'] if sub else None,
                 'cursor': str(sub['cursor']) if sub else '0', 'unread': unread,
-                'android_push_configured': self.send is not None}
+                'android_push_configured': self.send is not None,
+                'last_test': self._test_summary(uid, scope)}
+
+    def _test_summary(self, uid: str, scope: str, request_id: str | None = None) -> dict[str, Any] | None:
+        cutoff = int(self.clock()) - ALERT_TTL_SECONDS
+        with self._db() as db:
+            if request_id is None:
+                row = db.execute('SELECT * FROM push_tests WHERE uid=? AND scope=? ORDER BY at DESC LIMIT 1',
+                                 (uid, scope)).fetchone()
+            else:
+                row = db.execute('SELECT * FROM push_tests WHERE uid=? AND scope=? AND request_id=?',
+                                 (uid, scope, request_id)).fetchone()
+            if row is None:
+                return None
+            order = 'test:' + row['request_id']
+            queued = db.execute("SELECT count(*) FROM events WHERE uid=? AND scope=? AND order_id=? "
+                                "AND product_id='notification-test' AND acked=0 AND at>? AND state IN ('pending','retry','sending')",
+                                (uid, scope, order, cutoff)).fetchone()[0]
+            expired = db.execute("SELECT count(*) FROM events WHERE uid=? AND scope=? AND order_id=? "
+                                 "AND product_id='notification-test' AND (at<=? OR state IN ('expired','disabled'))",
+                                 (uid, scope, order, cutoff)).fetchone()[0]
+        targets = row['android_targets'] + row['windows_targets']
+        state = ('acknowledged' if row['acknowledged'] >= targets else 'expired' if expired >= targets
+                 else 'provider_accepted' if row['provider_accepted'] else 'queued')
+        return {'test': True, 'state': state, 'at': row['at'], 'targets': targets,
+                'platforms': {'android': row['android_targets'], 'windows': row['windows_targets']},
+                'delivery': {'queued': queued, 'provider_accepted': row['provider_accepted'],
+                             'acknowledged': row['acknowledged'], 'expired': expired}}
+
+    def test_notification(self, uid: str, scope: str, device: str, body: Any) -> dict[str, Any]:
+        """Queue one explicitly labelled test per active device; never insert a sale."""
+        self._identity(uid, scope, device)
+        if not isinstance(body, dict) or set(body) - {'request_id'}:
+            raise _invalid()
+        request_id = body.get('request_id')
+        if 'request_id' in body:
+            try:
+                if not isinstance(request_id, str) or str(UUID(request_id)) != request_id.lower():
+                    raise ValueError
+                request_id = str(UUID(request_id))
+            except (ValueError, AttributeError):
+                raise _invalid() from None
+            existing = self._test_summary(uid, scope, request_id)
+            if existing is not None:
+                return existing
+        else:
+            request_id = str(uuid4())
+        now = int(self.clock())
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            persisted = db.execute('SELECT 1 FROM push_tests WHERE uid=? AND scope=? AND request_id=?',
+                                   (uid, scope, request_id)).fetchone() is not None
+            if persisted:
+                candidates = []
+            else:
+                previous = db.execute('SELECT MAX(at) FROM push_tests WHERE uid=? AND scope=?', (uid, scope)).fetchone()[0]
+                if previous is not None and now - previous < 60:
+                    raise ErrorDominio('demasiados_intentos', 'Espera un minuto antes de enviar otra prueba.', http=429,
+                                       reintentar_en_s=max(1, 60 - (now - previous)))
+                candidates = [dict(r) for r in db.execute('SELECT * FROM subscriptions WHERE uid=? AND scope=? '
+                    "AND enabled=1 AND (platform='windows' OR (platform='android' AND token IS NOT NULL))", (uid, scope))]
+        if persisted:
+            return self._test_summary(uid, scope, request_id)
+        active = [s for s in candidates if self.device_active(uid, s['device'])]
+        with self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            # Recheck after provider identity validation and serialize concurrent requests.
+            existing = db.execute('SELECT 1 FROM push_tests WHERE uid=? AND scope=? AND request_id=?',
+                                  (uid, scope, request_id)).fetchone()
+            if existing is None:
+                previous = db.execute('SELECT MAX(at) FROM push_tests WHERE uid=? AND scope=?', (uid, scope)).fetchone()[0]
+                if previous is not None and now - previous < 60:
+                    raise ErrorDominio('demasiados_intentos', 'Espera un minuto antes de enviar otra prueba.', http=429,
+                                       reintentar_en_s=max(1, 60 - (now - previous)))
+                targets = []
+                for sub in active:
+                    live = db.execute('SELECT enabled,platform,token FROM subscriptions WHERE uid=? AND scope=? AND device=?',
+                                      (uid, scope, sub['device'])).fetchone()
+                    if live and live['enabled'] and (live['platform'] == 'windows'
+                            or live['platform'] == 'android' and live['token'] is not None):
+                        targets.append((sub['device'], live['platform']))
+                if not targets:
+                    raise ErrorDominio('avisos_no_activados', 'Activa los avisos de ventas antes de enviar la prueba.', http=409,
+                        detalle={'targets': 0, 'platforms': {'android': 0, 'windows': 0}})
+                android = sum(platform == 'android' for _, platform in targets)
+                windows = sum(platform == 'windows' for _, platform in targets)
+                db.execute('INSERT INTO push_tests(uid,scope,request_id,at,android_targets,windows_targets) VALUES(?,?,?,?,?,?)',
+                           (uid, scope, request_id, now, android, windows))
+                payload = {'kind': 'test', 'titulo': 'PRUEBA · Corte',
+                    'texto': 'Esta es una notificación de prueba. No corresponde a una venta y no modifica tus cifras.',
+                    'ruta': '#/ventas', 'at': now, 'order_id': 'test:' + request_id, 'product_id': 'notification-test'}
+                for target, _ in targets:
+                    db.execute('INSERT OR IGNORE INTO events(uid,scope,device,order_id,product_id,at,payload) VALUES(?,?,?,?,?,?,?)',
+                        (uid, scope, target, payload['order_id'], payload['product_id'], now,
+                         json.dumps(payload, ensure_ascii=False, separators=(',', ':'))))
+        result = self._test_summary(uid, scope, request_id)
+        if result is None:
+            raise RuntimeError('Notification test was not persisted')
+        return result
 
     def events(self, uid: str, scope: str, device: str, after: str) -> dict[str, Any]:
         identity = self._identity(uid, scope, device)
@@ -214,8 +319,18 @@ class PushService:
                 or re.fullmatch(r'[0-9]{1,16}', v) is None or int(v) > 2**53 - 1 for v in ids)):
             raise _invalid()
         with self._db() as db:
-            db.executemany('UPDATE events SET acked=1 WHERE uid=? AND scope=? AND device=? AND id=?',
-                           [(*identity, int(eid)) for eid in ids])
+            for eid in dict.fromkeys(ids):
+                row = db.execute('SELECT order_id,product_id,payload,acked,at FROM events WHERE uid=? AND scope=? AND device=? AND id=?',
+                                 (*identity, int(eid))).fetchone()
+                if row is None or row['acked']:
+                    continue
+                if row['at'] <= int(self.clock()) - ALERT_TTL_SECONDS:
+                    db.execute("UPDATE events SET acked=1,state='expired' WHERE id=?", (int(eid),))
+                    continue
+                db.execute('UPDATE events SET acked=1 WHERE id=?', (int(eid),))
+                if row['product_id'] == 'notification-test' and json.loads(row['payload']).get('kind') == 'test':
+                    db.execute('UPDATE push_tests SET acknowledged=acknowledged+1 WHERE uid=? AND scope=? AND request_id=?',
+                               (uid, scope, row['order_id'].removeprefix('test:')))
             first = db.execute('SELECT MIN(id) FROM events WHERE uid=? AND scope=? AND device=? AND acked=0',
                                identity).fetchone()[0]
             cursor = db.execute('SELECT COALESCE(MAX(id),0) FROM events WHERE uid=? AND scope=? AND device=? '
@@ -346,6 +461,11 @@ class PushService:
                 else:
                     with self._db() as db:
                         db.execute("UPDATE events SET state='sent',attempts=attempts+1 WHERE id=? AND acked=0", (event['id'],))
+                        if payload.get('kind') == 'test':
+                            # This records provider acceptance, never device receipt or user visibility.
+                            db.execute('UPDATE push_tests SET provider_accepted=provider_accepted+1 '
+                                       'WHERE uid=? AND scope=? AND request_id=?',
+                                       (event['uid'], event['scope'], event['order_id'].removeprefix('test:')))
 
     def start(self) -> None:
         if self._thread is not None:
