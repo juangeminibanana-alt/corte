@@ -8,9 +8,9 @@
   partirse entre páginas) con `total_count` = líneas y montos como texto «$1,234.50», y renovación de la conexión.
   No verifica firmas: en demo las credenciales son ficticias.
   Rev. 4 (ficha completa de producto), con el MISMO formato que la API real: samples/labels (`label` con
-  sample_sku_list), target_collaborations/search (exige `shop_id`, paginado), open_collaborations/products/search
-  (`title_keywords` como lista o texto) y orders/trace/search (ms; con `trazas_sin_permiso` responde 105005 como hoy la
-  cuenta real). single_query trae además `sample_product` y `status`.
+  sample_sku_list), target_collaborations/search (exige `shop_id`, paginado) y open_collaborations/products/search
+  (`title_keywords` como lista o texto). single_query trae además `sample_product` y `status`. orders/trace/search ya
+  no se sirve: TikTok la retiró el 15/08/2026 y una llamada recibe el 404 de ruta desconocida.
 - `TransporteFixtures` (solo desarrollo): envuelve `spec/verificacion/fixtures_api.FakeTikTok` sobre
   research/datos-reales. Vuelve a firmar cada petición con el secreto de prueba del falso y le pone su access token,
   así cualquier bóveda de demo funciona; el perfil sale con la identidad de demostración (`creador_demo`), nunca la real.
@@ -42,10 +42,8 @@ P_VITRINA = '/affiliate_creator/202405/showcases/products'
 P_ETIQUETAS = '/affiliate_creator/202412/samples/labels'
 P_DIRIGIDAS = '/affiliate_creator/202405/target_collaborations/search'
 P_MARKETPLACE = '/affiliate_creator/202405/open_collaborations/products/search'
-P_TRAZAS = '/affiliate_creator/202505/orders/trace/search'
 P_REFRESH = '/api/v2/token/refresh'
 CON_FECHA_LIMITE = ('PENDING', 'ONGOING')
-CODIGO_SIN_PERMISO = 105005
 
 USUARIO_DEMO = 'creador_demo'
 OPEN_ID_DEMO = 'OPEN_ID_DEMO'
@@ -98,8 +96,9 @@ class DatosApi:
     # rev. 4 (ficha completa de producto)
     etiquetas: dict[str, dict[str, Any]] = field(default_factory=dict)        # product_id -> label de samples/labels
     dirigidas: dict[str, list[dict[str, Any]]] = field(default_factory=dict)  # shop_id -> target_collaborations
-    trazas: dict[str, list[str | None]] = field(default_factory=dict)         # order_id -> trace.type por SKU
-    trazas_sin_permiso: bool = False                                          # True: orders/trace/search -> 105005
+    # order_id -> trace.type por SKU. Nada lo sirve (orders/trace/search se retiró); los sintéticos lo siguen llenando
+    # para no mover la secuencia de su semilla ni ninguna cifra documentada de la demo.
+    trazas: dict[str, list[str | None]] = field(default_factory=dict)
 
 
 class TransporteApiFalsa:
@@ -137,8 +136,7 @@ class TransporteApiFalsa:
                  P_CUMPL: lambda: self._cumplimientos(body), P_DETALLE: lambda: self._detalle(body),
                  P_PRODUCTOS: lambda: self._productos(q), P_ORDENES: lambda: self._ordenes(q, body),
                  P_VITRINA: lambda: self._vitrina(q), P_ETIQUETAS: lambda: self._etiquetas(q),
-                 P_DIRIGIDAS: lambda: self._dirigidas(q, body), P_MARKETPLACE: lambda: self._marketplace(q, body),
-                 P_TRAZAS: lambda: self._trazas(q, body)}
+                 P_DIRIGIDAS: lambda: self._dirigidas(q, body), P_MARKETPLACE: lambda: self._marketplace(q, body)}
         manejador = rutas.get(u.path)
         if manejador is None:
             return _err(-10404, 'ruta desconocida (demo)', http=404)
@@ -285,34 +283,6 @@ class TransporteApiFalsa:
         puntaje.sort(key=lambda x: x[:3])
         return _ok({'products': [json.loads(json.dumps(x[3])) for x in puntaje[:size]], 'next_page_token': '',
                     'total_count': len(puntaje)})
-
-    def _trazas(self, q: Mapping[str, str], body: Json) -> tuple[int, Json]:
-        if self.datos.trazas_sin_permiso:
-            return _err(CODIGO_SIN_PERMISO, 'Access denied: this API requires a scope your app was not granted (demo)')
-        ge, lt = body.get('time_ge'), body.get('time_lt')
-        if not isinstance(ge, int) or not isinstance(lt, int):
-            return _err(-10001, 'time_ge y time_lt (ms) son obligatorios (demo)')
-        size = int(q.get('page_size') or 0)
-        if not 1 <= size <= 100:
-            return _err(-10003, 'page_size inválido (demo)')
-        sel = sorted((o for o in self.datos.ordenes if ge <= o['create_time'] * 1000 < lt),
-                     key=lambda o: (-o['create_time'], o['id']))
-        ini = int(q.get('page_token') or 0)
-        out = []
-        for o in sel[ini:ini + size]:
-            tipos = self.datos.trazas.get(o['id']) or []
-            skus = []
-            for k, s in enumerate(o['skus']):
-                x = {'id': s['id'], 'product_id': s['product_id'], 'price': s['price'], 'quantity': s['quantity'],
-                     'commission_rate': s['commission_rate'], 'content_type': s['content_type'],
-                     'content_id': s.get('content_id') or ''}
-                t = tipos[k] if k < len(tipos) else None
-                if t:
-                    x['trace'] = {'id': f'{o["id"][-6:]}{k}', 'type': t}
-                skus.append(x)
-            out.append({'id': int(o['id']), 'status': o['status'], 'create_time': o['create_time'], 'skus': skus})
-        sig = str(ini + size) if ini + size < len(sel) else ''
-        return _ok({'orders': out, 'next_page_token': sig, 'total_count': len(sel)})
 
 
 # ====================================================================== fixtures reales (solo desarrollo)

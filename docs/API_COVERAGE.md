@@ -62,7 +62,7 @@ Una lista vacía de SKU de muestra significa que esta consulta no aportó varian
 - El proveedor también documenta `addition.customized_main_images[]` en la vitrina. Corte no lo integra como una galería adicional; no se confirmó que explique un caso de fotos ausentes. Es un campo pendiente de aprovechamiento, no una API de reseñas ni una asociación foto–SKU.
 - Desde la representación `f1`, `/api/snapshot` incluye `extras.productos` con hasta 100 `ProductoExtendido` ya almacenados y representados en la copia. Prioriza muestras pendientes; no consulta TikTok ni descarga todo el catálogo para construir el snapshot.
 - **Solo las imágenes ya descargadas y versionadas** entran en `meta_imagenes` y `imagenes[]` para la precarga móvil. Las fotos diferidas conservan una ruta `?v=0`; necesitan conexión al solicitarse por primera vez. No se prometen todas las galerías disponibles sin conexión ni una precarga de 1.200 imágenes.
-- El ETag actual `W/"dv…-lr…-ir…-f3-YYYY-MM-DD"` distingue la representación y cambia en la medianoche mexicana aunque no haya ventas nuevas. La fecha corresponde a `generado_at` del propio cuerpo. `version_esquema` sigue siendo `1`; `img_rev` del cuerpo es autoritativo.
+- El ETag actual `W/"dv…-lr…-ir…-f4-YYYY-MM-DD"` distingue la representación y cambia en la medianoche mexicana aunque no haya ventas nuevas. La fecha corresponde a `generado_at` del propio cuerpo. `version_esquema` sigue siendo `1`; `img_rev` del cuerpo es autoritativo.
 
 Las portadas de video provienen de la autorización separada [TikTok Display API](https://developers.tiktok.com/docs/en/tiktok-api-v2-video-object). Esa conexión no concede permisos para variantes o reseñas de TikTok Shop. Una foto de producto nunca debe presentarse como portada del video.
 

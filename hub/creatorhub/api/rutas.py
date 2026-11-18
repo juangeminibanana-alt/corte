@@ -10,9 +10,9 @@
 Convenciones: éxito sin envoltorio; errores `ErrorRespuesta` (ErrorDominio.a_respuesta pasa por limpiar() y solo lleva
 `vigente` con `codigo='conflicto'`); un 500 nunca trae texto de la excepción, solo `detalle.ref`. JSON UTF-8, gzip si
 `Accept-Encoding: gzip` y el cuerpo pasa de 1 KB, `Cache-Control: no-store` salvo las lecturas compuestas, que llevan
-`ETag: W/"dv<N>-lr<M>-ir<K>-<hash>"` (el hash cubre la ruta, la query ordenada y la fecha local de hoy, porque hay
-campos como `dias_restantes` que cambian con el día) y responden `304` a `If-None-Match`. `GET /api/snapshot` lleva
-la forma `W/"dv<N>-lr<M>-ir<K>-f3-YYYY-MM-DD"`, con las versiones y fecha MX del propio cuerpo.
+`ETag: W/"dv<N>-lr<M>-ir<K>-<hash>"` (el hash cubre la ruta, la query ordenada, la fecha local de hoy, porque hay
+campos como `dias_restantes` que cambian con el día, y `REV_LECTURAS`) y responden `304` a `If-None-Match`.
+`GET /api/snapshot` lleva la forma `W/"dv<N>-lr<M>-ir<K>-f4-YYYY-MM-DD"`, con las versiones y fecha MX del propio cuerpo.
 La ruta llega SIN decodificar: se parte en segmentos y cada segmento se decodifica por separado (nunca se normaliza la
 ruta completa). Ya no existe `POST /local/activar` (C40).
 """
@@ -38,7 +38,8 @@ TIPO_JSON = 'application/json; charset=utf-8'
 GZIP_DESDE = 1024
 MAX_CUERPO = config.MAX_CUERPO_BYTES
 MAX_CAMPOS_QUERY = 64
-REV_SNAPSHOT = 'f3'               # Actualidad de ventas/pagos separada del período histórico del tablero.
+REV_SNAPSHOT = 'f4'               # f3: actualidad de ventas/pagos · f4: origen de ventas histórico, sin aviso de permiso.
+REV_LECTURAS = 'r6'               # Entra en la ETag de cada lectura compuesta: subirlo renueva las copias de los clientes.
 ModoLan = Literal['lectura', 'escritura', 'local']
 TipoEtag = Literal['lectura', 'snapshot'] | None
 
@@ -326,7 +327,7 @@ class DespachadorHub:
             return f'W/"{versiones}-{REV_SNAPSHOT}-{dia}"'
         canon = '&'.join(f'{k}={v}' for k, v in sorted(p.query.items()))
         hoy = comun.fecha_local(self.hub.reloj.ahora())
-        h = hashlib.sha256(f'{p.ruta}?{canon}|{hoy}'.encode('utf-8')).hexdigest()[:12]
+        h = hashlib.sha256(f'{p.ruta}?{canon}|{hoy}|{REV_LECTURAS}'.encode('utf-8')).hexdigest()[:12]
         return f'W/"{versiones}-{h}"'
 
     def _lectura_compuesta(self, r: Ruta, p: Peticion, gz: bool) -> RespuestaHttp:

@@ -20,6 +20,9 @@
  * VideoDetalleResponse.tendencia?, DashboardResponse.perfil_tiktok?, EstadoDisplay y las rutas LOCALES /api/display/*,
  * el evento 'display.cambio' y el callback GET /oauth/tiktok. PasoSync NO cambia: el paso «videos_tiktok» corre dentro
  * de 'videos'.
+ * rev. 6 (18/11/2026, Corte en la nube): SOLO agregados opcionales o tipos nuevos — orders/trace/search se retiró:
+ * OrigenVentas es un histórico cerrado con fuente?, pedidos?, desde_at? y hasta_at?, y origen_ventas_aviso siempre
+ * va en null; la ETag del snapshot pasa a '-f4-'.
  *
  * Fuente de verdad de los tipos que intercambian el hub (Python, Windows) y la interfaz
  * (React + TypeScript, compartida por Windows y Android). El frontend la importa tal cual:
@@ -758,10 +761,12 @@ export interface ProductoExtendido {
   /** Productos parecidos del marketplace por palabras del título (TTL 7 días). La relevancia la decide TikTok:
    *  rotular «parecidos por palabras del título». null si aún no se consulta. */
   parecidos: ParecidosProducto | null;
-  /** orders/trace/search: de dónde vino cada venta de este producto. null si no hay datos. */
+  /** rev. 6 · Histórico CERRADO de orders/trace/search, que TikTok retiró el 15/08/2026: lo que esa ruta llegó a
+   *  registrar de este producto, con su periodo (`desde_at`–`hasta_at`). Nunca se extrapola a ventas posteriores.
+   *  null si no hay histórico. */
   origen_ventas: OrigenVentas | null;
-  /** 'sin_permiso' = la app aún no tiene el permiso de orders/trace/search (código 105005) y no hay datos: mostrar la
-   *  nota discreta «Origen de cada venta: requiere un permiso extra en Partner Center». null en cualquier otro caso. */
+  /** rev. 6 · Siempre null: la ruta está retirada y no hay un permiso que pedir. Se conserva el tipo para que las
+   *  copias y los clientes anteriores sigan leyendo; 'sin_permiso' solo puede venir de una copia antigua. */
   origen_ventas_aviso: 'sin_permiso' | null;
 }
 
@@ -978,21 +983,31 @@ export interface ParecidosProducto {
   items: ProductoParecido[];
 }
 
-/** rev. 4 · Un conteo del origen de las ventas. `tipo` null = sin dato (o sin enlace compartido). */
+/** rev. 4 · Un conteo del origen de las ventas. `tipo` null = sin dato (o, en el enlace, la ruta no reportó traza:
+ *  no prueba que la venta no viniera de un enlace). */
 export interface CuentaOrigen {
   /** content_type ('VIDEO', 'LIVE', 'SHOP', 'PRE_LIVE', 'PROMOTION_PAGE', 'LINKSHARE') o trace.type ('GENERAL',
    *  'SPECIFIC'), tal cual. */
   tipo: string | null;
-  /** 'Video' · 'En vivo' · 'Tienda' · 'Enlace general' · 'Sin enlace compartido' · … */
+  /** 'Video' · 'En vivo' · 'Tienda' · 'Enlace general' · 'Sin enlace reportado' · … (rev. 6; antes 'Sin enlace
+   *  compartido'). */
   texto: string;
   lineas: number;
 }
 
-/** rev. 4 · Origen de cada venta (orders/trace/search, pide un permiso extra en Partner Center). */
+/** rev. 4 · Origen de cada venta (orders/trace/search). rev. 6 · Esa ruta se retiró el 15/08/2026: es un histórico
+ *  cerrado. `lineas` cuenta líneas SKU, no pedidos. */
 export interface OrigenVentas {
   lineas: number;
   por_tipo_contenido: CuentaOrigen[];
   por_tipo_enlace: CuentaOrigen[];
+  /** rev. 6 · Procedencia del histórico: 'orders_trace_search_202505_retirada'. */
+  fuente?: string;
+  /** rev. 6 · Pedidos distintos que cubre el histórico. */
+  pedidos?: number;
+  /** rev. 6 · Periodo que cubre el histórico (creación de los pedidos). */
+  desde_at?: EpochS;
+  hasta_at?: EpochS;
 }
 
 export interface LineaVista {
@@ -1423,7 +1438,7 @@ export interface OpsResultado {
 export interface OpsResponse { resultados: OpsResultado[]; local_rev: number }
 
 // ============================================================================ copia sin conexión (Android)
-/** GET /api/snapshot — ETag W/"dv<data_version>-lr<local_rev>-ir<img_rev>-f3-YYYY-MM-DD"; If-None-Match -> 304; gzip.
+/** GET /api/snapshot — ETag W/"dv<data_version>-lr<local_rev>-ir<img_rev>-f4-YYYY-MM-DD"; If-None-Match -> 304; gzip.
  *  f3 incluye actualidad; la fecha MX es la de generado_at y evita conservar las ventas de ayer como hoy.
  *  img_rev del cuerpo es autoritativo. */
 export interface SnapshotResponse {

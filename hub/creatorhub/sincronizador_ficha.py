@@ -20,10 +20,10 @@ cuenta), que se propagan como en cualquier paso.
   4. parecidos    POST 202405/open_collaborations/products/search (query page_size=20; body {title_keywords: [palabras]}
                   y, si falla, como texto): «parecidos por palabras del título» (la relevancia la decide TikTok). TTL 7 días
                   (24 h si falló), máx. 20 productos por sync y 20 parecidos por producto. Sus fotos van como 'm:<id>'.
-  5. trazas       POST 202505/orders/trace/search (ms, time_type CREATE_TIME, ventanas de 7 días: 13 en completa, 5 en
-                  incremental) → origen de cada venta (content_type, trace.type). HOY la app no tiene el permiso
-                  (105005): a la PRIMERA respuesta así se marca «sin permiso» (sync_cursores 'trazas.estado'), no cuenta
-                  como error y no se vuelve a intentar hasta la siguiente sync.
+La antigua fase 5 «trazas» (POST 202505/orders/trace/search) se quitó el 18/11/2026: TikTok retiró esa ruta para todos
+los mercados el 15/08/2026 y llamarla solo producía errores en cada sync. `orden_trazas` queda como histórico cerrado:
+nada la escribe ni la reescribe, y solo la purga de 400 días y los borrados explícitos la vacían
+(docs/ORDER_TRACE_RETIREMENT.md).
 
 Tres fallas seguidas (que no sean «sin permiso») detienen la fase en esa sync: no se insiste contra un endpoint caído.
 Nunca hay red con una transacción abierta (03 §2.6 invariante 1) y las fotos se encolan después de confirmar.
@@ -46,10 +46,8 @@ P_DETALLE = '/affiliate_creator/202412/sample_applications/single_query'
 P_ETIQUETAS = '/affiliate_creator/202412/samples/labels'
 P_DIRIGIDAS = '/affiliate_creator/202405/target_collaborations/search'
 P_MARKETPLACE = '/affiliate_creator/202405/open_collaborations/products/search'
-P_TRAZAS = '/affiliate_creator/202505/orders/trace/search'
 
 DIA_S = 86400
-SEMANA_MS = 7 * DIA_S * 1000
 TTL_ETIQUETAS_S = 72 * 3600
 TTL_DIRIGIDAS_S = 7 * DIA_S
 TTL_PARECIDOS_S = 7 * DIA_S
@@ -60,23 +58,19 @@ MAX_PRODUCTOS_PARECIDOS = 20
 MAX_PARECIDOS = 20
 MAX_RECUPERADAS = 30
 MAX_INTENTOS_RECUPERADA = 5
-VENTANAS_TRAZAS_COMPLETA = 13
-VENTANAS_TRAZAS_INCREMENTAL = 5
 MAX_PAGINAS_DIRIGIDAS = 10
-MAX_PAGINAS_TRAZAS = 50
 FALLAS_SEGUIDAS_MAX = 3
 CODIGOS_SIN_PERMISO: frozenset[Any] = frozenset({105005, 16501011})
 TIPOS_SOLICITUD: tuple[str, ...] = ('FREE_SAMPLE', 'SAMPLE_COUPON')
 RE_ID = re.compile(r'^[0-9]{1,25}$')
 MAX_GALERIA = 12
 
-ORDEN_FASES: tuple[str, ...] = ('recuperadas', 'etiquetas', 'dirigidas', 'parecidos', 'trazas')
+ORDEN_FASES: tuple[str, ...] = ('recuperadas', 'etiquetas', 'dirigidas', 'parecidos')
 TEXTOS_FASES: dict[str, str] = {
     'recuperadas': 'Completando datos de tus muestras…',
     'etiquetas': 'Revisando si puedes pedir muestra…',
     'dirigidas': 'Revisando planes de comisión de tus tiendas…',
     'parecidos': 'Buscando productos parecidos…',
-    'trazas': 'Revisando de dónde vienen tus ventas…',
 }
 
 _VACIAS = frozenset({'para', 'con', 'de', 'del', 'la', 'el', 'los', 'las', 'y', 'en', 'por', 'una', 'un', 'ideal', 'uso',
@@ -512,81 +506,8 @@ class FasesFicha:
             r.cambiados += int(cambio)
             r.exito()
 
-    # ------------------------------------------------------------------ 5. origen de cada venta (orders/trace/search)
-    def _bajar_trazas(self, ge_ms: int, lt_ms: int) -> dict[str, dict[str, Any]]:
-        por_orden: dict[str, dict[str, Any]] = {}
-        token, vistos = None, set()
-        for _ in range(MAX_PAGINAS_TRAZAS):
-            q: dict[str, Any] = {'page_size': 100}
-            if token:
-                q['page_token'] = token
-            d = self._llamar('POST', P_TRAZAS, q, {'time_ge': ge_ms, 'time_lt': lt_ms, 'time_type': 'CREATE_TIME'})
-            ordenes = [o for o in (d.get('orders') or []) if isinstance(o, dict) and o.get('id') not in (None, '')]
-            nuevas = [o for o in ordenes if str(o['id']) not in por_orden]
-            for o in nuevas:
-                por_orden[str(o['id'])] = o
-            token = d.get('next_page_token') or ''
-            if not ordenes or not nuevas or not token or token in vistos:
-                break
-            vistos.add(token)
-        return por_orden
-
-    def _fase_trazas(self, r: ResultadoFase) -> None:
-        n = VENTANAS_TRAZAS_COMPLETA if self.tipo == 'completa' else VENTANAS_TRAZAS_INCREMENTAL
-        fin = (int(self.ahora) + 1) * 1000
-        for i in range(n):
-            ge, lt = fin - (i + 1) * SEMANA_MS, fin - i * SEMANA_MS
-            try:
-                por_orden = self._bajar_trazas(ge, lt)
-            except ErrorApi as e:
-                if self._error_de_control(e):
-                    raise
-                if e.codigo in CODIGOS_SIN_PERMISO:
-                    # Una sola llamada por sync: se marca «sin permiso», no cuenta como error y no se reintenta.
-                    r.sin_permiso(e)
-                    self._estado_trazas('sin_permiso')
-                    return
-                r.falla(e)
-                r.estado = 'error' if r.hechos == 0 else 'parcial'
-                self._estado_trazas('error')
-                return
-            n_v = c_v = 0
-            with self._tx() as db:
-                for oid, o in por_orden.items():
-                    creada = int(o.get('create_time') or 0) or ge // 1000
-                    nueva = []
-                    for k, s in enumerate(o.get('skus') or []):
-                        if not isinstance(s, dict):
-                            continue
-                        nueva.append((k, str(s['id']) if s.get('id') else None,
-                                      str(s['product_id']) if s.get('product_id') else None,
-                                      norm_estado(s.get('content_type')), norm_estado((s.get('trace') or {}).get('type')),
-                                      creada))
-                    previa = [tuple(x) for x in db.execute(
-                        'SELECT linea_n, sku_id, product_id, tipo_contenido, traza_tipo, creada_at FROM orden_trazas '
-                        'WHERE order_id=? ORDER BY linea_n', (oid,))]
-                    if previa == nueva:
-                        continue
-                    n_v += not previa
-                    c_v += bool(previa)
-                    db.execute('DELETE FROM orden_trazas WHERE order_id=?', (oid,))
-                    db.executemany("""INSERT INTO orden_trazas(order_id, linea_n, sku_id, product_id, tipo_contenido,
-                                      traza_tipo, creada_at, actualizado_at) VALUES (?,?,?,?,?,?,?,?)""",
-                                   [(oid, *x, self.ahora) for x in nueva])
-                if n_v + c_v:
-                    self.alm.marcar_data_version(db)
-            r.nuevos += n_v
-            r.cambiados += c_v
-            r.exito()
-        self._estado_trazas('ok')
-
-    def _estado_trazas(self, estado: str) -> None:
-        """sync_cursores 'trazas.estado' = 'ok' | 'sin_permiso' | 'error' (la ficha muestra la nota del permiso)."""
-        with self._tx() as db:
-            self._poner_cursor(db, 'trazas.estado', estado, self.ahora)
-
 
 __all__ = ['FasesFicha', 'ResultadoFase', 'ORDEN_FASES', 'TEXTOS_FASES', 'palabras_clave', 'skus_muestra', 'main_order',
-           'P_ETIQUETAS', 'P_DIRIGIDAS', 'P_MARKETPLACE', 'P_TRAZAS', 'TTL_ETIQUETAS_S', 'TTL_PARECIDOS_S',
+           'P_ETIQUETAS', 'P_DIRIGIDAS', 'P_MARKETPLACE', 'TTL_ETIQUETAS_S', 'TTL_PARECIDOS_S',
            'TTL_DIRIGIDAS_S', 'MAX_ETIQUETAS', 'MAX_PRODUCTOS_PARECIDOS', 'MAX_PARECIDOS', 'MAX_GALERIA',
            'CODIGOS_SIN_PERMISO']

@@ -14,6 +14,8 @@ de cada venta), armado en la MISMA transacción de lectura que el resto de la fi
 Rev. 5 (15/11): métricas de la Display API (analitica/display.py) — FilaVideo y VideoDeProducto agregan vistas, likes,
 comentarios, compartidos, portada '/img/v/…' y conversión por 1,000 vistas; el detalle de video, `tendencia`; el tablero,
 `perfil_tiktok`. Todo opcional: ausente si nunca se trajo nada de la Display API, null si el video no está en ella.
+Rev. 6 (18/11): orders/trace/search se retiró; `origen_ventas` es un histórico cerrado con procedencia y periodo, y
+`origen_ventas_aviso` siempre va en null.
 
 Todo se carga de forma perezosa: una lectura simple (p. ej. /api/ordenes) no toca las vistas de muestras.
 """
@@ -57,6 +59,7 @@ TEXTO_TIPO_CONTENIDO: dict[str, str] = {
     'VIDEO': 'Video', 'LIVE': 'En vivo', 'SHOP': 'Tienda', 'PRE_LIVE': 'Antes del en vivo',
     'PROMOTION_PAGE': 'Página de promoción', 'LINKSHARE': 'Enlace compartido'}
 TEXTO_TIPO_ENLACE: dict[str, str] = {'GENERAL': 'Enlace general', 'SPECIFIC': 'Enlace para un publicador'}
+FUENTE_ORIGEN_HISTORICO = 'orders_trace_search_202505_retirada'   # OrigenVentas.fuente (contrato rev. 6)
 
 
 def texto_elegibilidad(puede: bool | None, estado: str | None, limite: bool | None) -> str:
@@ -1103,15 +1106,14 @@ class Vista:
         origen = self.origen_ventas(pid)
         from ..productos_evidencia import leer_evidencia
         evidencia = leer_evidencia(self.conn, self.img, pid)
-        estado_trazas = self.fila("SELECT valor FROM sync_cursores WHERE clave = 'trazas.estado'")
+        # orders/trace/search se retiró (15/08/2026): ya no hay un permiso pendiente que avisar. El aviso conserva su
+        # tipo por compatibilidad y siempre va en null; `origen_ventas` solo lee el histórico cerrado de orden_trazas.
         return {'galeria': self.galeria_vitrina(pid), 'vitrina': self.vitrina_extendida(pid),
                 'tabla_tallas': evidencia['tabla_tallas'], 'resenas': evidencia['resenas'],
                 'evidencia_rev': evidencia['rev'],
                 'muestra': self.elegibilidad_muestra(pid), 'solicitudes_recuperadas': self.solicitudes_recuperadas(pid),
                 'planes_dirigidos': self.planes_dirigidos(pid), 'comision_real': self.comision_real(pid),
-                'parecidos': self.parecidos(pid), 'origen_ventas': origen,
-                'origen_ventas_aviso': ('sin_permiso' if origen is None and estado_trazas is not None
-                                        and estado_trazas['valor'] == 'sin_permiso' else None)}
+                'parecidos': self.parecidos(pid), 'origen_ventas': origen, 'origen_ventas_aviso': None}
 
     def galeria_vitrina(self, pid: str) -> list[str]:
         v = self.fila('SELECT galeria_json FROM vitrina WHERE product_id = ?', (pid,))
@@ -1247,10 +1249,15 @@ class Vista:
         return {'palabras': palabras, 'consultado_at': c['consultado_at'], 'items': items}
 
     def origen_ventas(self, pid: str) -> Json | None:
+        """Histórico CERRADO de orders/trace/search (retirada el 15/08/2026): conteos por línea SKU de lo que esa ruta
+        llegó a registrar, con su procedencia y periodo. Nunca se extrapola a ventas posteriores. Una línea sin `trace`
+        es «sin enlace reportado», no una prueba de que la venta no viniera de un enlace."""
         filas = self.filas('SELECT tipo_contenido, traza_tipo, COUNT(*) AS n FROM orden_trazas WHERE product_id = ? '
                            'GROUP BY tipo_contenido, traza_tipo', (pid,))
         if not filas:
             return None
+        periodo = self.fila('SELECT MIN(creada_at) AS desde, MAX(creada_at) AS hasta, COUNT(DISTINCT order_id) AS pedidos '
+                            'FROM orden_trazas WHERE product_id = ?', (pid,))
         contenido: dict[str | None, int] = collections.Counter()
         enlace: dict[str | None, int] = collections.Counter()
         for f in filas:
@@ -1262,7 +1269,9 @@ class Vista:
                     for t, n in sorted(cuenta.items(), key=lambda kv: (-kv[1], kv[0] or '~'))]
         return {'lineas': sum(contenido.values()),
                 'por_tipo_contenido': lista(contenido, TEXTO_TIPO_CONTENIDO, 'Sin dato'),
-                'por_tipo_enlace': lista(enlace, TEXTO_TIPO_ENLACE, 'Sin enlace compartido')}
+                'por_tipo_enlace': lista(enlace, TEXTO_TIPO_ENLACE, 'Sin enlace reportado'),
+                'fuente': FUENTE_ORIGEN_HISTORICO, 'pedidos': int(periodo['pedidos']),
+                'desde_at': periodo['desde'], 'hasta_at': periodo['hasta']}
 
     def dashboard(self, clave: str, conexion: Mapping[str, Any] | None) -> Json:
         per = F.resolver_periodo(clave, self.hoy, self.primera_fecha)
