@@ -35,9 +35,9 @@ Las rutas de lectura de Corte consultan SQLite. Las llamadas a TikTok de esta ta
 | Ficha → variantes de muestra | [GET `/affiliate_creator/202412/samples/labels`](https://partner.tiktokshop.com/docv2/page/check-creator-sample-eligibility-202412) | Elegibilidad y `label.sample_product.sample_sku_list[]` | No garantiza devolver todos los SKU comerciales; puede responder `UNKNOWN`, `can_apply=false` y lista vacía. No incluye una foto por color. |
 | Ficha → planes dirigidos | [POST `/affiliate_creator/202405/target_collaborations/search`](https://partner.tiktokshop.com/docv2/page/search-creator-target-collaborations-202405) | Planes, estados y comisiones por producto | Requiere la tienda correspondiente; no completa variantes o reseñas. |
 | `/api/ordenes`, ventas de producto/video/tienda | [POST `/affiliate_creator/202410/orders/search`](https://partner.tiktokshop.com/docv2/page/search-creator-affiliate-orders-202410) | Líneas, importes, comisiones y atribución disponible | Las ventas de una variante no enumeran las variantes que no se vendieron. |
-| Ficha → origen de ventas | [POST `/affiliate_creator/202505/orders/trace/search`](https://partner.tiktokshop.com/docv2/page/search-affiliate-orders-by-creator-202505) | Trazas y origen | Integrado con manejo explícito de errores de permiso. No inferir el permiso actual desde notas antiguas del repositorio. |
+| Ficha → origen de ventas (histórico) | [POST `/affiliate_creator/202505/orders/trace/search`](https://partner.tiktokshop.com/docv2/page/search-affiliate-orders-by-creator-202505) | Trazas y origen guardados en `orden_trazas` | **Retirada el 15/08/2026** ([aviso](https://partner.tiktokshop.com/docv2/page/si5r1bv3)). El código publicado todavía la llama en la última fase de la ficha. Un 105005 no es un permiso pendiente y reautorizar no la recupera. Consumidores y plan para conservar el histórico: [ORDER_TRACE_RETIREMENT.md](ORDER_TRACE_RETIREMENT.md). |
 
-Son **11 operaciones de lectura conectadas**. La fase de etiquetas tiene TTL de 72 horas y un máximo de 60 productos por sincronización; las galerías se obtienen al sincronizar la vitrina. Una fase omitida por TTL no demuestra un permiso denegado.
+Son **11 operaciones de lectura conectadas**, una de ellas ya retirada por TikTok. La fase de etiquetas tiene TTL de 72 horas y un máximo de 60 productos por sincronización; las galerías se obtienen al sincronizar la vitrina. Una fase omitida por TTL no demuestra un permiso denegado.
 
 ### Forma de las variantes
 
@@ -65,6 +65,8 @@ Una lista vacía de SKU de muestra significa que esta consulta no aportó varian
 - El ETag actual `W/"dv…-lr…-ir…-f3-YYYY-MM-DD"` distingue la representación y cambia en la medianoche mexicana aunque no haya ventas nuevas. La fecha corresponde a `generado_at` del propio cuerpo. `version_esquema` sigue siendo `1`; `img_rev` del cuerpo es autoritativo.
 
 Las portadas de video provienen de la autorización separada [TikTok Display API](https://developers.tiktok.com/docs/en/tiktok-api-v2-video-object). Esa conexión no concede permisos para variantes o reseñas de TikTok Shop. Una foto de producto nunca debe presentarse como portada del video.
+
+El cliente Display también implementa [Query Videos](https://developers.tiktok.com/docs/en/tiktok-api-v2-video-query) (`POST /v2/video/query/`, scope `video.list`, el mismo de `video/list`): de 1 a 20 videos propios por ID, siempre en texto, en una sola llamada. Todavía no lo usa ninguna ruta, pantalla ni paso de sincronización. TikTok no documenta qué ocurre con un ID ajeno, privado o borrado: se espera que no aparezca en la respuesta, y esa ausencia no prueba que el video se haya borrado o vuelto privado. Falta comprobarlo con la autorización real.
 
 ## Las otras 15 operaciones del catálogo Creator
 
