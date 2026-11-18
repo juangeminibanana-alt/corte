@@ -1328,11 +1328,12 @@ class Vista:
             return None
         return shop == propia
 
-    def _catalogo_items(self, incluir_historial: bool) -> tuple[list[Json], Json | None]:
+    def _catalogo_items(self, incluir_historial: bool, solo: str | None = None) -> tuple[list[Json], Json | None]:
         """VideoCatalogo de cada video PUBLICADO (Display API) o CON VENTAS, unidos por ID exacto (video_id de la
         Display API == content_id de las líneas VIDEO). Los videos sin ventas solo entran si la cuenta de la Display
         API es la del creador; con ventas entran siempre. Nunca se inventa una cifra: lo que no se sabe va en null y
-        un video sin pedidos lleva `ventas: null`, no ceros. -> (items sin ordenar, bloque `display` | None)."""
+        un video sin pedidos lleva `ventas: null`, no ceros. `solo`: arma únicamente ese ID (detalle).
+        -> (items sin ordenar, bloque `display` | None)."""
         d = self.display
         vendidos = {f['content_id']: f for f in self.videos_todos(None, None)}
         organicos: Mapping[str, Json] = {}
@@ -1346,12 +1347,14 @@ class Vista:
             if misma is True:
                 organicos = d.videos
                 if incluir_historial:
-                    historial = display_api.fotos_sin_video(self.conn)
+                    historial = display_api.fotos_sin_video(self.conn, solo)
         vinculadas: dict[str, list[str]] = collections.defaultdict(list)
         for m in self.M:
             if m['plan_content_id']:
                 vinculadas[m['plan_content_id']].append(m['application_id'])
         ids = list(dict.fromkeys([*vendidos, *organicos, *historial]))
+        if solo is not None:
+            ids = [solo] if solo in ids else []
         self.img.cargar(f'v:{cid}' for cid in ids)
         items: list[Json] = []
         for cid in ids:
@@ -1409,7 +1412,7 @@ class Vista:
     def video_catalogo_detalle(self, cid: str) -> Json:
         """VideoCatalogoDetalleResponse (rev. 6): sirve también para videos sin ventas y para los que solo conservan
         historial. `ventas` = el detalle de ventas de siempre (sin `tendencia`) o null."""
-        items, _ = self._catalogo_items(incluir_historial=True)
+        items, _ = self._catalogo_items(incluir_historial=True, solo=cid)
         item = next((i for i in items if i['content_id'] == cid), None)
         if item is None:
             raise F.no_encontrado('No encontramos ese video.', {'recurso': 'video'})

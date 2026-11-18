@@ -102,16 +102,19 @@ def ultima_sync_at(conn: sqlite3.Connection) -> int | None:
     return at if isinstance(at, int) and not isinstance(at, bool) and at > 0 else None
 
 
-def fotos_sin_video(conn: sqlite3.Connection) -> dict[str, Json]:
+def fotos_sin_video(conn: sqlite3.Connection, solo: str | None = None) -> dict[str, Json]:
     """Videos que ya no están en videos_tiktok (dejaron de ser públicos tras un listado completo) pero conservan
-    historial diario: su foto más reciente {fecha, vistas, likes, comentarios, compartidos, actualizado_at}."""
+    historial diario: su foto más reciente {fecha, vistas, likes, comentarios, compartidos, actualizado_at}.
+    `solo`: limita la búsqueda a un ID (el detalle no recorre todo el historial)."""
+    filtro, params = ('AND video_id = ?', (solo,)) if solo is not None else ('', ())
     try:
-        filas = conn.execute("""SELECT d.video_id, d.fecha, d.vistas, d.likes, d.comentarios, d.compartidos,
-                                       d.actualizado_at
-                                FROM videos_tiktok_dias d
-                                WHERE d.video_id NOT IN (SELECT video_id FROM videos_tiktok)
-                                  AND d.fecha = (SELECT MAX(fecha) FROM videos_tiktok_dias x WHERE x.video_id = d.video_id)
-                             """).fetchall()
+        filas = conn.execute(f"""SELECT d.video_id, d.fecha, d.vistas, d.likes, d.comentarios, d.compartidos,
+                                        d.actualizado_at
+                                 FROM videos_tiktok_dias d
+                                 JOIN (SELECT video_id, MAX(fecha) AS fecha FROM videos_tiktok_dias
+                                       WHERE video_id NOT IN (SELECT video_id FROM videos_tiktok) {filtro}
+                                       GROUP BY video_id) m ON m.video_id = d.video_id AND m.fecha = d.fecha""",
+                             params).fetchall()
     except sqlite3.OperationalError:
         return {}
     return {str(f[0]): {'fecha': f[1], 'vistas': f[2], 'likes': f[3], 'comentarios': f[4], 'compartidos': f[5],
