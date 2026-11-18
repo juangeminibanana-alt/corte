@@ -41,10 +41,16 @@ function load(file, mock) {
   return context.exports;
 }
 
+// fetchCorte real en el navegador: así las aserciones de peticiones siguen viendo lo que recibe fetch.
+const servicio = load('src/nube/servicio.ts', (id) => {
+  if (id === '@/plataforma') return { infoPlataforma: () => ({ plataforma: 'navegador' }) };
+  if (id === '../datos/transporte') return { obtenerTransporte: async () => assert.fail('El navegador no usa el transporte nativo.') };
+  if (id === '../datos/errores') return { ErrorHub };
+  throw new Error('Dependencia de prueba inesperada.');
+});
 const helper = load('src/pantallas/ajustes/credencialesTikTokNube.ts', (id) => {
   if (id === '../../nube/entorno') return env;
-  // Fuera de Android, fetchCorte (nube/servicio) es fetch tal cual: se registran las mismas peticiones.
-  if (id === '../../nube/servicio') return { fetchCorte: (url, options) => { requests.push({ url, options }); return fetcher(url, options); } };
+  if (id === '../../nube/servicio') return servicio;
   throw new Error('Dependencia de prueba inesperada.');
 });
 const CampoTexto = load('src/componentes/CampoTexto.tsx', (id) => id === 'react' ? React
@@ -210,9 +216,9 @@ try {
   cleanup();
   console.log('PASS: pareja/importación segura, renovación sin duplicados, refresco de consultas, reautorización 200, aviso transitorio y estado padre sin falsa conexión.');
 } catch (error) {
-  // Un error lanzado dentro del vm (otro realm) no es `instanceof Error` de aquí: se lee su mensaje igual.
-  const mensaje = error !== null && typeof error === 'object' && typeof error.message === 'string' ? error.message : '';
-  console.error(mensaje || 'Falló la prueba de conexión nube.');
+  // Lo que lanza el código cargado con vm es de otro realm (no es `instanceof Error` aquí) y act() de React puede
+  // agruparlo en un AggregateError: se imprime el stack de cada error igualmente.
+  for (const e of [error, ...(Array.isArray(error?.errors) ? error.errors : [])]) console.error(e?.stack ?? e?.message ?? `Falló la prueba de conexión nube: ${String(e)}`);
   process.exitCode = 1;
 } finally {
   cleanup();
