@@ -25,7 +25,8 @@ let fetcher, expired = 0, credentialReads = 0, sessionReads = 0;
 let credentials = { app_key: '', app_secret_configurado: false, tokens_configurados: false };
 const consulta = { get datos() { return credentials; }, cargando: false, error: null, refrescar: async () => { credentialReads++; } };
 let session = { datos: { conexion: { estado: 'sin_autorizar', aviso: null }, cuenta: null }, cargando: false, error: null, refrescar: async () => { sessionReads++; } };
-const env = { abrirAutorizacionNube: (url) => links.push(url), expirarSesionNube: () => expired++ };
+// origenNube: en la web (no nativa) es window.location.origin, como en nube/entorno.ts.
+const env = { abrirAutorizacionNube: (url) => links.push(url), expirarSesionNube: () => expired++, origenNube: () => window.location.origin };
 const hub = { authLink: async (open) => { links.push(open); return { url: 'https://shop.tiktok.com/alliance/creator/auth?state=qa' }; },
   authCanjear: async () => {}, authRefrescar: async () => ({ conexion: { estado: 'conectada', aviso: null, scopes_faltantes: [] } }), sincronizar: async () => {}, authDesconectar: async () => {} };
 class ErrorHub extends Error {}
@@ -42,6 +43,8 @@ function load(file, mock) {
 
 const helper = load('src/pantallas/ajustes/credencialesTikTokNube.ts', (id) => {
   if (id === '../../nube/entorno') return env;
+  // Fuera de Android, fetchCorte (nube/servicio) es fetch tal cual: se registran las mismas peticiones.
+  if (id === '../../nube/servicio') return { fetchCorte: (url, options) => { requests.push({ url, options }); return fetcher(url, options); } };
   throw new Error('Dependencia de prueba inesperada.');
 });
 const CampoTexto = load('src/componentes/CampoTexto.tsx', (id) => id === 'react' ? React
@@ -207,7 +210,9 @@ try {
   cleanup();
   console.log('PASS: pareja/importación segura, renovación sin duplicados, refresco de consultas, reautorización 200, aviso transitorio y estado padre sin falsa conexión.');
 } catch (error) {
-  console.error(error instanceof Error ? error.message : 'Falló la prueba de conexión nube.');
+  // Un error lanzado dentro del vm (otro realm) no es `instanceof Error` de aquí: se lee su mensaje igual.
+  const mensaje = error !== null && typeof error === 'object' && typeof error.message === 'string' ? error.message : '';
+  console.error(mensaje || 'Falló la prueba de conexión nube.');
   process.exitCode = 1;
 } finally {
   cleanup();
