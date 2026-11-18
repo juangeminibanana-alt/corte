@@ -9,6 +9,7 @@ Historial: 400 días. Nunca se guarda una respuesta cruda ni el avatar (URL firm
 from __future__ import annotations
 
 import datetime as dt
+import json
 import re
 import sqlite3
 import urllib.parse
@@ -93,16 +94,26 @@ def normalizar_usuario(u: Mapping[str, Any]) -> dict[str, Any]:
 
 _CAMPOS_PERFIL = ('open_id', 'union_id', 'username', 'nombre', 'bio', 'enlace_perfil', 'verificada', 'seguidores',
                   'siguiendo', 'likes_total', 'videos_total')
+_IDENTIDAD_PERFIL = ('open_id', 'union_id', 'username')
 _CIFRAS_PERFIL = ('seguidores', 'siguiendo', 'likes_total', 'videos_total')
 _CAMPOS_VIDEO = ('titulo', 'descripcion', 'duracion_s', 'creado_at', 'share_url', 'embed_link', 'vistas', 'likes',
                  'comentarios', 'compartidos')
 _CIFRAS_VIDEO = ('vistas', 'likes', 'comentarios', 'compartidos')
 
 
-def guardar_perfil(db: sqlite3.Connection, perfil: Mapping[str, Any], ahora: int) -> bool:
-    """Upsert de perfil_tiktok + foto del día en perfil_tiktok_dias. True si algo cambió (para data_version)."""
+def guardar_perfil(db: sqlite3.Connection, perfil: Mapping[str, Any], ahora: int,
+                   conservar_identidad: bool = False) -> bool:
+    """Upsert de perfil_tiktok + foto del día en perfil_tiktok_dias. True si algo cambió (para data_version).
+
+    `conservar_identidad` (rev. 6): ya se decidió que es la MISMA cuenta de lo guardado. Una respuesta sin open_id,
+    union_id o nombre (sin el permiso de perfil, o vacía) no borra los guardados: son la prueba de que los datos son del
+    creador. Una foto del día con todas las cifras desconocidas no reemplaza a una real."""
     p = {k: perfil.get(k) for k in _CAMPOS_PERFIL}
     previo = db.execute(f'SELECT {", ".join(_CAMPOS_PERFIL)} FROM perfil_tiktok WHERE id = 1').fetchone()
+    if conservar_identidad and previo is not None:
+        for k in _IDENTIDAD_PERFIL:
+            if p[k] is None:
+                p[k] = previo[_CAMPOS_PERFIL.index(k)]
     cambio = previo is None or tuple(previo) != tuple(p[k] for k in _CAMPOS_PERFIL)
     if cambio:
         db.execute(f"""INSERT INTO perfil_tiktok(id, {', '.join(_CAMPOS_PERFIL)}, actualizado_at)
@@ -111,6 +122,8 @@ def guardar_perfil(db: sqlite3.Connection, perfil: Mapping[str, Any], ahora: int
                        actualizado_at=excluded.actualizado_at""", (*[p[k] for k in _CAMPOS_PERFIL], ahora))
     hoy = fecha_mx(ahora)
     cifras = tuple(p[k] for k in _CIFRAS_PERFIL)
+    if all(c is None for c in cifras):
+        return cambio                                # nada que fotografiar: nunca se pisa una foto real con nulos
     dia = db.execute('SELECT seguidores, siguiendo, likes_total, videos_total FROM perfil_tiktok_dias WHERE fecha = ?',
                      (hoy,)).fetchone()
     if dia is None or tuple(dia) != cifras:
@@ -190,8 +203,37 @@ def borrar_todo(db: sqlite3.Connection) -> None:
 # cuenta, y nunca si se comprueba que es del creador de la tienda (entonces se rechaza la cuenta nueva).
 MSG_OTRA_CUENTA = ('Autorizaste una cuenta de TikTok que no es la de tu TikTok Shop. Tus métricas guardadas siguen '
                    'intactas: vuelve a conectar con la cuenta de tu tienda.')
+MSG_SIN_COMPROBAR = ('No pudimos comprobar que esta cuenta de TikTok sea la de tus métricas guardadas, así que no se '
+                     'borró ni se mezcló nada. Conéctala con la app que usaste antes o dando permiso a los datos de tu '
+                     'perfil; para empezar de cero, desconecta borrando los datos.')
 MAX_IDS_COMPROBAR = 20
 _RE_ID_CONSULTA = re.compile(r'[1-9][0-9]{0,19}')    # el formato que acepta video/query (cliente.validar_ids_video)
+# Instantes de las pasadas que empezaron desde el último cursor registrado (en curso o interrumpidas): sus videos sí
+# salieron, aunque el reloj se haya atrasado. borrar_todo los quita con el resto de 'display.%'.
+CLAVE_SIN_REGISTRAR = 'display.pasadas_sin_registrar'
+MAX_SIN_REGISTRAR = 50
+
+
+def pasadas_sin_registrar(db: sqlite3.Connection) -> list[int]:
+    """Instantes guardados en CLAVE_SIN_REGISTRAR ([] si no hay o no se pueden leer)."""
+    try:
+        r = db.execute('SELECT valor FROM sync_cursores WHERE clave = ?', (CLAVE_SIN_REGISTRAR,)).fetchone()
+        valores = json.loads(r[0]) if r is not None else []
+    except (sqlite3.OperationalError, ValueError, TypeError):
+        return []
+    if not isinstance(valores, list):
+        return []
+    return [v for v in valores if isinstance(v, int) and not isinstance(v, bool) and v > 0]
+
+
+def alguno_publico(db: sqlite3.Connection, ids: Iterable[str]) -> bool:
+    """¿Alguno de esos IDs seguía público en el último listado? Solo entonces un «no es mío» de video/query prueba
+    otra cuenta: TikTok no devuelve los videos privados o borrados ni a su dueño."""
+    lista = list(ids)
+    if not lista:
+        return False
+    return db.execute(f'SELECT 1 FROM videos_tiktok WHERE video_id IN ({",".join("?" * len(lista))}) LIMIT 1',
+                      lista).fetchone() is not None
 
 
 def hay_datos(db: sqlite3.Connection) -> bool:
@@ -264,6 +306,7 @@ def leer_perfil(db: sqlite3.Connection) -> dict[str, Any] | None:
 
 __all__ = ['usuario_normalizado', 'normalizar_video', 'normalizar_usuario', 'guardar_perfil', 'guardar_videos', 'quitar_no_vistos',
            'podar_historial', 'borrar_todo', 'hay_datos', 'usuario_de_la_tienda', 'datos_del_creador',
-           'comparar_cuenta', 'videos_para_comprobar', 'leer_perfil', 'fecha_mx', 'TABLAS_DISPLAY', 'CLAVE_ULTIMA_SYNC',
-           'MSG_OTRA_CUENTA', 'MAX_IDS_COMPROBAR',
+           'comparar_cuenta', 'videos_para_comprobar', 'alguno_publico', 'pasadas_sin_registrar', 'leer_perfil',
+           'fecha_mx', 'TABLAS_DISPLAY', 'CLAVE_ULTIMA_SYNC', 'CLAVE_SIN_REGISTRAR', 'MAX_SIN_REGISTRAR',
+           'MSG_OTRA_CUENTA', 'MSG_SIN_COMPROBAR', 'MAX_IDS_COMPROBAR',
            'DIAS_HISTORIAL']

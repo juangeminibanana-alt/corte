@@ -407,7 +407,9 @@ class ClienteDisplay:
         (`ErrorDisplay`). Si la bóveda conoce los scopes concedidos y falta video.list, responde permiso_faltante sin
         tocar la red (la misma regla que el paso de sync). Una sola llamada: cursor y has_more se ignoran. Un elemento
         sin ID, con un ID que no se pidió o repetido se descarta. La ausencia de un ID no prueba que el video se haya
-        borrado o vuelto privado: nunca se usa este resultado para quitar filas de videos_tiktok."""
+        borrado o vuelto privado: nunca se usa este resultado para quitar filas de videos_tiktok. Lo usa
+        ServicioDisplay.cuenta_de_lo_guardado: si devuelve algún video guardado, es la misma cuenta; una respuesta vacía
+        solo prueba otra cuenta si alguno de los IDs consultados seguía público en el último listado."""
         ids = validar_ids_video(video_ids)
         concedidos = set(self.boveda.leer().get('scopes') or [])
         if concedidos and 'video.list' not in concedidos:

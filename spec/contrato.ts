@@ -685,7 +685,8 @@ export interface VideoDetalleResponse {
  *  (video_id de la Display API == content_id de las líneas VIDEO). Nunca se inventa una cifra: lo que no se sabe va
  *  en null y un video sin pedidos lleva `ventas: null` (no ceros). Los videos sin ventas solo aparecen si la cuenta de
  *  la Display API es la del creador de TikTok Shop (`display.misma_cuenta`). Al conectar otra cuenta, lo guardado se
- *  borra solo si se comprueba que es de otra cuenta; si es del creador, se rechaza la cuenta nueva y no se toca nada.
+ *  borra solo si se comprueba que es de otra cuenta y la nueva es la de la tienda; si es del creador, o no se puede
+ *  comprobar, no se toca nada (la cuenta nueva se rechaza o queda sin decidir).
  *  La lista y el detalle dan el mismo `origen`, `publicacion` y cifras para un mismo video. */
 export interface VideoCatalogo {
   content_id: string;

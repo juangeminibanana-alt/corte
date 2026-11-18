@@ -13,9 +13,10 @@
   canjea el code con el verifier de ESE intento, guarda los tokens, lee el perfil y pide una sincronización. Recargar
   la página de un intento que ya terminó repite el mismo resultado sin volver a canjear. La página nunca lleva el code,
   el state ni un token, y nada de eso se registra.
-- Rev. 6 (18/11/2026), `cuenta_de_lo_guardado`: antes de guardar el perfil de una cuenta, decide de quién es lo ya
-  guardado. Se borra solo si se comprueba que es de otra cuenta; si se comprueba que es del creador de la tienda y la
-  cuenta autorizada es otra, esa autorización se rechaza (409) y no se toca nada. Lo usan también el paso de la sync y
+- Rev. 6 (18/11/2026), `cuenta_de_lo_guardado`: antes de guardar nada de una cuenta, decide de quién es lo ya
+  guardado (perfiles y, si no bastan, video/query). Se borra solo si se comprueba que es de otra cuenta y la cuenta
+  autorizada es la de la tienda; si lo guardado es del creador, o la autorizada tampoco es la de la tienda, esa
+  autorización se rechaza (409) y no se toca nada; sin pruebas no se decide nada. Lo usan también el paso de la sync y
   la importación de la nube.
 - `desconectar(borrar_datos, olvidar_app)`: revoca en TikTok (si se puede) y borra los tokens; con `borrar_datos`
   también lo descargado de la Display API (cancela antes la sync en curso); con `olvidar_app`, el client_key/secret.
@@ -185,12 +186,16 @@ class ServicioDisplay:
             _log.warning('No se pudo publicar display.cambio (%s)', type(e).__name__)
 
     # ================================================================ errores de la sync
-    def anotar_resultado(self, error: ErrorDisplay | None) -> None:
-        """La sync terminó su paso: guarda (o limpia) el último error. Solo escribe si cambia algo."""
+    def anotar_resultado(self, error: ErrorDisplay | None, revision: tuple[Any, Any] | None = None) -> None:
+        """La sync terminó su paso: guarda (o limpia) el último error. Solo escribe si cambia algo y, con `revision`
+        ((client_key, epoca_credenciales) de la conexión del paso), solo si la conexión sigue siendo esa."""
         ahora = self.reloj.ahora()
         try:
             with self.boveda.candado:
-                previo = self.boveda.leer().get('ultimo_error')
+                actual = self.boveda.leer()
+                if revision is not None and (actual.get('client_key'), actual.get('epoca_credenciales', 0)) != revision:
+                    return                               # el error era de una conexión anterior
+                previo = actual.get('ultimo_error')
                 if error is None and previo is None:
                     return
                 self.boveda.mutar(lambda d: d.update(ultimo_error=None if error is None else error.como_dict(ahora)))
@@ -350,21 +355,18 @@ class ServicioDisplay:
             _log.info('Autorizada, pero no se pudo leer el perfil de la Display API (%s)', e.codigo)
         except Exception as e:  # noqa: BLE001 - el perfil llega en la siguiente sync
             _log.warning('No se pudo leer el perfil de la Display API (%s)', type(e).__name__)
+        identidad = perfil or {'open_id': tokens.get('open_id')}
         decision: str | None = None
         try:
-            decision = self.cuenta_de_lo_guardado(perfil or {'open_id': tokens.get('open_id')}, actual.get('open_id'),
-                                                  cliente=cliente)
-        except ErrorDisplay as e:                    # sin permiso de videos o TikTok no respondió: decide la sync
+            decision = self.cuenta_de_lo_guardado(identidad, actual.get('open_id'), cliente=cliente)
+        except ErrorDisplay as e:                    # sin pruebas, sin permiso de videos o TikTok no respondió
             _log.info('Autorizada, sin poder comprobar de quién son los datos guardados (%s)', e.codigo)
         except Exception as e:  # noqa: BLE001 - sin decidir no se borra ni se guarda nada
             _log.warning('No se pudo comprobar de quién son los datos guardados (%s)', type(e).__name__)
         if decision == 'rechazar':
-            raise self._rechazar_autorizacion(cliente, revision)
-        if decision == 'otra':
-            _log.info('Los datos guardados de la Display API eran de otra cuenta: se borran antes de guardar la nueva')
-            self._borrar_datos()                         # cancela antes la sync en curso
-        elif decision is None and self.coordinador is not None:
-            # Sin decidir, la autorización se guarda (la sync decidirá), pero ninguna pasada en curso debe usarla.
+            raise self._rechazar_autorizacion(cliente, revision, tokens.get('open_id'))
+        if decision != 'misma' and self.coordinador is not None:
+            # 'otra' o sin decidir: ninguna pasada en curso debe seguir escribiendo ni usar esta autorización.
             self.coordinador.mutacion_segura(None, 'nada')
         vigentes = provisional.leer()                    # por si el cliente provisional tuvo que renovarlos
 
@@ -373,7 +375,33 @@ class ServicioDisplay:
                 raise ErrorDominio('credenciales_cambiaron', cambio, http=409)
             d.update({k: vigentes.get(k, v) for k, v in tokens.items()}, conectada_at=ahora, reautorizar=False,
                      ultimo_error=None, origen='oauth')
-        self.boveda.mutar(save, cambia_credenciales=True)
+        borrado = False
+        with self.boveda.candado:                        # el borrado y la autorización nueva se guardan juntos o nada
+            if decision == 'otra':
+                with self.almacen.escritor() as db:      # si la autorización ya no es vigente (409), se deshace el borrado
+                    # Lo guardado pudo cambiar mientras se le preguntaba a TikTok: se vuelve a mirar, sin red.
+                    if not D.hay_datos(db) or self._decision_local(db, identidad, actual.get('open_id')) == 'misma':
+                        decision = 'misma'
+                    elif D.datos_del_creador(db):
+                        decision = 'rechazar'
+                    else:
+                        D.borrar_todo(db)
+                        self.almacen.marcar_data_version(db)
+                        self.almacen.subir_img_rev(db)
+                        borrado = True
+                    if decision != 'rechazar':
+                        self.boveda.mutar(save, cambia_credenciales=True)
+            else:
+                self.boveda.mutar(save, cambia_credenciales=True)
+        if decision == 'rechazar':
+            raise self._rechazar_autorizacion(cliente, revision, tokens.get('open_id'))
+        if borrado:
+            _log.info('Los datos guardados de la Display API eran de otra cuenta: se borraron al guardar la nueva')
+            self.almacen.confirmar_data_version()
+            try:
+                self.bus.notificar_cambio(self.almacen.versiones(), ['videos', 'cuenta'])
+            except Exception:  # noqa: BLE001
+                _log.warning('No se pudo publicar datos.cambiaron tras borrar la Display API')
         saved_revision = (revision[0], revision[1] + 1)
         if perfil is not None and decision is not None:      # sin decidir, guardar el perfil mezclaría cuentas
             try:
@@ -382,7 +410,7 @@ class ServicioDisplay:
                     if (current.get('client_key'), current.get('epoca_credenciales', 0)) != saved_revision:
                         raise ErrorDominio('credenciales_cambiaron', 'La conexión cambió al verificar el perfil. Revisa su estado.', http=409)
                     with self.almacen.escritor() as db:
-                        if D.guardar_perfil(db, perfil, ahora):
+                        if D.guardar_perfil(db, perfil, ahora, conservar_identidad=decision == 'misma'):
                             self.almacen.marcar_data_version(db)
                 if self.almacen.confirmar_data_version() is not None:
                     self.bus.notificar_cambio(self.almacen.versiones(), ['cuenta'])
@@ -407,52 +435,89 @@ class ServicioDisplay:
                               cliente: ClienteDisplay | None = None) -> str:
         """Lo guardado de la Display API frente a la cuenta autorizada (`perfil`, con su open_id):
 
-        - 'misma': se conserva (los perfiles lo prueban, o TikTok devuelve como suyos los videos guardados);
-        - 'otra': se borra antes de guardar la nueva (se comprobó que es de otra cuenta y no es del creador);
-        - 'rechazar': lo guardado es, verificablemente, del creador de la tienda y la cuenta autorizada es otra: no se
-          toca nada ni se guarda nada de ella.
+        - 'misma': se conserva (los perfiles lo prueban, o TikTok devuelve como suyos videos guardados);
+        - 'otra': se comprobó que es de otra cuenta que no es la del creador, y la cuenta autorizada sí es la de la
+          tienda: se borra antes de guardar la nueva;
+        - 'rechazar': se comprobó que es de otra cuenta, pero lo guardado es del creador o la cuenta autorizada tampoco
+          es la de la tienda: no se toca nada ni se guarda nada de ella.
 
         `open_id_anterior`: el de la conexión anterior de la MISMA app (la bóveda); si lo guardado es de ella y el open_id
         cambió, es otra cuenta sin preguntar. Si los perfiles no bastan, pregunta a TikTok con video/query (con `cliente`,
-        o el del servicio) si los videos guardados son de la cuenta autorizada. Un ErrorDisplay de esa consulta se
-        propaga: entonces no se decide nada (ni se borra ni se guarda)."""
-        nuevo = perfil.get('open_id')
+        o el del servicio) por los videos guardados; un «no son míos» solo prueba otra cuenta si alguno de ellos seguía
+        público (TikTok no devuelve los privados ni a su dueño). Sin pruebas, o si la consulta falla, lanza ErrorDisplay:
+        no se decide nada (ni se borra, ni se rechaza, ni se guarda el perfil)."""
         with self.almacen.lector() as c:
             if not D.hay_datos(c):
                 return 'misma'
-            guardado = c.execute('SELECT open_id FROM perfil_tiktok WHERE id = 1').fetchone()
-            decision: str | None
-            if (open_id_anterior and nuevo and nuevo != open_id_anterior and guardado is not None
-                    and guardado[0] == open_id_anterior):
-                decision = 'otra'
-            else:
-                decision = D.comparar_cuenta(c, perfil)
+            decision = self._decision_local(c, perfil, open_id_anterior)
             if decision == 'misma':
                 return 'misma'                           # el caso de cada sincronización: nada más que leer
             ids = D.videos_para_comprobar(c) if decision is None else []
-            del_creador = D.datos_del_creador(c)
+            concluyente = D.alguno_publico(c, ids)
         if decision is None:
-            decision = 'misma' if ids and (cliente or self.cliente).consultar_videos(ids) else 'otra'
-        if decision == 'misma':
-            return 'misma'
-        return 'rechazar' if del_creador else 'otra'
+            if ids and (cliente or self.cliente).consultar_videos(ids):
+                return 'misma'
+            if not concluyente:                          # nada que TikTok pudiera devolver: sin pruebas
+                raise ErrorDisplay('solicitud_rechazada', D.MSG_SIN_COMPROBAR)
+        with self.almacen.lector() as c:                 # se lee después de preguntar a TikTok
+            return self._destino_de_otra(c, perfil)
 
-    def _rechazar_autorizacion(self, cliente: ClienteDisplay, revision: tuple[Any, Any]) -> ErrorDominio:
-        """Callback: la cuenta recién autorizada no es la de los datos guardados, que son del creador. Nada se guardó
-        todavía: se revoca esa autorización (si se puede), se anota el motivo y la conexión anterior, si había, sigue
-        igual. -> el 409 que muestra la página del callback."""
+    @staticmethod
+    def _decision_local(c: Any, perfil: Mapping[str, Any], open_id_anterior: str | None) -> str | None:
+        """La parte sin red: 'misma' (los perfiles lo prueban), 'otra' (la misma app con otro open_id) o None."""
+        nuevo = perfil.get('open_id')
+        guardado = c.execute('SELECT open_id FROM perfil_tiktok WHERE id = 1').fetchone()
+        if (open_id_anterior and nuevo and nuevo != open_id_anterior and guardado is not None
+                and guardado[0] == open_id_anterior):
+            return 'otra'
+        return D.comparar_cuenta(c, perfil)
+
+    @staticmethod
+    def _destino_de_otra(c: Any, perfil: Mapping[str, Any]) -> str:
+        """Comprobado que lo guardado es de otra cuenta. Solo se borra para dejar entrar al creador de la tienda: si lo
+        guardado es del creador, o la cuenta autorizada tampoco es la de la tienda, borrar no protege nada y se rechaza.
+        Una cuenta autorizada sin nombre no se puede comprobar: ErrorDisplay (sin decidir)."""
+        if D.datos_del_creador(c):
+            return 'rechazar'
+        tienda, nuevo = D.usuario_de_la_tienda(c), D.usuario_normalizado(perfil.get('username'))
+        if tienda and nuevo == tienda:
+            return 'otra'
+        if nuevo:
+            return 'rechazar'
+        raise ErrorDisplay('solicitud_rechazada', D.MSG_SIN_COMPROBAR)
+
+    def _rechazar_autorizacion(self, cliente: ClienteDisplay, revision: tuple[Any, Any],
+                               open_id_rechazado: str | None = None) -> ErrorDominio:
+        """Callback: la cuenta recién autorizada es otra y no se puede dejar entrar. Nada de ella se guardó: se revoca
+        (si se puede) y se anota el motivo. La conexión anterior sigue igual, salvo que sea una autorización anterior
+        (sin decidir) de esa MISMA cuenta en la misma app: también se olvida. -> el 409 de la página del callback."""
         try:
             cliente.revocar()
         except Exception as e:  # noqa: BLE001 - sin internet o TikTok caído: igual no se guarda
             _log.info('No se pudo revocar en TikTok la autorización rechazada (%s)', type(e).__name__)
         error = ErrorDisplay('solicitud_rechazada', D.MSG_OTRA_CUENTA)
+        olvidada: dict[str, Any] | None = None
+
+        def quitar(d: dict[str, Any]) -> None:
+            for k in CAMPOS_TOKENS:
+                d.pop(k, None)
+            d['ultimo_error'] = error.como_dict(self.reloj.ahora())
         with self.boveda.candado:
             actual = self.boveda.leer()
             if (actual.get('client_key'), actual.get('epoca_credenciales', 0)) != revision:
                 return ErrorDominio('credenciales_cambiaron', 'La conexión cambió. Vuelve a Corte para revisar su estado.',
                                     http=409)
-            self.boveda.mutar(lambda d: d.update(ultimo_error=error.como_dict(self.reloj.ahora())))
-        _log.info('Se autorizó otra cuenta de TikTok y los datos guardados son del creador: no se guardó nada')
+            if open_id_rechazado and actual.get('open_id') == open_id_rechazado and actual.get('access_token'):
+                olvidada = dict(actual)
+                self.boveda.mutar(quitar, cambia_credenciales=True)
+            else:
+                self.boveda.mutar(lambda d: d.update(ultimo_error=error.como_dict(self.reloj.ahora())))
+        if olvidada is not None:                         # se revoca exactamente esa autorización, no otra guardada después
+            try:
+                ClienteDisplay(BovedaDisplay(None, datos=olvidada), self.cliente.transporte, self.reloj).revocar()
+            except Exception as e:  # noqa: BLE001
+                _log.info('No se pudo revocar en TikTok la autorización anterior rechazada (%s)', type(e).__name__)
+        _log.info('Se autorizó otra cuenta de TikTok que no puede entrar: no se guardó nada de ella')
         self.publicar()
         return ErrorDominio('cuenta_distinta', error.mensaje, http=409)
 
@@ -460,14 +525,6 @@ class ServicioDisplay:
         """Paso de la sync: la conexión guardada (sin decidir al conectar) no es la de los datos guardados, que son del
         creador: se revoca (si se puede) y se olvida esa autorización sin tocar los datos. -> el error para el usuario,
         o None si la conexión ya cambió (`revision` = (client_key, epoca_credenciales) de esa autorización)."""
-        def vigente(d: Mapping[str, Any]) -> bool:
-            return (d.get('client_key'), d.get('epoca_credenciales', 0)) == revision
-        if not vigente(self.boveda.leer()):
-            return None
-        try:
-            self.cliente.revocar()
-        except Exception as e:  # noqa: BLE001 - sin internet o TikTok caído: se olvida igual
-            _log.info('No se pudo revocar en TikTok la autorización rechazada (%s)', type(e).__name__)
         error = ErrorDisplay('solicitud_rechazada', D.MSG_OTRA_CUENTA)
 
         def quitar(d: dict[str, Any]) -> None:
@@ -475,9 +532,15 @@ class ServicioDisplay:
                 d.pop(k, None)
             d['ultimo_error'] = error.como_dict(self.reloj.ahora())
         with self.boveda.candado:
-            if not vigente(self.boveda.leer()):
+            actual = self.boveda.leer()
+            if (actual.get('client_key'), actual.get('epoca_credenciales', 0)) != revision:
                 return None
+            olvidada = dict(actual)
             self.boveda.mutar(quitar, cambia_credenciales=True)
+        try:                                             # se revoca exactamente esa autorización, no una guardada después
+            ClienteDisplay(BovedaDisplay(None, datos=olvidada), self.cliente.transporte, self.reloj).revocar()
+        except Exception as e:  # noqa: BLE001 - sin internet o TikTok caído: ya se olvidó
+            _log.info('No se pudo revocar en TikTok la autorización rechazada (%s)', type(e).__name__)
         _log.info('Se autorizó otra cuenta de TikTok y los datos guardados son del creador: no se cambió nada')
         self.publicar()
         return error

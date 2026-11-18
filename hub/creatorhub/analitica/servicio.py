@@ -206,13 +206,16 @@ class AnaliticaSqlite:
 
     def etag(self, con_display: bool = False) -> str:
         """'dv<N>-lr<M>-ir<K>'. `con_display` (rutas del catálogo, rev. 6) agrega '|d<instante de la última pasada de la
-        Display API>-<huella de visto_at>', leído en LA MISMA transacción: `publicacion`, `metricas_at` y
-        `display.ultima_sync_at` dependen de cada pasada, aunque no cambie data_version (una pasada sin videos nuevos ni
-        cambiados no la sube) y aunque se interrumpa después de guardar alguna página."""
+        Display API>-<huella de visto_at>[-p<pasadas sin registrar>]', leído en LA MISMA transacción: `publicacion`,
+        `metricas_at` y `display.ultima_sync_at` dependen de cada pasada, aunque no cambie data_version (una pasada sin
+        videos nuevos ni cambiados no la sube) y aunque se interrumpa después de guardar alguna página."""
         with self.almacen.lector() as conn:
             dv, lr, ir = self.almacen.versiones(conn)
-            marca = (f'|d{display_api.ultima_sync_at(conn) or 0}-{display_api.huella_vistos(conn)}'
-                     if con_display else '')
+            marca = ''
+            if con_display:
+                pendientes = '.'.join(str(x) for x in sorted(display_api.pasadas_sin_registrar(conn)))
+                marca = (f'|d{display_api.ultima_sync_at(conn) or 0}-{display_api.huella_vistos(conn)}'
+                         + (f'-p{pendientes}' if pendientes else ''))
         return f'dv{dv}-lr{lr}-ir{ir}{marca}'
 
 

@@ -445,6 +445,26 @@ class CatalogoCuentaEHistorialTests(ConSyncSintetica):
             self.escribir('UPDATE videos_tiktok SET visto_at = ? WHERE video_id = ?', (visto, cid))
             self.poner_cursor(pasada, cursor[1])
 
+    def test_publicacion_reconoce_una_pasada_sin_registrar_aunque_el_reloj_se_atrase(self) -> None:
+        cid = next(c for c in self._ids_display() if c not in self.legado())
+        with self.hub.almacen.lector() as db:
+            visto = db.execute('SELECT visto_at FROM videos_tiktok WHERE video_id = ?', (cid,)).fetchone()[0]
+        ultima = json.loads(self.cursor_display()[0])['at']
+        try:
+            # Con el reloj atrasado cinco minutos, una pasada empezó, guardó este video y se canceló sin registrarse.
+            self.escribir('UPDATE videos_tiktok SET visto_at = ? WHERE video_id = ?', (ultima - 300, cid))
+            self.assertEqual(self.publicacion(cid), 'no_confirmado')      # sin saber de esa pasada
+            antes = self.api('/api/catalogo/videos', 'limite=10')[1]['ETag']
+            self.escribir('INSERT INTO sync_cursores(clave, valor, actualizado_at) VALUES (?, ?, ?)',
+                          (D.CLAVE_SIN_REGISTRAR, json.dumps([ultima - 300]), ultima))
+            self.assertEqual(self.publicacion(cid), 'publico')            # salió en una pasada posterior a la registrada
+            status, cabeceras, _ = self.api('/api/catalogo/videos', 'limite=10', {'if-none-match': antes})
+            self.assertEqual(status, 200)                                 # y la ETag del catálogo lo sabe
+            self.assertRegex(cabeceras['ETag'], ETAG_LECTURA)
+        finally:
+            self.escribir('UPDATE videos_tiktok SET visto_at = ? WHERE video_id = ?', (visto, cid))
+            self.escribir('DELETE FROM sync_cursores WHERE clave = ?', (D.CLAVE_SIN_REGISTRAR,))
+
     def rutas_etag(self) -> dict[str, str]:
         return {'/api/catalogo/videos': 'limite=10', f'/api/catalogo/videos/{self._ids_display()[0]}': ''}
 
@@ -500,8 +520,11 @@ CUENTA_CREADOR = {'open_id': 'OPEN_ID_CREADOR', 'union_id': 'UNION_ID_CREADOR', 
                   'videos': ('6200000000000000001', '6200000000000000002')}
 # La misma cuenta del creador en la app de OTRO desarrollador: otro open_id y otro union_id, los mismos videos.
 CREADOR_OTRO_DESARROLLADOR = dict(CUENTA_CREADOR, open_id='OPEN_ID_CREADOR_DEV2', union_id='UNION_ID_CREADOR_DEV2')
+CUENTA_OTRA = {'open_id': 'OPEN_ID_OTRA', 'union_id': 'UNION_ID_OTRA', 'username': 'otra_cuenta',
+               'videos': ('6300000000000000001',)}                     # tampoco es la de la tienda
 SOLO_HISTORIAL = '6200000000000000099'          # un video del creador que ya solo conserva historial
 SIN_PERFIL = tuple(s for s in SCOPES if s != 'user.info.profile')     # sin 'los datos de tu perfil': no llega el nombre
+SIN_VIDEOS = tuple(s for s in SCOPES if s != 'video.list')            # sin 'la lista de tus videos'
 
 
 class DisplayDeDosCuentas:
@@ -515,6 +538,11 @@ class DisplayDeDosCuentas:
         self.perfil = 'normal'                 # 'normal' · 'falla' (HTTP 503) · 'vacio' ({'user': {}})
         self.consulta_falla = False
         self.consultas: list[list[str]] = []
+        self.emitidos: dict[str, list[str]] = {}       # open_id -> access_tokens entregados
+        self.revocados: list[str] = []
+        self.al_consultar = None               # gancho de una vez al empezar un video/query (para forzar carreras)
+        self.al_listar = None                  # gancho de una vez al empezar un video/list
+        self.al_perfil = None                  # gancho de una vez al empezar un user/info
         self._n = itertools.count(1)
 
     @staticmethod
@@ -535,12 +563,17 @@ class DisplayDeDosCuentas:
         ruta, c, ahora = u.path, self.cuenta, int(self.reloj.ahora())
         if ruta == '/v2/oauth/token/':
             n = next(self._n)
+            self.emitidos.setdefault(c['open_id'], []).append(f'act.prueba-{n}')
             return 200, {'access_token': f'act.prueba-{n}', 'refresh_token': f'rft.prueba-{n}', 'expires_in': 7200,
                          'refresh_expires_in': 180 * 86400, 'open_id': c['open_id'],
                          'scope': ','.join(c.get('scopes', SCOPES)), 'token_type': 'Bearer'}
         if ruta == '/v2/oauth/revoke/':
+            self.revocados += parse_qs((cuerpo or b'').decode('utf-8')).get('token', [])
             return 200, {}
         if ruta == '/v2/user/info/':
+            gancho, self.al_perfil = self.al_perfil, None
+            if gancho is not None:
+                gancho()                       # `c` ya es la cuenta de ESTA llamada, aunque el gancho la cambie
             if self.perfil == 'falla':
                 return self._falla()
             if self.perfil == 'vacio':
@@ -551,9 +584,15 @@ class DisplayDeDosCuentas:
                     'video_count': len(c['videos'])}
             return self._ok({'user': {k: v for k, v in user.items() if k in campos}})
         if ruta == '/v2/video/list/':
+            gancho, self.al_listar = self.al_listar, None
+            if gancho is not None:
+                gancho()
             return self._ok({'videos': [self._video(v, n, ahora) for n, v in enumerate(c['videos'])], 'cursor': 0,
                              'has_more': False})
         if ruta == '/v2/video/query/':
+            gancho, self.al_consultar = self.al_consultar, None
+            if gancho is not None:
+                gancho()                       # `c` ya es la cuenta de ESTA llamada, aunque el gancho la cambie
             if self.consulta_falla:
                 return self._falla()
             pedidos = json.loads(cuerpo)['filters']['video_ids']
@@ -577,6 +616,16 @@ class CambioDeCuentaDisplayTests(HubSintetico):
         self.hub.display.desconectar(borrar_datos=True)
         self.hub.display.guardar_credenciales(APP_1, SECRETO)
         self.falsa.perfil, self.falsa.consulta_falla, self.falsa.consultas = 'normal', False, []
+        self.falsa.emitidos, self.falsa.revocados, self.falsa.al_consultar, self.falsa.al_listar = {}, [], None, None
+        self.falsa.al_perfil = None
+
+    def reconectar_desde_otra_pestana(self, cuenta: dict, estados: list[int]) -> None:
+        """Lo que haría otra pestaña a mitad de una sync: autorizar `cuenta` por el OAuth real (sin asserts: puede
+        correr en el hilo de la sync)."""
+        url = self.hub.display.iniciar_conexion()['url']
+        self.falsa.cuenta = cuenta
+        estados.append(self.hub.display.callback(urlencode({'state': parse_qs(urlsplit(url).query)['state'][0],
+                                                            'code': 'codigo-de-otra-pestana'}))[0])
 
     def conectar(self, cuenta: dict, perfil: str = 'normal', consulta_falla: bool = False) -> int:
         self.falsa.cuenta, self.falsa.perfil, self.falsa.consulta_falla = cuenta, perfil, consulta_falla
@@ -602,7 +651,7 @@ class CambioDeCuentaDisplayTests(HubSintetico):
             return {r[0] for r in db.execute('SELECT video_id FROM videos_tiktok UNION '
                                              'SELECT video_id FROM videos_tiktok_dias')}
 
-    def sembrar_historial(self) -> None:
+    def sembrar_historial(self, solo_historial: bool = True) -> None:
         """Hace siete días: una foto de cada video guardado, la del perfil y la de un video que ya solo conserva
         historial. La Display API no puede devolver nada de esto otra vez."""
         hace = int(self.hub.reloj.ahora()) - 7 * 86400
@@ -610,7 +659,7 @@ class CambioDeCuentaDisplayTests(HubSintetico):
         with self.hub.almacen.lector() as db:
             ids = [r[0] for r in db.execute('SELECT video_id FROM videos_tiktok ORDER BY video_id')]
         with self.hub.almacen.escritor() as db:
-            for n, vid in enumerate([*ids, SOLO_HISTORIAL]):
+            for n, vid in enumerate([*ids, *([SOLO_HISTORIAL] if solo_historial else [])]):
                 db.execute('INSERT INTO videos_tiktok_dias(video_id, fecha, vistas, likes, comentarios, compartidos, '
                            'actualizado_at) VALUES (?, ?, ?, 40, 2, 1, ?)', (vid, fecha, 900 + n, hace))
             db.execute('INSERT INTO perfil_tiktok_dias(fecha, seguidores, siguiendo, likes_total, videos_total, '
@@ -643,20 +692,31 @@ class CambioDeCuentaDisplayTests(HubSintetico):
         for vid in ajenos:
             self.assertEqual(self.api(f'/api/catalogo/videos/{vid}')[0], 404)
 
-    def assertRechazada(self) -> None:
+    def assertRechazada(self, mensaje: str = D.MSG_OTRA_CUENTA) -> None:
         conexion = self.hub.display.boveda.leer()
         self.assertFalse(conexion.get('access_token') or conexion.get('refresh_token') or conexion.get('open_id'))
         self.assertEqual(conexion['ultimo_error']['codigo'], 'solicitud_rechazada')
-        self.assertEqual(conexion['ultimo_error']['mensaje'], D.MSG_OTRA_CUENTA)
+        self.assertEqual(conexion['ultimo_error']['mensaje'], mensaje)
+
+    def assertSinDecidir(self) -> None:
+        conexion = self.hub.display.boveda.leer()
+        self.assertEqual((conexion['ultimo_error']['codigo'], conexion['ultimo_error']['mensaje']),
+                         ('solicitud_rechazada', D.MSG_SIN_COMPROBAR))
+
+    def username_guardado(self) -> str | None:
+        with self.hub.almacen.lector() as db:
+            return db.execute('SELECT username FROM perfil_tiktok WHERE id = 1').fetchone()[0]
 
     # ----------------------------------------------------------- otra cuenta sobre la del creador: se rechaza
     def test_autorizar_otra_cuenta_no_toca_el_historial_del_creador(self) -> None:
         historial = self.creador_con_historial()
         self.hub.display.desconectar(borrar_datos=False)                   # la opción por omisión de la interfaz
+        self.falsa.revocados = []                                          # desconectar ya revocó la del creador
         self.assertEqual(self.conectar(CUENTA_PERSONAL), 409)
         self.assertRechazada()
         self.assertEqual(self.historial(), historial)
         self.assertFalse(self.guardados() & set(CUENTA_PERSONAL['videos']))
+        self.assertEqual(self.falsa.revocados, self.falsa.emitidos[CUENTA_PERSONAL['open_id']])   # se revocó en TikTok
         self.assertEqual(self.conectar(CUENTA_CREADOR), 200)              # vuelve la cuenta correcta: todo sigue
         self.sincronizar()
         self.assertEqual(self.historial(), historial)
@@ -675,6 +735,7 @@ class CambioDeCuentaDisplayTests(HubSintetico):
                          ('solicitud_rechazada', D.MSG_OTRA_CUENTA))
         self.assertEqual(self.historial(), historial)
         self.assertEqual(self.falsa.consultas, [])                       # misma app y otro open_id: no hizo falta preguntar
+        self.assertEqual(self.falsa.revocados, self.falsa.emitidos[CUENTA_PERSONAL['open_id']])   # nunca la del creador
         self.falsa.cuenta = CUENTA_CREADOR
         self.sincronizar()                                               # y sigue sincronizando la cuenta del creador
         self.assertEqual(self.historial(), historial)
@@ -686,10 +747,239 @@ class CambioDeCuentaDisplayTests(HubSintetico):
         # Ni el perfil ni TikTok respondieron al conectar: no se decidió nada y la autorización quedó guardada.
         self.assertEqual(self.conectar(CUENTA_PERSONAL, perfil='falla', consulta_falla=True), 200)
         self.assertEqual(self.historial(), historial)
+        self.falsa.revocados = []
         self.sincronizar()
         self.assertRechazada()
+        self.assertEqual(self.falsa.revocados, self.falsa.emitidos[CUENTA_PERSONAL['open_id']])   # la de esa conexión
         self.assertEqual(self.historial(), historial)
         self.assertFalse(self.guardados() & set(CUENTA_PERSONAL['videos']))
+
+    def test_otra_cuenta_sin_perfil_sobre_datos_del_creador_se_rechaza_al_conectar(self) -> None:
+        historial = self.creador_con_historial()
+        self.hub.display.desconectar(borrar_datos=False)
+        self.falsa.revocados = []
+        # Sin perfil no se sabe su nombre, pero TikTok ya prueba que los videos guardados no son suyos: son del creador.
+        self.assertEqual(self.conectar(CUENTA_PERSONAL, perfil='falla'), 409)
+        self.assertRechazada()
+        self.assertEqual(self.falsa.revocados, self.falsa.emitidos[CUENTA_PERSONAL['open_id']])
+        self.assertEqual(self.historial(), historial)
+
+    def test_el_creador_puede_volver_tras_una_autorizacion_ajena_sin_decidir(self) -> None:
+        historial = self.creador_con_historial()
+        self.hub.display.desconectar(borrar_datos=False)
+        self.assertEqual(self.conectar(CUENTA_PERSONAL, perfil='falla', consulta_falla=True), 200)   # sin decidir
+        self.assertEqual(self.conectar(CUENTA_CREADOR), 200)          # la bóveda recuerda la ajena; lo guardado no es de ella
+        self.assertEqual(self.historial(), historial)
+
+    def test_rechazar_olvida_tambien_la_autorizacion_sin_decidir_de_esa_cuenta(self) -> None:
+        historial = self.creador_con_historial()
+        self.hub.display.desconectar(borrar_datos=False)
+        self.falsa.revocados = []                                          # desconectar ya revocó la del creador
+        # Sin el permiso de videos no se puede preguntar a TikTok: queda guardada, sin decidir y sin perfil.
+        self.assertEqual(self.conectar(dict(CUENTA_PERSONAL, scopes=SIN_VIDEOS)), 200)
+        self.assertEqual(self.username_guardado(), USUARIO_DEMO)
+        self.assertEqual(self.conectar(CUENTA_PERSONAL), 409)               # con todos los permisos, se comprueba
+        self.assertRechazada()                                             # y se olvida también la anterior
+        self.assertEqual(sorted(self.falsa.revocados), sorted(self.falsa.emitidos[CUENTA_PERSONAL['open_id']]))
+        self.assertEqual(self.historial(), historial)
+        self.sincronizar()                                                 # sin conexión: nada que sincronizar
+        self.assertRechazada()
+
+    def test_si_la_conexion_cambia_mientras_la_sync_decide_no_anota_nada(self) -> None:
+        historial = self.creador_con_historial()
+        cursor = self.hub.almacen.lector
+        with cursor() as db:
+            antes = db.execute("SELECT valor FROM sync_cursores WHERE clave = 'display.ultima_sync'").fetchone()[0]
+        self.hub.display.desconectar(borrar_datos=False)
+        self.assertEqual(self.conectar(CUENTA_PERSONAL, perfil='falla', consulta_falla=True), 200)   # sin decidir
+        estados: list[int] = []
+
+        def el_creador_vuelve() -> None:     # dentro del video/query de la sync: el creador se reconecta en otra pestaña
+            url = self.hub.display.iniciar_conexion()['url']
+            self.falsa.cuenta = CUENTA_CREADOR
+            estados.append(self.hub.display.callback(urlencode({'state': parse_qs(urlsplit(url).query)['state'][0],
+                                                                'code': 'otro-codigo'}))[0])
+        self.falsa.cuenta, self.falsa.al_consultar = CUENTA_PERSONAL, el_creador_vuelve
+        self.sincronizar()
+        self.assertEqual(estados, [200])
+        conexion = self.hub.display.boveda.leer()
+        self.assertEqual(conexion.get('open_id'), CUENTA_CREADOR['open_id'])
+        self.assertIsNone(conexion.get('ultimo_error'))                    # nada de «otra cuenta» sobre la del creador
+        with cursor() as db:
+            despues = db.execute("SELECT valor FROM sync_cursores WHERE clave = 'display.ultima_sync'").fetchone()[0]
+        self.assertEqual(despues, antes)                                   # esa pasada no se registró
+        with cursor() as db:
+            resumen = json.loads(db.execute('SELECT resumen_json FROM sync_ejecuciones '
+                                            'ORDER BY sync_id DESC LIMIT 1').fetchone()[0])
+        self.assertEqual(resumen['videos_tiktok']['codigo'], 'sin_conexion')   # terminó por el cambio, no por un rechazo
+        self.assertEqual(self.historial(), historial)
+
+    def test_lo_que_la_sync_leyo_de_otra_conexion_no_se_guarda(self) -> None:
+        historial = self.creador_con_historial()
+        self.hub.display.desconectar(borrar_datos=False)
+        self.assertEqual(self.conectar(CUENTA_PERSONAL, perfil='falla', consulta_falla=True), 200)   # sin decidir
+        estados: list[int] = []
+        # La sync lee el perfil de la cuenta ajena; mientras tanto el creador se reconecta, y su video/query ya va con
+        # el token del creador (devuelve sus videos). Nada de lo leído con la conexión anterior debe guardarse.
+        self.falsa.cuenta = CUENTA_PERSONAL
+        self.falsa.al_perfil = lambda: self.reconectar_desde_otra_pestana(CUENTA_CREADOR, estados)
+        self.sincronizar()
+        self.assertEqual(estados, [200])
+        self.assertEqual(self.username_guardado(), USUARIO_DEMO)        # el perfil ajeno no pisó al del creador
+        conexion = self.hub.display.boveda.leer()
+        self.assertEqual((conexion.get('open_id'), conexion.get('ultimo_error')), (CUENTA_CREADOR['open_id'], None))
+        self.assertEqual(self.historial(), historial)
+
+    def test_una_pagina_traida_con_otra_conexion_no_se_guarda(self) -> None:
+        self.creador_con_historial()
+        uno = CUENTA_CREADOR['videos'][0]
+        with self.hub.almacen.lector() as db:
+            visto = db.execute('SELECT visto_at FROM videos_tiktok WHERE video_id = ?', (uno,)).fetchone()[0]
+        estados: list[int] = []
+        self.falsa.cuenta = CUENTA_CREADOR
+        self.falsa.al_listar = lambda: self.reconectar_desde_otra_pestana(CUENTA_CREADOR, estados)   # sube la época
+        real = self.hub.reloj.ahora
+        with patch.object(self.hub.reloj, 'ahora', lambda: real() + 100):
+            self.sincronizar()
+        self.assertEqual(estados, [200])
+        with self.hub.almacen.lector() as db:
+            self.assertEqual(db.execute('SELECT visto_at FROM videos_tiktok WHERE video_id = ?', (uno,)).fetchone()[0],
+                             visto)                                        # esa página no se escribió
+        self.assertIsNone(self.hub.display.boveda.leer().get('ultimo_error'))
+
+    def test_una_respuesta_sin_nombre_no_borra_la_prueba_de_que_los_datos_son_del_creador(self) -> None:
+        historial = self.creador_con_historial()
+        self.sincronizar_con('vacio')
+        self.assertEqual(self.username_guardado(), USUARIO_DEMO)
+        self.hub.display.desconectar(borrar_datos=False)
+        self.assertEqual(self.conectar(dict(CUENTA_CREADOR, scopes=SIN_PERFIL)), 200)   # misma app, sin el permiso
+        self.assertEqual(self.username_guardado(), USUARIO_DEMO)
+        self.assertEqual(self.conectar(CUENTA_PERSONAL), 409)
+        self.assertEqual(self.historial(), historial)
+
+    def test_datos_del_creador_sin_nombre_tampoco_se_borran_por_otra_cuenta(self) -> None:
+        self.assertEqual(self.conectar(dict(CUENTA_CREADOR, scopes=SIN_PERFIL)), 200)   # nunca dio el permiso de perfil
+        self.sincronizar()
+        self.sembrar_historial()
+        historial = self.historial()
+        self.assertIsNone(self.username_guardado())
+        self.assertEqual(self.conectar(CUENTA_PERSONAL), 409)       # otra cuenta que tampoco es la de la tienda
+        self.assertEqual(self.historial(), historial)
+        self.assertFalse(self.guardados() & set(CUENTA_PERSONAL['videos']))
+
+    def test_otra_cuenta_que_tampoco_es_la_de_la_tienda_no_borra_nada(self) -> None:
+        self.assertEqual(self.conectar(CUENTA_PERSONAL), 200)
+        self.sincronizar()
+        self.hub.display.desconectar(borrar_datos=False)
+        self.assertEqual(self.conectar(CUENTA_OTRA), 409)
+        self.assertEqual(self.guardados(), set(CUENTA_PERSONAL['videos']))   # borrar no protegía nada
+        self.assertRechazada()
+
+    # ----------------------------------------------------------- sin pruebas: no se decide nada
+    def test_sin_videos_que_comprobar_no_se_borra_ni_se_rechaza_nada(self) -> None:
+        self.assertEqual(self.conectar(dict(CUENTA_CREADOR, scopes=SIN_VIDEOS)), 200)   # solo perfil y su historial
+        self.sincronizar()
+        self.sembrar_historial(solo_historial=False)
+        historial = self.historial()
+        self.assertFalse(self.guardados())
+        self.hub.display.desconectar(borrar_datos=False)
+        self.assertEqual(self.conectar(dict(CREADOR_OTRO_DESARROLLADOR, scopes=SIN_PERFIL)), 200)
+        self.assertEqual(self.falsa.consultas, [])                     # nada que preguntar
+        self.assertEqual(self.historial(), historial)
+        self.sincronizar()
+        self.assertSinDecidir()
+        self.assertEqual(self.historial(), historial)
+
+    def test_sin_videos_que_comprobar_el_creador_no_queda_rechazado(self) -> None:
+        self.assertEqual(self.conectar(dict(CUENTA_CREADOR, scopes=SIN_VIDEOS)), 200)
+        self.sincronizar()
+        self.sembrar_historial(solo_historial=False)
+        historial = self.historial()
+        self.hub.display.desconectar(borrar_datos=False)
+        self.assertEqual(self.conectar(CREADOR_OTRO_DESARROLLADOR, perfil='falla'), 200)   # antes: 409 a su propia cuenta
+        self.sincronizar()                                             # con el perfil completo: el mismo nombre
+        self.assertEqual(self.historial(), historial)
+        self.assertIsNone(self.hub.display.boveda.leer().get('ultimo_error'))
+
+    def test_videos_que_ya_no_son_publicos_no_prueban_otra_cuenta(self) -> None:
+        historial = self.creador_con_historial()
+        self.escribir('DELETE FROM videos_tiktok')                      # todos pasaron a privados: solo queda historial
+        self.hub.display.desconectar(borrar_datos=False)
+        privado = dict(CREADOR_OTRO_DESARROLLADOR, scopes=SIN_PERFIL, videos=())   # TikTok ya no los devuelve
+        self.assertEqual(self.conectar(privado), 200)
+        self.assertTrue(self.falsa.consultas)                          # preguntó, pero TikTok no devuelve los privados
+        self.assertEqual(self.historial(), historial)
+        self.falsa.cuenta = privado
+        self.sincronizar()
+        self.assertSinDecidir()
+        self.assertEqual(self.historial(), historial)
+
+    def test_sin_decidir_no_se_guarda_el_perfil_nuevo(self) -> None:
+        self.assertEqual(self.conectar(CUENTA_PERSONAL), 200)
+        self.sincronizar()
+        self.hub.display.desconectar(borrar_datos=False)
+        self.assertEqual(self.conectar(CREADOR_OTRO_DESARROLLADOR, consulta_falla=True), 200)   # perfil sí, TikTok no
+        self.assertEqual(self.username_guardado(), CUENTA_PERSONAL['username'])
+        self.assertIs(self.catalogo()['display']['misma_cuenta'], False)   # nada de la otra cuenta pasa por del creador
+        self.assertEqual(self.guardados(), set(CUENTA_PERSONAL['videos']))
+
+    # ----------------------------------------------------------- el borrado y la autorización van juntos
+    def test_si_lo_guardado_cambia_antes_de_borrar_se_vuelve_a_decidir(self) -> None:
+        self.assertEqual(self.conectar(CUENTA_PERSONAL), 200)
+        self.sincronizar()
+        self.hub.display.desconectar(borrar_datos=False)
+        coordinador = self.hub.display.coordinador
+        original = coordinador.mutacion_segura
+
+        def y_mientras_tanto(*args):
+            original(*args)
+            self.escribir('UPDATE perfil_tiktok SET username = ? WHERE id = 1', (USUARIO_DEMO,))   # ahora es del creador
+        with patch.object(coordinador, 'mutacion_segura', y_mientras_tanto):
+            self.assertEqual(self.conectar(CUENTA_CREADOR), 200)
+        self.assertEqual(self.guardados(), set(CUENTA_PERSONAL['videos']))   # la nueva decisión fue 'misma'
+
+    def test_si_la_conexion_cambia_antes_de_guardar_no_se_borra_nada(self) -> None:
+        self.assertEqual(self.conectar(CUENTA_PERSONAL), 200)
+        self.sincronizar()
+        self.hub.display.desconectar(borrar_datos=False)
+        coordinador = self.hub.display.coordinador
+        original = coordinador.mutacion_segura
+
+        def y_mientras_tanto(*args):
+            original(*args)
+            self.hub.display.guardar_credenciales(APP_2, SECRETO)     # otra pestaña cambia la app
+        with patch.object(coordinador, 'mutacion_segura', y_mientras_tanto):
+            self.assertEqual(self.conectar(CUENTA_CREADOR), 409)
+        self.assertEqual(self.guardados(), set(CUENTA_PERSONAL['videos']))   # el borrado se deshizo con el 409
+
+    # ----------------------------------------------------------- el cursor de cada pasada
+    def test_el_cursor_guarda_el_visto_at_mas_reciente_y_la_pasada_en_curso(self) -> None:
+        self.creador_con_historial()
+        uno = CUENTA_CREADOR['videos'][0]
+        with self.hub.almacen.lector() as db:
+            tope = db.execute('SELECT MAX(visto_at) FROM videos_tiktok').fetchone()[0]
+        self.escribir('UPDATE videos_tiktok SET visto_at = visto_at - 50 WHERE video_id = ?', (uno,))
+        real = self.hub.reloj.ahora
+        with patch.object(self.hub.reloj, 'ahora', lambda: real() + 100):
+            self.sincronizar_con('falla')                             # pasada registrada que no vio ningún video
+        with self.hub.almacen.lector() as db:
+            pasada = json.loads(db.execute("SELECT valor FROM sync_cursores "
+                                           "WHERE clave = 'display.ultima_sync'").fetchone()[0])
+            pendiente = db.execute('SELECT 1 FROM sync_cursores WHERE clave = ?', (D.CLAVE_SIN_REGISTRAR,)).fetchone()
+        self.assertGreater(pasada['at'], tope)
+        self.assertEqual(pasada['visto_tope'], tope)                   # el MÁXIMO de visto_at, no el instante ni el mínimo
+        self.assertIsNone(pendiente)
+        vistas: list = []
+
+        def mirar() -> None:                                           # durante el listado de la siguiente pasada
+            with self.hub.almacen.lector() as db:
+                vistas.append(D.pasadas_sin_registrar(db))
+        self.falsa.al_listar = mirar
+        self.sincronizar()
+        self.assertEqual(len(vistas), 1)
+        self.assertEqual(len(vistas[0]), 1)                            # su propio instante, mientras no se registra
+        with self.hub.almacen.lector() as db:
+            self.assertEqual(D.pasadas_sin_registrar(db), [])          # y se borra al registrarla
 
     # ----------------------------------------------------------- otra cuenta comprobada: se borra
     def test_desconectar_sin_borrar_y_conectar_al_creador_borra_la_otra_cuenta(self) -> None:
@@ -720,14 +1010,16 @@ class CambioDeCuentaDisplayTests(HubSintetico):
         self.assertEqual(self.conectar(CUENTA_CREADOR), 200)
         self.assertSinVideosDe(CUENTA_PERSONAL)
 
-    def test_si_el_perfil_falla_al_conectar_tambien_se_comprueba_con_tiktok(self) -> None:
+    def test_si_el_perfil_falla_al_conectar_decide_la_sincronizacion(self) -> None:
         self.assertEqual(self.conectar(CUENTA_PERSONAL), 200)
         self.sincronizar()
         self.hub.display.desconectar(borrar_datos=False)
         self.assertEqual(self.conectar(CUENTA_CREADOR, perfil='falla'), 200)
-        self.assertSinVideosDe(CUENTA_PERSONAL)                      # decidido con el open_id del canje y video/query
+        self.assertTrue(self.falsa.consultas)                        # TikTok dijo «no son míos»…
+        self.assertEqual(self.guardados(), set(CUENTA_PERSONAL['videos']))   # …pero sin nombre no se sabe si es la tienda
         self.sincronizar()
         self.assertEqual(self.guardados(), set(CUENTA_CREADOR['videos']))
+        self.assertSinVideosDe(CUENTA_PERSONAL)
         self.assertIs(self.catalogo()['display']['misma_cuenta'], True)
 
     def test_sin_poder_comprobar_al_conectar_decide_la_sincronizacion(self) -> None:
@@ -838,6 +1130,20 @@ class CambioDeCuentaDisplayTests(HubSintetico):
         self.assertEqual(self.guardados(), set(CUENTA_CREADOR['videos']))
         self.assertIs(self.catalogo()['display']['misma_cuenta'], True)
 
+    def test_importar_al_creador_que_cambio_de_nombre_conserva_su_historial(self) -> None:
+        historial = self.creador_con_historial()
+        self.hub.display.desconectar(borrar_datos=False)
+        renombrado = dict(CUENTA_CREADOR, username='creador_renombrado')
+        self.escribir("UPDATE cuenta SET username = 'creador_renombrado' WHERE id = 1")   # la tienda ya tiene el nuevo
+        try:
+            self.falsa.cuenta = renombrado
+            self.assertTrue(import_display(self.hub, self.archivo(renombrado, APP_1))['ok'])   # misma app y open_id
+            self.assertEqual(self.historial(), historial)
+            self.assertEqual(self.username_guardado(), 'creador_renombrado')
+            self.assertIs(self.catalogo()['display']['misma_cuenta'], True)
+        finally:
+            self.escribir('UPDATE cuenta SET username = ? WHERE id = 1', (USUARIO_DEMO,))
+
     def test_importar_al_creador_conserva_su_historial_guardado_sin_nombre(self) -> None:
         self.assertEqual(self.conectar(dict(CUENTA_CREADOR, scopes=SIN_PERFIL)), 200)
         self.sincronizar()
@@ -914,6 +1220,27 @@ class ComparacionDeCuentaTests(unittest.TestCase):
         self.assertEqual(D.videos_para_comprobar(db), ['7200', '7100', '7300'])   # visto más reciente primero
         muchos = self.base(videos=tuple(str(7_000 + n) for n in range(30)))
         self.assertEqual(len(D.videos_para_comprobar(muchos)), D.MAX_IDS_COMPROBAR)
+
+    def test_alguno_publico(self) -> None:
+        db = self.base(videos=('7100',), historial=('7200',))
+        self.assertTrue(D.alguno_publico(db, ['7200', '7100']))
+        self.assertFalse(D.alguno_publico(db, ['7200']))                # solo historial: TikTok no lo devolvería
+        self.assertFalse(D.alguno_publico(db, []))
+
+    def test_guardar_perfil_conserva_la_identidad_solo_de_la_misma_cuenta(self) -> None:
+        db = self.base(perfil=('OID', 'UID', 'creador_demo'))
+        D.guardar_perfil(db, {'open_id': 'OID', 'seguidores': 5}, 1_795_000_000, conservar_identidad=True)
+        self.assertEqual(tuple(db.execute('SELECT open_id, union_id, username, seguidores FROM perfil_tiktok').fetchone()),
+                         ('OID', 'UID', 'creador_demo', 5))             # sin el permiso de perfil no se pierde la prueba
+        D.guardar_perfil(db, {'open_id': 'OID2'}, 1_795_000_000)        # sin decidir «misma»: lo que diga la respuesta
+        self.assertEqual(tuple(db.execute('SELECT open_id, union_id, username FROM perfil_tiktok').fetchone()),
+                         ('OID2', None, None))
+
+    def test_una_foto_del_dia_sin_cifras_no_pisa_la_real(self) -> None:
+        db = self.base()
+        D.guardar_perfil(db, {'open_id': 'OID', 'seguidores': 10, 'likes_total': 30}, 1_795_000_000)
+        D.guardar_perfil(db, {'open_id': 'OID'}, 1_795_000_100)
+        self.assertEqual(db.execute('SELECT seguidores, likes_total FROM perfil_tiktok_dias').fetchall(), [(10, 30)])
 
     def test_hay_datos(self) -> None:
         self.assertFalse(D.hay_datos(self.base()))

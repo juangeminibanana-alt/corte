@@ -80,7 +80,10 @@ def _destination(data: Mapping[str, Any], incoming: Mapping[str, Any], profile: 
         raise _error('cuenta_distinta', 'La conexión de videos guardada pertenece a otra cuenta. No se cambió.', 409)
     if profile:
         previous_name = username(profile.get('username'))
-        if previous_name and previous_name != expected_name:
+        # The same open_id is the same app and TikTok user (the in-lock call passes the open_id user/info verified):
+        # a different stored name is then a rename, and the shared rule keeps the history.
+        same_user = bool(profile.get('open_id')) and profile.get('open_id') == incoming.get('open_id')
+        if previous_name and previous_name != expected_name and not same_user:
             raise _error('cuenta_distinta', 'Las métricas guardadas pertenecen a otra cuenta. No se cambiaron.', 409)
 
 
@@ -142,7 +145,7 @@ def import_display(hub: Any, body: Any) -> dict[str, Any]:
                     D.borrar_todo(db)
                     hub.almacen.subir_img_rev(db)
                     hub.almacen.marcar_data_version(db)
-                if D.guardar_perfil(db, profile, now):
+                if D.guardar_perfil(db, profile, now, conservar_identidad=decision == 'misma'):
                     hub.almacen.marcar_data_version(db)
         hub.almacen.confirmar_data_version()
         if decision == 'otra':

@@ -118,6 +118,13 @@ def ultima_sync_at(conn: sqlite3.Connection) -> int | None:
     return ultima_sync(conn)[0]
 
 
+def pasadas_sin_registrar(conn: sqlite3.Connection) -> frozenset[int]:
+    """Instantes de las pasadas que empezaron desde la última registrada (en curso o interrumpidas): los videos que
+    guardaron sí salieron en una pasada posterior a la registrada, sea cual sea el reloj."""
+    from ..tiktok_dev.datos import pasadas_sin_registrar as leer
+    return frozenset(leer(conn))
+
+
 def huella_vistos(conn: sqlite3.Connection) -> str:
     """Resumen de visto_at de los videos guardados: cambia también con las páginas que guarda una pasada aún sin
     registrar (en curso o interrumpida), que mueven `metricas_at` y `publicacion` del catálogo (para su ETag)."""
@@ -190,5 +197,6 @@ def resumen_perfil(conn: sqlite3.Connection, d: DatosDisplay, hoy: dt.date) -> J
 
 
 __all__ = ['DatosDisplay', 'cargar', 'campos_fila_video', 'campos_video_producto', 'tendencia', 'resumen_perfil',
-           'ultima_sync', 'ultima_sync_at', 'huella_vistos', 'fotos_sin_video', 'por_mil', 'CAMPOS_FILA_VIDEO',
+           'ultima_sync', 'ultima_sync_at', 'pasadas_sin_registrar', 'huella_vistos', 'fotos_sin_video', 'por_mil',
+           'CAMPOS_FILA_VIDEO',
            'CAMPOS_VIDEO_PRODUCTO']

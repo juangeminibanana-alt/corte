@@ -12,9 +12,10 @@ Convenciones: éxito sin envoltorio; errores `ErrorRespuesta` (ErrorDominio.a_re
 `Accept-Encoding: gzip` y el cuerpo pasa de 1 KB, `Cache-Control: no-store` salvo las lecturas compuestas, que llevan
 `ETag: W/"dv<N>-lr<M>-ir<K>-<hash>"` (el hash cubre la ruta, la query ordenada, la fecha local de hoy, porque hay
 campos como `dias_restantes` que cambian con el día, y `REV_LECTURAS`) y responden `304` a `If-None-Match`. En las
-rutas `api/catalogo/*` el hash cubre además el instante de la última pasada de la Display API y una huella del visto_at
-de los videos guardados (cambia también con las páginas de una pasada interrumpida), leídos en la misma transacción que
-las versiones: de ellos dependen `publicacion`, `metricas_at` y `display.ultima_sync_at`. La forma visible no cambia.
+rutas `api/catalogo/*` el hash cubre además el instante de la última pasada de la Display API, una huella del visto_at
+de los videos guardados (cambia también con las páginas de una pasada interrumpida) y las pasadas aún sin registrar,
+leídos en la misma transacción que las versiones: de ellos dependen `publicacion`, `metricas_at` y
+`display.ultima_sync_at`. La forma visible no cambia.
 `GET /api/snapshot` lleva la forma `W/"dv<N>-lr<M>-ir<K>-f4-YYYY-MM-DD"`, con las versiones y fecha MX del propio cuerpo.
 La ruta llega SIN decodificar: se parte en segmentos y cada segmento se decodifica por separado (nunca se normaliza la
 ruta completa). Ya no existe `POST /local/activar` (C40).

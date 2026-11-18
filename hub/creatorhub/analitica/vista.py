@@ -1343,8 +1343,10 @@ class Vista:
         bloque: Json | None = None
         ultima_at: int | None = None
         tope: int | None = None
+        sin_registrar: frozenset[int] = frozenset()
         if d is not None:
             ultima_at, tope = display_api.ultima_sync(self.conn)
+            sin_registrar = display_api.pasadas_sin_registrar(self.conn)
             misma = self.misma_cuenta_display()
             bloque = {'ultima_sync_at': ultima_at, 'misma_cuenta': misma}
             if misma is True:
@@ -1369,11 +1371,12 @@ class Vista:
             v = d.videos.get(cid) if d is not None and (venta is not None or cid in organicos) else None
             h = historial.get(cid) if v is None else None
             if v is not None:
-                # Salió en la pasada registrada (visto_at == su instante) o en una POSTERIOR en curso o interrumpida
-                # (visto_at mayor que el tope guardado con el cursor: no depende de que el reloj nunca se atrase); sin
-                # cursor, la primera pasada no terminó y todo lo guardado salió en ella.
+                # Salió en la pasada registrada (visto_at == su instante) o en una POSTERIOR en curso o interrumpida:
+                # visto_at mayor que el tope guardado con el cursor, o el instante de una pasada aún sin registrar (vale
+                # aunque el reloj se haya atrasado). Sin cursor, la primera pasada no terminó y todo salió en ella.
                 publicacion = ('publico' if ultima_at is None or v['visto_at'] == ultima_at
-                               or (tope is not None and v['visto_at'] > tope) else 'no_confirmado')
+                               or (tope is not None and v['visto_at'] > tope) or v['visto_at'] in sin_registrar
+                               else 'no_confirmado')
             elif h is not None:
                 publicacion = 'no_publico'
             else:
