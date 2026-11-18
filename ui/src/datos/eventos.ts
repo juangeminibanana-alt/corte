@@ -112,6 +112,8 @@ export function recibirEvento(e: C.EventoHub): void {
       // rev. 5 · Trae el EstadoDisplay completo: se escribe tal cual (sin sondeo ni antirrebote) para que Ajustes vea al
       // instante que la conexión quedó lista o falló.
       escribirEntrada('display', {}, e.display);
+      // rev. 6 · De la conexión de métricas depende qué videos sin ventas lista el catálogo.
+      programarInvalidacion(['catalogo_videos', 'catalogo_video']);
       break;
     default:
       break;

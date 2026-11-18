@@ -174,6 +174,75 @@ export const T = {
   reproductorTitulo: (nombre: string): string => `Video de TikTok: ${nombre}`,
   reproducirEn: 'Se reproduce aquí con el reproductor oficial de TikTok',
   fueraDeLaApp: 'Se abre fuera de Corte, en TikTok.',
+
+  // Encabezado compartido por las dos vistas de la galería.
+  subtitulo: 'Tus publicaciones y sus resultados',
+  actualizar: 'Actualizar',
+  portadaNoDisponible: 'Portada no disponible',
+  verVideo: (nombre: string): string => `Ver ${nombre}`,
+
+  // rev. 6 · Catálogo: pestañas «Con ventas | Todos». «Todos» = publicados en tu cuenta de TikTok y con ventas.
+  pestanas: 'Vistas de videos',
+  pestanaConVentas: 'Con ventas',
+  pestanaTodos: 'Todos',
+  ordenCatalogo: { publicado: 'Más recientes', vistas: 'Más vistas', comision: 'Más comisión' },
+  buscarCatalogo: 'Buscar video',
+  catalogoEtiqueta: 'Todos tus videos: publicados en TikTok y con ventas',
+  catalogoConteo: (total: number): string => plural(total, 'video', 'videos'),
+  catalogoConteoFiltrado: (visibles: number, total: number): string => `${n(visibles)} de ${plural(total, 'video', 'videos')}`,
+  catalogoAlcance: 'Publicados y con ventas',
+  catalogoAlcanceSoloVentas: 'Solo los que tienen ventas',
+  catalogoMetricasAl: (fecha: string): string => `Última lectura de TikTok: ${fecha.replace(/ /g, '\u00a0')}`,
+  /** Tarjeta «Sin confirmar» / «Ya no es público»: sus cifras son de antes de la última lectura y llevan su fecha. */
+  vistasAl: (cifra: string, fecha: string): string => `${cifra} vistas al ${fecha.replace(/ /g, '\u00a0')}`,
+  catalogoRecorte: (visibles: number, total: number): string =>
+    `Se muestran los primeros ${n(visibles)} de ${n(total)} videos según el orden elegido; la búsqueda y el filtro solo cubren esos.`,
+  filtroSinVentas: 'Sin ventas',
+  /** Bloque de cifras de una tarjeta sin pedidos: «Sin ventas» y, debajo, desde cuándo se puede afirmar. */
+  sinVentas: 'Sin ventas',
+  sinVentasDesdePublicado: 'desde que se publicó',
+  sinVentasDesde: (fecha: string): string => `desde el ${fecha.replace(/ /g, ' ')}`,
+  sinVentasRegistradas: 'registradas',
+  sinVentasDesdeAyuda: (fecha: string): string =>
+    `Corte guarda tus pedidos desde el ${fecha.replace(/ /g, ' ')}: de antes de ese día no se puede saber si vendió.`,
+  publicacion: { no_confirmado: 'Sin confirmar', no_publico: 'Ya no es público' },
+  publicacionAyuda: {
+    no_confirmado: 'No salió en la última lectura de TikTok: puede haberse vuelto privado o haberse borrado.',
+    no_publico: 'Ya no está entre tus videos públicos de TikTok. Se muestran sus últimas cifras guardadas.',
+  },
+  avisoSinMetricas: 'Conecta las métricas de TikTok para ver también los videos que todavía no venden.',
+  avisoOtraCuenta: 'La cuenta de las métricas de TikTok no es la de tu tienda: solo se muestran tus videos con ventas.',
+  avisoSinComprobar: 'Aún no se puede comprobar que la cuenta de las métricas de TikTok sea la de tu tienda: por ahora solo se muestran tus videos con ventas.',
+  avisoAccion: 'Ir a métricas de TikTok',
+  catalogoVacioTitulo: 'Aún no hay videos',
+  catalogoVacioTexto: 'Cuando publiques un video o uno venda, aparecerá aquí.',
+  catalogoVacioSinMetricas: 'Cuando un video venda, aparecerá aquí. Conecta las métricas de TikTok para ver también los que aún no venden.',
+  /** Con la cuenta de otra persona (o sin poder comprobarla) el hub solo lista videos con ventas: no se promete más. */
+  catalogoVacioSoloVentas: 'Cuando un video venda, aparecerá aquí.',
+  catalogoNecesitaPc: 'Los videos sin ventas solo se ven con tu PC conectada.',
+  verConVentas: 'Ver videos con ventas',
+  ventasTarjeta: (dinero: string, pedidos: number): string => `${dinero} de comisión, ${plural(pedidos, 'pedido', 'pedidos')}`,
+  /** Nombre accesible de una tarjeta: frases unidas con «. » (sin dobles puntos si una ya termina en punto). */
+  etiquetaCatalogo: (partes: ReadonlyArray<string | null>): string =>
+    partes.filter((x): x is string => !!x).map((x) => x.replace(/[.\s]+$/, '')).join('. '),
+
+  // rev. 6 · Detalle de un video sin ventas (catálogo).
+  overlineCatalogo: {
+    publico: 'Publicado en TikTok',
+    no_confirmado: 'Sin confirmar en TikTok',
+    no_publico: 'Ya no es público en TikTok',
+    desconocido: 'Video de TikTok',
+  },
+  ventasTitulo: 'Ventas',
+  sinVentasDetalle: 'Este video aún no tiene ventas desde que se publicó.',
+  sinVentasDetalleDesde: (fecha: string): string =>
+    `Sin ventas desde el ${fecha.replace(/ /g, ' ')}. Corte guarda tus pedidos desde ese día: de antes no se puede saber.`,
+  sinVentasDetalleRegistradas: 'Corte todavía no tiene pedidos guardados, así que este video no tiene ventas registradas.',
+  /** Mientras no se sabe desde cuándo hay pedidos guardados (o no se pudo leer): solo lo que es seguro. */
+  sinVentasDetalleSinCobertura: 'Este video no tiene ventas registradas en Corte.',
+  sinCifrasCatalogo: 'TikTok no da cifras de este video: puede ser privado o estar borrado.',
+  duracion: (texto: string): string => `Dura ${texto}`,
+  portadaDe: (nombre: string): string => `Portada de ${nombre}`,
 } as const;
 
 export type ClaveRango = keyof typeof T.rangos;

@@ -6,6 +6,8 @@
  * - null (privado, borrado o de otra cuenta): una línea que lo explica; las ventas siguen arriba.
  * - Tendencia con menos de 2 fotos: se dice cuándo aparece en vez de pintar una gráfica vacía. Sin `tendencia` (el
  *   detalle salió de la copia del celular, que no la trae): «necesita tu PC encendida», como la gráfica por semana.
+ * rev. 6 · KpisTikTok y VistasPorDia también los usa el detalle de un video sin ventas del catálogo (DetalleCatalogo.tsx),
+ * que no lleva conversión: sin pedidos no hay «pedidos por 1,000 vistas» (no se inventa un 0).
  */
 import type { ReactElement } from 'react';
 import type * as C from '@/contrato';
@@ -41,7 +43,7 @@ function Conversion(p: { video: C.FilaVideo; tipico: number | null }): ReactElem
   );
 }
 
-function VistasPorDia(p: { tendencia: readonly C.PuntoTendenciaVideo[] | undefined; compacta: boolean }): ReactElement {
+export function VistasPorDia(p: { tendencia: readonly C.PuntoTendenciaVideo[] | undefined; compacta: boolean }): ReactElement {
   const hoy = hoyLocal();
   const dias = vistasPorDia(p.tendencia ?? [], hoy, p.compacta ? 14 : 30);
   if (dias.length < 2) {
@@ -76,29 +78,34 @@ function VistasPorDia(p: { tendencia: readonly C.PuntoTendenciaVideo[] | undefin
   );
 }
 
-export function EnTikTok(p: { detalle: C.VideoDetalleResponse; tipico: number | null; compacta: boolean }): ReactElement | null {
-  const v = p.detalle.video;
-  if (v.vistas === undefined) return null;
-  if (v.vistas === null) {
-    return (
-      <Tarjeta padding="amplio" className={cx(css.seccion)}>
-        <section aria-label={T.tiktokTitulo} className={cx(css.seccionInterior)} data-sin-cifras="">
-          <h2 className={cx(css.seccionTitulo)}>{T.tiktokTitulo}</h2>
-          <p className={cx(css.vacioCorto)}>{T.sinCifrasDetalle}</p>
-        </section>
-      </Tarjeta>
-    );
-  }
-  const tendencia = p.detalle.tendencia ?? [];
+/** Cifras de TikTok que comparten el detalle con ventas y el de un video sin ventas (contrato FilaVideo / VideoCatalogo). */
+export type CifrasTikTok = Pick<C.FilaVideo, 'likes' | 'comentarios' | 'compartidos' | 'metricas_at' | 'publicado_at'>;
+
+/** «Sin cifras de TikTok» del detalle: el video no está en la Display API (privado, borrado o de otra cuenta). */
+export function SinCifrasTikTok(p: { texto: string }): ReactElement {
+  return (
+    <Tarjeta padding="amplio" className={cx(css.seccion)}>
+      <section aria-label={T.tiktokTitulo} className={cx(css.seccionInterior)} data-sin-cifras="">
+        <h2 className={cx(css.seccionTitulo)}>{T.tiktokTitulo}</h2>
+        <p className={cx(css.vacioCorto)}>{p.texto}</p>
+      </section>
+    </Tarjeta>
+  );
+}
+
+/** KPI de TikTok (vistas con su tendencia acumulada, likes, comentarios y compartidos) y cuándo dio TikTok esas cifras. */
+export function KpisTikTok(p: { vistas: number; video: CifrasTikTok; tendencia: readonly C.PuntoTendenciaVideo[] }): ReactElement {
+  const v = p.video;
+  const tendencia = p.tendencia;
   const serie = serieAcumulada(tendencia);
   const primera = tendencia[0]?.fecha;
   const ultima = tendencia[tendencia.length - 1]?.fecha;
-  const vistas = v.vistas;
+  const vistas = p.vistas;
   const nota = typeof v.metricas_at === 'number'
     ? T.tiktokNota(formato.fechaCorta(v.metricas_at), typeof v.publicado_at === 'number' ? formato.fechaCorta(v.publicado_at) : null)
     : null;
   return (
-    <div className={cx(css.tiktok)} data-en-tiktok="">
+    <>
       <BandaKpi titulo={T.tiktokTitulo} className={cx(css.kpis)}>
         <Kpi
           etiqueta={T.kpiVistas}
@@ -112,6 +119,17 @@ export function EnTikTok(p: { detalle: C.VideoDetalleResponse; tipico: number | 
         {typeof v.compartidos === 'number' ? <Kpi etiqueta={T.kpiCompartidos} valor={formato.numero(v.compartidos)} /> : null}
       </BandaKpi>
       {nota ? <p className={cx(css.seccionNota)}>{nota}</p> : null}
+    </>
+  );
+}
+
+export function EnTikTok(p: { detalle: C.VideoDetalleResponse; tipico: number | null; compacta: boolean }): ReactElement | null {
+  const v = p.detalle.video;
+  if (v.vistas === undefined) return null;
+  if (v.vistas === null) return <SinCifrasTikTok texto={T.sinCifrasDetalle} />;
+  return (
+    <div className={cx(css.tiktok)} data-en-tiktok="">
+      <KpisTikTok vistas={v.vistas} video={v} tendencia={p.detalle.tendencia ?? []} />
       <div className={cx(css.tiktokFila)}>
         <Tarjeta padding="amplio" className={cx(css.seccion)}>
           <Conversion video={v} tipico={p.tipico} />

@@ -6,25 +6,27 @@
  * rev. 5 (Display API): con las métricas de TikTok, la portada es la REAL del video ('/img/v') cuando existe; tarjetas y
  * tabla llevan vistas, likes, comentarios, compartidos y «pedidos por 1,000 vistas», y se puede ordenar por vistas y por
  * conversión. Un video sin cifras de TikTok (privado o borrado) lo dice; uno con vistas y sin ventas válidas se marca.
- * La lista sale de tus ventas: los videos que nunca vendieron no llegan en el contrato (ver notas/pendientes).
+ * La lista sale de tus ventas. rev. 6: si el hub tiene el catálogo (capacidades.catalogo_videos), las pestañas «Con
+ * ventas | Todos» (Cabecera.tsx) llevan a «Todos» (Catalogo.tsx), con los videos publicados aunque no hayan vendido. La
+ * pantalla abre en «Con ventas»; ?segmento=todos abre «Todos». Las dos vistas comparten encabezado y <Pantalla>: cambiar
+ * de pestaña no mueve el foco ni vuelve a montar el encabezado.
  */
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type * as C from '@/contrato';
-import { useConsulta, useSync, type EstadoConsulta } from '@/datos';
+import { useConsulta, useSesion, useSync, type EstadoConsulta } from '@/datos';
 import { Pantalla, navegar, useClaseAncho, useParametro, usePlataforma } from '@/app';
-import {
-  AvatarTienda, Boton, CampoTexto, Chip, ChipFiltro, EncabezadoPantalla, EstadoVacio, Foto, Icono, Menu, MiniaturaVideo, PuntoVivo, Segmentado,
-  Tabla, type ColumnaTabla,
-} from '@/componentes';
+import { CampoTexto, ChipFiltro, EstadoVacio, Foto, Icono, Menu, Tabla, type ColumnaTabla } from '@/componentes';
 import { formato } from '@/dominio';
 import { columnasVideos } from '@/bloques';
+import { CabeceraVideos, PestanasVideos } from './Cabecera';
+import { VistaCatalogo } from './Catalogo';
 import { CargaRejilla, ErrorVista } from './Estados';
 import { useColumnasQueCaben } from './ajusteColumnas';
 import {
   ORDENES_METRICAS, RANGOS, REGLA_COLUMNAS, cifraCompacta, esOrden, esRango, filtrarVideos, hayMetricas, idsVendiendo, mapaNombres,
-  metricasAl, nombreVideo, ordenarVideos, ordenesPara, portadaDe, rankingPorComision, resumenVideos, sinVentasConVistas, textoPorMil,
-  type FiltrosVideos,
+  nombreVideo, ordenarVideos, ordenesPara, portadaDe, rankingPorComision, resumenVideos, textoPorMil, type FiltrosVideos,
 } from './logica';
+import { PARAMS_CATALOGO, vistaVideos } from './logicaCatalogo';
 import { T, type ClaveRango } from './textos';
 import { cx, guardarLocal, leerLocal, rutaVideo, useClicReciente } from './util';
 import css from './videos.module.css';
@@ -100,26 +102,26 @@ function MetricasTarjeta(p: { video: C.FilaVideo }): ReactElement | null {
   ].filter((r) => r.length > 0);
   return (
     <>
-      {typeof v.pedidos_por_mil_vistas === 'number' ? (
-        <span className={cx(css.piePorMil)} data-por-mil="">
-          {/* En el celular se parte entre «pedidos» y «por 1,000 vistas», nunca a mitad. */}
-          <span className={cx(css.sinCorte)}><span className={cx(css.piePorMilCifra)}>{textoPorMil(v.pedidos_por_mil_vistas)}</span> {T.porMilPedidos}</span>{' '}
-          <span className={cx(css.sinCorte)}>{T.porMilResto}</span>
-        </span>
-      ) : null}
-      <span className={cx(css.pieMetricas)} data-metricas="">
-        {renglones.map((r, j) => (
-          <span key={j} className={cx(css.pieRenglon)}>
-            {r.map((x, i) => (
-              <span key={x}>
-                {i > 0 ? ' · ' : null}
-                <span className={cx(css.sinCorte)}>{x}</span>
-              </span>
-            ))}
-            {j < renglones.length - 1 ? <span className={cx(css.srSolo)}> · </span> : null}
+        {typeof v.pedidos_por_mil_vistas === 'number' ? (
+          <span className={cx(css.piePorMil)} data-por-mil="">
+            {/* En el celular se parte entre «pedidos» y «por 1,000 vistas», nunca a mitad. */}
+            <span className={cx(css.sinCorte)}><span className={cx(css.piePorMilCifra)}>{textoPorMil(v.pedidos_por_mil_vistas)}</span> {T.porMilPedidos}</span>{' '}
+            <span className={cx(css.sinCorte)}>{T.porMilResto}</span>
           </span>
-        ))}
-      </span>
+        ) : null}
+        <span className={cx(css.pieMetricas)} data-metricas="">
+          {renglones.map((r, j) => (
+            <span key={j} className={cx(css.pieRenglon)}>
+              {r.map((x, i) => (
+                <span key={x}>
+                  {i > 0 ? ' · ' : null}
+                  <span className={cx(css.sinCorte)}>{x}</span>
+                </span>
+              ))}
+              {j < renglones.length - 1 ? <span className={cx(css.srSolo)}> · </span> : null}
+            </span>
+          ))}
+        </span>
     </>
   );
 }
@@ -135,16 +137,16 @@ function TarjetaGaleria(p: {
   const portada = portadaDe(v);
   return (
     <li className={cx(css.videoCard)}>
-      <button type="button" className={css.videoAbrir} onClick={() => navegar(rutaVideo(v.content_id))} aria-label={`Ver ${p.nombre}`}>
+      <button type="button" className={css.videoAbrir} onClick={() => navegar(rutaVideo(v.content_id))} aria-label={T.verVideo(p.nombre)}>
         <span className={css.videoPortada}>
-          {portada.url ? <Foto url={portada.url} alt="" anchoCss={280} proporcion="9:16" radio="xs" className={cx(css.videoFoto)} /> : <span className={css.videoSinPortada}><Icono nombre="SquarePlay" tamano={24} /><span>Portada no disponible</span></span>}
+          {portada.url ? <Foto url={portada.url} alt="" anchoCss={280} proporcion="9:16" radio="xs" className={cx(css.videoFoto)} /> : <span className={css.videoSinPortada}><Icono nombre="SquarePlay" tamano={24} /><span>{T.portadaNoDisponible}</span></span>}
           {portada.url ? <span className={css.videoPlay} aria-hidden="true"><Icono nombre="Play" tamano={22} /></span> : null}
         </span>
         <span className={css.videoContenido}>
           <span className={css.videoNombre} title={p.nombre}>{p.nombre}</span>
           <span className={css.videoNumeros}>
-            <span><strong>{dinero}</strong><span>Comisión</span></span>
-            <span><strong>{formato.numero(v.pedidos_validos)}</strong><span>Pedidos</span></span>
+            <span><strong>{dinero}</strong><span>{T.kpiComision}</span></span>
+            <span><strong>{formato.numero(v.pedidos_validos)}</strong><span>{T.kpiPedidos}</span></span>
           </span>
           {typeof v.vistas === 'number' ? <span className={css.videoVistas}><Icono nombre="Eye" tamano={14} />{T.vistas(cifraCompacta(v.vistas))}</span> : null}
         </span>
@@ -153,7 +155,9 @@ function TarjetaGaleria(p: {
   );
 }
 
-export function PantallaVideos(): ReactElement {
+/** «Con ventas»: la galería de siempre (sale de tus ventas). Va dentro del <Pantalla> de PantallaVideos. */
+function VistaConVentas(p: { alListo: (lista: boolean) => void }): ReactElement {
+  const { alListo } = p;
   const [rango, setRangoEstado] = useState<ClaveRango>(() => {
     const r = leerLocal(CLAVE_RANGO);
     return esRango(r) ? r : 'todo';
@@ -220,6 +224,10 @@ export function PantallaVideos(): ReactElement {
 
   const error = errorRango ?? videos.error;
   const cargando = !error && (params === null || videos.cargando || (!items && !videos.error));
+  const lista = !!items || !!error;
+  useEffect(() => {
+    alListo(lista);
+  }, [lista, alListo]);
 
   let cuerpo: ReactElement;
   if (cargando) {
@@ -288,26 +296,46 @@ export function PantallaVideos(): ReactElement {
   }
 
   return (
-    <Pantalla titulo={T.titulo} lista={!!items || !!error}>
+    <>
+      <div className={css.videoHerramientas}>
+        <CampoTexto etiqueta="Buscar video o producto" etiquetaOculta tipo="search" placeholder="Buscar video o producto" valor={filtros.q} alCambiar={q => cambiar({ q })} className={cx(css.videoBuscar)} />
+        <Menu etiqueta={T.rangos[rango]} icono="CalendarDays" disparador="boton" opciones={RANGOS.map(r => ({ id:r, etiqueta:T.rangos[r], ...(r===rango ? { icono:'Check' as const } : {}), alPulsar:() => setRango(r) }))} />
+        <Menu etiqueta={T.orden[orden]} icono="ArrowDownUp" disparador="boton" opciones={ordenesPara(conMetricas).map(o => ({ id:o, etiqueta:T.orden[o], ...(o===orden ? { icono:'Check' as const } : {}), alPulsar:() => setOrden(o==='comision' ? null : o, { reemplazar:true }) }))} />
+        <button type="button" className={css.videoControl} data-filtros="" aria-label="Filtros de videos" aria-expanded={verFiltros} aria-controls="filtros-videos" onClick={() => setVerFiltros(v => !v)}>Filtros<Icono nombre="ChevronDown" tamano={16} /></button>
+        {conTabla ? <div className={css.videoVistasControl} aria-label="Vista de videos"><button type="button" className={css.videoControl} aria-pressed={vista==='cuadricula'} aria-label="Ver cuadrícula" onClick={() => setVista('cuadricula')}><Icono nombre="LayoutGrid" tamano={18} /></button><button type="button" className={css.videoControl} aria-pressed={vista==='tabla'} aria-label="Ver tabla" onClick={() => setVista('tabla')}><Icono nombre="LayoutList" tamano={18} /></button></div> : null}
+      </div>
+      {verFiltros ? <div id="filtros-videos" className={css.chips} role="group" aria-label={T.filtros}>
+        {vendiendo ? <ChipFiltro activo={filtros.vendiendoAhora} conteo={vendiendo.size} alCambiar={a => cambiar({ vendiendoAhora:a })}>{T.vendiendoAhora}</ChipFiltro> : null}
+        <ChipFiltro activo={filtros.soloConVentas} conteo={resumen.conVentas} alCambiar={a => cambiar({ soloConVentas:a })}>{T.soloConVentas}</ChipFiltro>
+        <ChipFiltro activo={filtros.reembolsoAlto} conteo={reembolsoAltos} alCambiar={a => cambiar({ reembolsoAlto:a })}>{T.reembolsoAlto}</ChipFiltro>
+      </div> : null}
+      {items ? <p className={css.videoConteo} aria-live="polite">{hayFiltros ? `${visibles.length} de ${videos.datos?.total ?? items.length} videos` : `${videos.datos?.total ?? items.length} videos`}<span>{rango === 'todo' ? 'Todo el historial' : T.rangos[rango]}</span></p> : null}
+      <div className={cx(videos.refrescando && css.refrescando)}>{cuerpo}</div>
+    </>
+  );
+}
+
+/**
+ * #/videos. Abre en «Con ventas» (la galería de siempre). Con el catálogo del hub, las pestañas llevan a «Todos»
+ * (?segmento=todos). Si el hub anuncia el catálogo pero responde 404, se queda en «Con ventas» sin pestañas: el 404 se
+ * lee de la misma consulta de «Todos» (sin pedirla), así que sigue valiendo al volver a la pantalla.
+ */
+export function PantallaVideos(): ReactElement {
+  const sesion = useSesion();
+  const [segmento] = useParametro('segmento');
+  const [lista, setLista] = useState(false);
+  const sondeo = useConsulta('catalogo_videos', PARAMS_CATALOGO, { activa: false });
+  const sinCatalogo = !sondeo.datos && sondeo.error?.codigo === 'no_encontrado';
+  const conCatalogo = sesion.datos?.capacidades.catalogo_videos === true;
+  const vista = vistaVideos({ segmento, conCatalogo, sinCatalogo, sesionCargando: !sesion.datos && !sesion.error });
+  return (
+    <Pantalla titulo={T.titulo} lista={vista !== 'espera' && lista}>
       <div className={cx(css.pantalla)}>
-        <header className={css.videoCabecera}>
-          <div><h1>Videos</h1><p>Tus publicaciones y sus resultados</p></div>
-          <Boton variante="secundario" icono="RefreshCw" cargando={sync.estado?.en_curso === true} deshabilitado={!sync.puede} alPulsar={() => void sync.sincronizar()}>Actualizar</Boton>
-        </header>
-        <div className={css.videoHerramientas}>
-          <CampoTexto etiqueta="Buscar video o producto" etiquetaOculta tipo="search" placeholder="Buscar video o producto" valor={filtros.q} alCambiar={q => cambiar({ q })} className={cx(css.videoBuscar)} />
-          <Menu etiqueta={T.rangos[rango]} icono="CalendarDays" disparador="boton" opciones={RANGOS.map(r => ({ id:r, etiqueta:T.rangos[r], ...(r===rango ? { icono:'Check' as const } : {}), alPulsar:() => setRango(r) }))} />
-          <Menu etiqueta={T.orden[orden]} icono="ArrowDownUp" disparador="boton" opciones={ordenesPara(conMetricas).map(o => ({ id:o, etiqueta:T.orden[o], ...(o===orden ? { icono:'Check' as const } : {}), alPulsar:() => setOrden(o==='comision' ? null : o, { reemplazar:true }) }))} />
-          <button type="button" className={css.videoControl} data-filtros="" aria-label="Filtros de videos" aria-expanded={verFiltros} aria-controls="filtros-videos" onClick={() => setVerFiltros(v => !v)}>Filtros<Icono nombre="ChevronDown" tamano={16} /></button>
-          {conTabla ? <div className={css.videoVistasControl} aria-label="Vista de videos"><button type="button" className={css.videoControl} aria-pressed={vista==='cuadricula'} aria-label="Ver cuadrícula" onClick={() => setVista('cuadricula')}><Icono nombre="LayoutGrid" tamano={18} /></button><button type="button" className={css.videoControl} aria-pressed={vista==='tabla'} aria-label="Ver tabla" onClick={() => setVista('tabla')}><Icono nombre="LayoutList" tamano={18} /></button></div> : null}
-        </div>
-        {verFiltros ? <div id="filtros-videos" className={css.chips} role="group" aria-label={T.filtros}>
-          {vendiendo ? <ChipFiltro activo={filtros.vendiendoAhora} conteo={vendiendo.size} alCambiar={a => cambiar({ vendiendoAhora:a })}>{T.vendiendoAhora}</ChipFiltro> : null}
-          <ChipFiltro activo={filtros.soloConVentas} conteo={resumen.conVentas} alCambiar={a => cambiar({ soloConVentas:a })}>{T.soloConVentas}</ChipFiltro>
-          <ChipFiltro activo={filtros.reembolsoAlto} conteo={reembolsoAltos} alCambiar={a => cambiar({ reembolsoAlto:a })}>{T.reembolsoAlto}</ChipFiltro>
-        </div> : null}
-        {items ? <p className={css.videoConteo} aria-live="polite">{hayFiltros ? `${visibles.length} de ${videos.datos?.total ?? items.length} videos` : `${videos.datos?.total ?? items.length} videos`}<span>{rango === 'todo' ? 'Todo el historial' : T.rangos[rango]}</span></p> : null}
-        <div className={cx(videos.refrescando && css.refrescando)}>{cuerpo}</div>
+        <CabeceraVideos />
+        {conCatalogo && !sinCatalogo ? <PestanasVideos activa={vista === 'catalogo' ? 'todos' : 'ventas'} /> : null}
+        {vista === 'catalogo' ? <VistaCatalogo alListo={setLista} />
+          : vista === 'espera' ? <CargaRejilla />
+            : <VistaConVentas alListo={setLista} />}
       </div>
     </Pantalla>
   );

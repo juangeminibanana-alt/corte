@@ -718,3 +718,27 @@
 }
 @container (max-width:320px) { .pantalla .rejilla { grid-template-columns:minmax(0,1fr); } }
 .videoControl[data-filtros] { width:auto; padding:0 12px; gap:8px; font-size:14px; }
+
+/* ------------------------------------------------------------------ rev. 6 · catálogo: pestañas «Con ventas | Todos» */
+/* Subrayado coral como las pestañas de Muestras (DESIGN.md); objetivo táctil de 44 px (48 en el celular). */
+.pestanas { display:flex; gap:28px; min-width:0; border-bottom:1px solid var(--border-default); }
+.pestanas a { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:0 8px; margin-bottom:-1px; border-bottom:4px solid transparent; color:var(--text-2); font-size:calc(16px * var(--fs-lin)); font-weight:550; text-decoration:none; white-space:nowrap; }
+.pestanas a[aria-current='page'] { color:var(--text-1); border-bottom-color:var(--brand); font-weight:750; }
+.pestanas a:hover { color:var(--text-1); }
+.pestanas a:focus-visible { outline:none; box-shadow:var(--focus-ring); border-radius:3px; }
+@media (max-width:599px) {
+  .pestanas { gap:8px; }
+  .pestanas a { flex:1 1 0; min-height:48px; font-size:calc(15px * var(--fs-lin)); }
+}
+/* Aviso de «Todos» cuando el hub solo puede listar los videos con ventas (sin métricas o con otra cuenta). */
+.catalogoAviso { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:12px 16px; border:1px solid var(--info-border); border-radius:8px; background:var(--info-bg); color:var(--text-1); }
+.catalogoAvisoIcono { flex:none; color:var(--info-fg); }
+.catalogoAvisoTexto { flex:1 1 260px; min-width:0; margin:0; font-size:var(--text-body-size); line-height:var(--text-body-lh); color:var(--text-1); }
+/* Estado de publicación sobre la portada: el chip va sobre un fondo opaco para que se lea sobre cualquier foto. */
+.catalogoEstado { position:absolute; top:8px; left:8px; right:8px; display:flex; }
+.catalogoEstadoFondo { display:inline-flex; max-width:100%; border-radius:var(--radius-full); background:var(--surface-1); box-shadow:0 1px 3px #16182333; }
+/* «Sin ventas» ocupa el lugar de Comisión · Pedidos con la misma altura; en text-2 (no es una cifra). */
+.catalogoSinVentas > span { grid-column:1 / -1; }
+.catalogoSinVentas strong { color:var(--text-2); }
+.catalogoPie { flex-wrap:wrap; column-gap:10px; row-gap:2px; }
+.catalogoVistas { display:inline-flex; align-items:center; gap:6px; }

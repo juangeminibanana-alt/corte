@@ -5,10 +5,12 @@
  *   «Abrir en TikTok».
  * - Android y navegador: NUNCA el reproductor; la pantalla pone [Abrir en TikTok] (BotonAbrirVideo), que abre el
  *   enlace fuera de la app con abrirExterno (en Android, Intent ACTION_VIEW que toma la app de TikTok).
+ * rev. 6 · PortadaCatalogo: la de un video sin ventas del catálogo. Solo su portada REAL (nunca una foto de producto);
+ * sin portada, el mosaico de respaldo. El reproductor no se ofrece si TikTok ya no lo da como público.
  */
 import type { ReactElement } from 'react';
 import type * as C from '@/contrato';
-import { Boton, MiniaturaVideo, ReproductorTikTok, useToast } from '@/componentes';
+import { Boton, Foto, MiniaturaVideo, ReproductorTikTok, useToast } from '@/componentes';
 import { formato } from '@/dominio';
 import { abrirExterno, esWindows } from '@/plataforma';
 import { portadaDe } from './logica';
@@ -66,6 +68,20 @@ export function PortadaVideo(p: { video: C.FilaVideo; nombre: string; anchoCss: 
         className={cx(css.marcoPortada)}
       />
       {windows ? (
+        <ReproductorTikTok contentId={v.content_id} titulo={T.reproductorTitulo(p.nombre)} alAbrirFuera={abrir} className={cx(css.reproductor)} />
+      ) : null}
+    </div>
+  );
+}
+
+export function PortadaCatalogo(p: { video: C.VideoCatalogo; nombre: string; anchoCss: number; className?: string }): ReactElement {
+  const v = p.video;
+  const abrir = useAbrirVideo(v.enlace);
+  const reproductor = esWindows() && v.publicacion !== 'no_publico';
+  return (
+    <div className={`${css.marco} ${p.className ?? ''}`} {...(reproductor ? { 'data-reproductor': '' } : {})}>
+      <Foto url={v.portada} alt={T.portadaDe(p.nombre)} anchoCss={p.anchoCss} proporcion="9:16" radio="lg" prioridad="alta" className={cx(css.marcoPortada)} />
+      {reproductor ? (
         <ReproductorTikTok contentId={v.content_id} titulo={T.reproductorTitulo(p.nombre)} alAbrirFuera={abrir} className={cx(css.reproductor)} />
       ) : null}
     </div>

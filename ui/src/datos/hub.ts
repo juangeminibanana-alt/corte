@@ -147,7 +147,8 @@ export const hub: AccionesHub = {
       ...(req.olvidar_app ? { olvidar_app: true } : {}),
     };
     // Con borrar_datos se van las vistas, la tendencia, el perfil y las portadas: las vistas que las muestran se piden de nuevo.
-    const invalida: ClaveConsulta[] = req.borrar_datos ? ['videos', 'video', 'producto', 'muestra', 'dashboard'] : [];
+    const invalida: ClaveConsulta[] = req.borrar_datos
+      ? ['videos', 'video', 'producto', 'muestra', 'dashboard', 'catalogo_videos', 'catalogo_video'] : [];
     const r = como<C.DesconectarDisplayResponse>(await pedir('POST', '/api/display/desconectar', cuerpo, invalida), 'display', 'revocado');
     if (esEstadoDisplay(r.display)) escribirEntrada('display', {}, r.display);
     return r;

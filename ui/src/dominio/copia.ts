@@ -581,6 +581,9 @@ const ARMADORES: Armadores = {
   ajustes_pc: necesitaPc,
   uso_datos: necesitaPc,
   display: necesitaPc,
+  // rev. 6 · el catálogo (publicados sin ventas) no viaja en la copia: sin la PC, la pantalla sigue en «Con ventas».
+  catalogo_videos: necesitaPc,
+  catalogo_video: necesitaPc,
 };
 
 /** Claves de BUILD_SPEC §8.3 que se pueden armar con la copia. */

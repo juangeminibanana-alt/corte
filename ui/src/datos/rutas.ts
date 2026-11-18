@@ -40,6 +40,9 @@ export const RUTAS_CONSULTA: Readonly<Record<ClaveConsulta, DefRuta>> = {
   uso_datos: { ruta: '/api/datos/uso' },
   // rev. 5 · Display API: solo la ventana de Windows (por la LAN responde 404; Android ni la pide).
   display: { ruta: '/api/display/estado' },
+  // rev. 6 · catálogo de videos (publicados y con ventas): solo con capacidades.catalogo_videos.
+  catalogo_videos: { ruta: '/api/catalogo/videos' },
+  catalogo_video: { ruta: '/api/catalogo/videos', enRuta: 'id' },
 };
 
 export const TODAS_LAS_CLAVES: readonly ClaveConsulta[] = Object.keys(RUTAS_CONSULTA).filter(
@@ -93,15 +96,17 @@ export const CLAVES_LOCALES: readonly ClaveConsulta[] = ['plan', 'avisos', 'nota
 /** Claves que traen imágenes versionadas (C45): se vuelven a pedir cuando sube img_rev. */
 export const CLAVES_CON_IMAGENES: readonly ClaveConsulta[] = [
   'sesion', 'dashboard', 'muestras', 'muestra', 'tiendas', 'tienda', 'videos', 'video', 'productos', 'producto', 'ordenes',
+  'catalogo_videos', 'catalogo_video',
 ];
 
 const POR_SECCION: Readonly<Record<C.Seccion, readonly ClaveConsulta[]>> = {
-  muestras: ['muestras', 'muestra', 'dashboard', 'tiendas', 'tienda', 'producto', 'sync_cobertura'],
-  ordenes: ['ordenes', 'dashboard', 'serie', 'tiendas', 'tienda', 'videos', 'video', 'productos', 'producto', 'muestras', 'muestra', 'sync_cobertura'],
-  productos: ['productos', 'producto', 'muestras', 'muestra', 'tiendas', 'tienda', 'videos', 'video', 'dashboard', 'ordenes', 'sync_cobertura'],
+  muestras: ['muestras', 'muestra', 'dashboard', 'tiendas', 'tienda', 'producto', 'sync_cobertura', 'catalogo_videos', 'catalogo_video'],
+  ordenes: ['ordenes', 'dashboard', 'serie', 'tiendas', 'tienda', 'videos', 'video', 'productos', 'producto', 'muestras', 'muestra', 'sync_cobertura', 'catalogo_videos', 'catalogo_video'],
+  productos: ['productos', 'producto', 'muestras', 'muestra', 'tiendas', 'tienda', 'videos', 'video', 'dashboard', 'ordenes', 'sync_cobertura', 'catalogo_videos', 'catalogo_video'],
   tiendas: ['tiendas', 'tienda', 'muestras', 'muestra', 'dashboard'],
-  videos: ['videos', 'video', 'producto', 'dashboard', 'sync_cobertura'],
-  cuenta: ['sesion', 'credenciales', 'lan'],
+  videos: ['videos', 'video', 'producto', 'dashboard', 'sync_cobertura', 'catalogo_videos', 'catalogo_video'],
+  // 'cuenta' también cambia el catálogo: de la cuenta de la Display API depende si se listan los videos sin ventas.
+  cuenta: ['sesion', 'credenciales', 'lan', 'catalogo_videos', 'catalogo_video'],
   local: ['plan', 'avisos', 'notas', 'recordatorios', 'plantillas', 'preferencias', 'muestras', 'muestra', 'tiendas', 'tienda', 'dashboard', 'producto'],
 };
 

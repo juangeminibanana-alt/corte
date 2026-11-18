@@ -50,8 +50,11 @@ class _CorteShellState extends State<CorteShell> {
           : const ProductsPage();
     if (parts[0] == 'videos')
       return parts.length > 1
-          ? VideoDetailPage(id: parts[1])
-          : const VideosPage();
+          ? VideoDetailPage(
+              id: parts[1],
+              desdeTodos: uri.queryParameters['desde'] == 'todos',
+            )
+          : VideosPage(todos: uri.queryParameters['segmento'] == 'todos');
     if (parts[0] == 'ventas') return const SalesPage();
     if (parts[0] == 'ordenes') return const OrdersPage();
     if (parts[0] == 'ajustes') return const SettingsPage();

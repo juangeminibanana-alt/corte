@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../app.dart';
+import '../domain/domain.dart';
 import 'editors.dart';
 import 'format.dart';
 import 'theme.dart';
@@ -8,6 +9,7 @@ import 'widgets.dart';
 import 'desktop.dart';
 import 'work.dart';
 import 'product_evidence.dart';
+import 'video_catalog.dart';
 
 Future<void> openPublicLink(BuildContext context, String? value) async {
   final url = Uri.tryParse(value ?? '');
@@ -842,15 +844,33 @@ class VideoRow extends StatelessWidget {
 }
 
 class VideosPage extends StatefulWidget {
-  const VideosPage({super.key});
+  const VideosPage({super.key, this.todos = false});
+
+  /// rev. 6 · `?segmento=todos`: la pestaña «Todos» (catálogo), si el hub la tiene.
+  final bool todos;
   @override
   State<VideosPage> createState() => _VideosPageState();
 }
 
 class _VideosPageState extends State<VideosPage> {
   String _search = '', _order = 'comision_estimada_centavos';
+  bool _sinCatalogo = false;
+
+  // «Con ventas» abre como siempre, sin esperar a nadie: la sesión solo decide si se pintan las pestañas
+  // (VideoTabsSiHayCatalogo). «Todos» pide el catálogo directamente; un hub sin él responde 404 y se vuelve aquí.
   @override
-  Widget build(BuildContext context) => ApiData(
+  Widget build(BuildContext context) {
+    if (widget.todos && !_sinCatalogo) {
+      return VideoCatalogView(
+        onFallback: () {
+          if (mounted) setState(() => _sinCatalogo = true);
+        },
+      );
+    }
+    return _conVentas(context, !_sinCatalogo);
+  }
+
+  Widget _conVentas(BuildContext context, bool pestanas) => ApiData(
     path: '/api/analitica/videos',
     query: const {'limite': 1000},
     builder: (context, data) {
@@ -876,6 +896,7 @@ class _VideosPageState extends State<VideosPage> {
                         '${data['total'] ?? rowsOf(data['items']).length} videos de tu cuenta',
                   ),
                   const SalesNavigation(selected: 'videos'),
+                  if (pestanas) const VideoTabsSiHayCatalogo(),
                   const SizedBox(height: 20),
                   TextField(
                     decoration: const InputDecoration(
@@ -913,122 +934,148 @@ class _VideosPageState extends State<VideosPage> {
 }
 
 class VideoDetailPage extends StatelessWidget {
-  const VideoDetailPage({super.key, required this.id});
+  const VideoDetailPage({super.key, required this.id, this.desdeTodos = false});
   final String id;
+
+  /// rev. 6 · Abierto desde «Todos»: sin historial, «Volver» lleva a esa pestaña.
+  final bool desdeTodos;
+
+  void _volver(BuildContext context) {
+    final ui = CorteScope.of(context);
+    if (!ui.back()) ui.go(desdeTodos ? videosTodos : videosConVentas);
+  }
+
+  // rev. 6 · Un video sin ventas no está en /api/videos (404): el detalle sale del catálogo. Un hub sin catálogo
+  // también responde 404 ahí y queda el «No encontramos este video» de siempre.
   @override
   Widget build(BuildContext context) => ApiData(
     path: '/api/videos/${Uri.encodeComponent(id)}',
-    builder: (context, data) {
-      final ui = CorteScope.of(context), v = mapOf(data['video']);
-      return ListView(
-        padding: pagePadding(context),
-        children: [
-          PageTitle(
-            'Detalle del video',
-            back: () {
-              if (!ui.back()) ui.go('/videos');
-            },
-          ),
-          LayoutBuilder(
-            builder: (context, limits) {
-              final cover = CortePhoto(
-                videoCover(v),
-                width: limits.maxWidth > 700 ? 235 : 200,
-                height: 320,
-                video: true,
-                fit: BoxFit.contain,
-                label: 'Portada real del video',
-              );
-              final info = Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    videoTitle(v),
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  if (v['publicado_at'] != null)
-                    Text(
-                      'Publicado el ${date(v['publicado_at'])}',
-                      style: TextStyle(color: context.corte.muted),
-                    ),
-                  const SizedBox(height: 18),
-                  MetricStrip([
-                    (
-                      'Vistas',
-                      v['vistas'] == null ? '—' : integer(v['vistas']),
-                    ),
-                    (
-                      'Me gusta',
-                      v['me_gusta'] == null && v['likes'] == null
-                          ? '—'
-                          : integer(v['likes'] ?? v['me_gusta']),
-                    ),
-                    (
-                      'Comentarios',
-                      v['comentarios'] == null
-                          ? '—'
-                          : integer(v['comentarios']),
-                    ),
-                    (
-                      'Compartidos',
-                      v['compartidos'] == null
-                          ? '—'
-                          : integer(v['compartidos']),
-                    ),
-                  ]),
-                  const SizedBox(height: 20),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: FilledButton.icon(
-                      onPressed: textOf(v['enlace']).isEmpty
-                          ? null
-                          : () => openPublicLink(context, textOf(v['enlace'])),
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text('Ver video en TikTok'),
-                    ),
-                  ),
-                ],
-              );
-              return limits.maxWidth > 700
-                  ? Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        cover,
-                        const SizedBox(width: 32),
-                        Expanded(child: info),
-                      ],
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Center(child: cover),
-                        const SizedBox(height: 24),
-                        info,
-                      ],
-                    );
-            },
-          ),
-          const SectionHeading('Resultados de ventas'),
-          MetricStrip([
-            ('Comisión estimada', money(v['comision_estimada_centavos'])),
-            ('Ventas generadas', money(v['ventas_centavos'])),
-            ('Pedidos válidos', integer(v['pedidos_validos'])),
-            ('Unidades', integer(v['unidades'])),
-          ]),
-          if (rowsOf(data['serie']).isNotEmpty) ...[
-            const SectionHeading('Comisión estimada por mes'),
-            MiniBars(rowsOf(data['serie'])),
-          ],
-          const SectionHeading('Productos del video'),
-          for (final p in rowsOf(data['productos'])) ProductRow(product: p),
-          if (rowsOf(data['productos']).isEmpty)
-            const EmptyState('Todavía no hay productos vinculados'),
-          NotesPanel(entidad: 'video', entidadId: id),
-        ],
-      );
-    },
+    errorBuilder: (context, error) =>
+        error is ErrorApi && error.codigo == 'no_encontrado'
+        ? CatalogVideoDetail(id: id, onBack: () => _volver(context))
+        : null,
+    builder: (context, data) =>
+        VideoSalesDetail(data: data, id: id, onBack: () => _volver(context)),
   );
+}
+
+/// Detalle de un video con ventas (GET /api/videos/{id}, o el bloque `ventas` del catálogo).
+class VideoSalesDetail extends StatelessWidget {
+  const VideoSalesDetail({
+    super.key,
+    required this.data,
+    required this.id,
+    required this.onBack,
+  });
+  final Map<String, dynamic> data;
+  final String id;
+  final VoidCallback onBack;
+  @override
+  Widget build(BuildContext context) {
+    final v = mapOf(data['video']);
+    return ListView(
+      padding: pagePadding(context),
+      children: [
+        PageTitle('Detalle del video', back: onBack),
+        LayoutBuilder(
+          builder: (context, limits) {
+            final cover = CortePhoto(
+              videoCover(v),
+              width: limits.maxWidth > 700 ? 235 : 200,
+              height: 320,
+              video: true,
+              fit: BoxFit.contain,
+              label: 'Portada real del video',
+            );
+            final info = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  videoTitle(v),
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                const SizedBox(height: 12),
+                if (v['publicado_at'] != null)
+                  Text(
+                    'Publicado el ${date(v['publicado_at'])}',
+                    style: TextStyle(color: context.corte.muted),
+                  ),
+                const SizedBox(height: 18),
+                MetricStrip([
+                  (
+                    'Vistas',
+                    v['vistas'] == null ? '—' : integer(v['vistas']),
+                  ),
+                  (
+                    'Me gusta',
+                    v['me_gusta'] == null && v['likes'] == null
+                        ? '—'
+                        : integer(v['likes'] ?? v['me_gusta']),
+                  ),
+                  (
+                    'Comentarios',
+                    v['comentarios'] == null
+                        ? '—'
+                        : integer(v['comentarios']),
+                  ),
+                  (
+                    'Compartidos',
+                    v['compartidos'] == null
+                        ? '—'
+                        : integer(v['compartidos']),
+                  ),
+                ]),
+                const SizedBox(height: 20),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    onPressed: textOf(v['enlace']).isEmpty
+                        ? null
+                        : () => openPublicLink(context, textOf(v['enlace'])),
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: const Text('Ver video en TikTok'),
+                  ),
+                ),
+              ],
+            );
+            return limits.maxWidth > 700
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      cover,
+                      const SizedBox(width: 32),
+                      Expanded(child: info),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(child: cover),
+                      const SizedBox(height: 24),
+                      info,
+                    ],
+                  );
+          },
+        ),
+        const SectionHeading('Resultados de ventas'),
+        MetricStrip([
+          ('Comisión estimada', money(v['comision_estimada_centavos'])),
+          ('Ventas generadas', money(v['ventas_centavos'])),
+          ('Pedidos válidos', integer(v['pedidos_validos'])),
+          ('Unidades', integer(v['unidades'])),
+        ]),
+        if (rowsOf(data['serie']).isNotEmpty) ...[
+          const SectionHeading('Comisión estimada por mes'),
+          MiniBars(rowsOf(data['serie'])),
+        ],
+        const SectionHeading('Productos del video'),
+        for (final p in rowsOf(data['productos'])) ProductRow(product: p),
+        if (rowsOf(data['productos']).isEmpty)
+          const EmptyState('Todavía no hay productos vinculados'),
+        NotesPanel(entidad: 'video', entidadId: id),
+      ],
+    );
+  }
 }
 
 class SalesNavigation extends StatelessWidget {

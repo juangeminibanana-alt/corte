@@ -37,7 +37,8 @@ export function cx(...clases: Array<string | false | null | undefined>): string 
   return clases.filter((c): c is string => typeof c === 'string' && c.length > 0).join(' ');
 }
 
-export const rutaVideo =(id: string): string => `/videos/${encodeURIComponent(id)}`;
+/** `desde` = 'todos' cuando se abre desde «Todos» (rev. 6): el «‹ Videos» del detalle vuelve a esa pestaña. */
+export const rutaVideo = (id: string, desde?: 'todos'): string => `/videos/${encodeURIComponent(id)}${desde === 'todos' ? '?desde=todos' : ''}`;
 export const rutaProducto = (id: string): string => `/productos/${encodeURIComponent(id)}`;
 export const rutaMuestra = (id: string): string => `/muestras/m/${encodeURIComponent(id)}`;
 export const rutaTienda = (key: string): string => `/tiendas/${encodeURIComponent(key)}`;

@@ -6,58 +6,33 @@
  * Sin la PC (Android) se arma con la copia (sin serie, lista de productos que puede venir corta: se rotula).
  * rev. 5 (Display API): portada REAL cuando existe, «Publicado el …» y la banda «En TikTok» (MetricasVideo.tsx) con
  * vistas, likes, comentarios, compartidos, conversión y vistas nuevas por día. Sin métricas, nada de eso aparece.
+ * rev. 6 (catálogo): un video SIN ventas no está en /api/videos (404). Si el hub tiene el catálogo, el detalle se arma
+ * con /api/catalogo/videos/{id} (DetalleCatalogo.tsx): su portada real, sus cifras de TikTok y «Sin ventas», nunca
+ * ceros inventados. Abierto desde «Todos» (?desde=todos), «‹ Videos» vuelve a esa pestaña.
  */
-import { useMemo, type ReactElement, type ReactNode } from 'react';
+import { useMemo, type ReactElement } from 'react';
 import type * as C from '@/contrato';
-import { useConsulta } from '@/datos';
+import { useConsulta, useSesion } from '@/datos';
 import { EnlaceRuta, Pantalla, navegar, useClaseAncho, usePlataforma, useRuta } from '@/app';
 import {
-  AvatarTienda, BandaKpi, BotonIcono, Chip, EncabezadoPantalla, GraficaColumnas, Icono, Kpi, PuntoVivo, Tarjeta, TarjetaProducto,
-  useToast,
+  AvatarTienda, BandaKpi, Chip, EncabezadoPantalla, GraficaColumnas, Icono, Kpi, PuntoVivo, Tarjeta, TarjetaProducto,
 } from '@/componentes';
 import { formato, hoyLocal, nombreCorto } from '@/dominio';
-import { ListaNotas, TarjetaMuestra } from '@/bloques';
-import { copiarTexto } from '@/plataforma';
+import { ListaNotas } from '@/bloques';
+import { RUTA_SEGMENTO } from './Cabecera';
+import { ContenidoCatalogo } from './DetalleCatalogo';
 import { CargaDetalle, ErrorVista } from './Estados';
 import { BotonAbrirVideo, PortadaVideo } from './MarcoVideo';
 import { EnTikTok } from './MetricasVideo';
+import { IdVideo, Seccion, SeccionMuestras } from './Piezas';
 import {
-  claveTiendaVideo, etiquetaEje, idsVendiendo, lunesDe, mapaNombres, mejorPunto, muestraConNombre, nombreVideo, nombreVisible, porMilTipico,
+  claveTiendaVideo, etiquetaEje, idsVendiendo, lunesDe, mapaNombres, mejorPunto, nombreVideo, nombreVisible, porMilTipico,
   rankingPorComision, reembolsados, serieSemanalContinua,
 } from './logica';
+import { PARAMS_CATALOGO, nombreCatalogo } from './logicaCatalogo';
 import { T } from './textos';
-import { cx, rutaMuestra, rutaProducto, rutaTienda } from './util';
+import { cx, rutaProducto, rutaTienda } from './util';
 import css from './videos.module.css';
-
-function Seccion(p: { titulo: string; nota?: string; children: ReactNode; className?: string }): ReactElement {
-  return (
-    <Tarjeta padding="amplio" className={`${css.seccion} ${p.className ?? ''}`}>
-      <section aria-label={p.titulo} className={cx(css.seccionInterior)}>
-        <header className={cx(css.seccionCabeza)}>
-          <h2 className={cx(css.seccionTitulo)}>{p.titulo}</h2>
-          {p.nota ? <p className={cx(css.seccionNota)}>{p.nota}</p> : null}
-        </header>
-        {p.children}
-      </section>
-    </Tarjeta>
-  );
-}
-
-function IdVideo(p: { id: string }): ReactElement {
-  const toast = useToast();
-  return (
-    <p className={cx(css.id)}>
-      <span>{T.idVideo}</span>
-      <code className={cx(css.mono)} title={p.id}>{p.id}</code>
-      <BotonIcono
-        icono="Copy"
-        etiqueta={T.copiarId}
-        tamano="sm"
-        alPulsar={() => void copiarTexto(p.id).then((ok) => ok && toast.mostrar({ texto: T.idCopiado, tono: 'ok' }))}
-      />
-    </p>
-  );
-}
 
 function GraficaSemanas(p: { serie: C.PuntoSerie[]; compacta: boolean }): ReactElement {
   const enCurso = lunesDe(hoyLocal());
@@ -100,9 +75,6 @@ function GraficaSemanas(p: { serie: C.PuntoSerie[]; compacta: boolean }): ReactE
 function Contenido(p: { detalle: C.VideoDetalleResponse; nombre: string; lugar: number | null; vendiendo: boolean; compacta: boolean; android: boolean; tipico: number | null }): ReactElement {
   const v = p.detalle.video;
   const productos = [...p.detalle.productos].sort((a, b) => b.comision_estimada_centavos - a.comision_estimada_centavos);
-  const vinculadas = v.muestras_vinculadas;
-  const muestras = useConsulta('muestras', {}, { activa: vinculadas.length > 0 });
-  const porId = useMemo(() => new Map((muestras.datos?.items ?? []).map((m) => [m.application_id, m])), [muestras.datos]);
   const r = reembolsados(v);
 
   const kpis = (
@@ -212,29 +184,7 @@ function Contenido(p: { detalle: C.VideoDetalleResponse; nombre: string; lugar: 
           )}
         </Seccion>
         <div className={cx(css.columnaLateral)}>
-          <Seccion titulo={T.muestras}>
-            {vinculadas.length === 0 ? (
-              <p className={cx(css.vacioCorto)}>{T.muestrasVacio}</p>
-            ) : (
-              <ul className={cx(css.listaMuestras)}>
-                {vinculadas.map((id) => {
-                  const m = porId.get(id);
-                  return (
-                    <li key={id}>
-                      {m ? (
-                        <TarjetaMuestra muestra={muestraConNombre(m)} variante="lista" conAccion={false} alAbrir={() => navegar(rutaMuestra(id))} />
-                      ) : (
-                        <EnlaceRuta a={rutaMuestra(id)} className={cx(css.enlaceMuestra)}>
-                          {T.muestraSinDatos(formato.idCorto(id))}
-                          <Icono nombre="ChevronRight" tamano={16} />
-                        </EnlaceRuta>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Seccion>
+          <SeccionMuestras ids={v.muestras_vinculadas} />
           {/* ListaNotas ya es una tarjeta con su título: va sola, con el padding y la sombra de las demás. */}
           <div className={cx(css.notasPagina)}>
             <ListaNotas entidad="video" entidadId={v.content_id} titulo={T.notas} className={cx(css.notasTarjeta)} />
@@ -254,9 +204,24 @@ const TITULO_CELULAR = 20;
 const TITULO_VENTANA = 32;
 
 export function PantallaVideo(): ReactElement {
-  const { params } = useRuta();
+  const { params, consulta: query } = useRuta();
   const id = params['id'] ?? '';
+  // rev. 6 · Abierto desde «Todos»: «‹ Videos» vuelve a esa pestaña.
+  const volverA = query.get('desde') === 'todos' ? RUTA_SEGMENTO.todos : RUTA_SEGMENTO.ventas;
   const consulta = useConsulta('video', { id }, { activa: id !== '' });
+  // rev. 6 · Sin ventas, /api/videos responde 404: con el catálogo del hub se arma con sus cifras de TikTok. Una vez que
+  // el detalle del catálogo llegó, se queda aunque un refresco de ventas falle por otra causa (red, 5xx): la copia
+  // visible se conserva, igual que con un video con ventas. Mientras la sesión no dice si hay catálogo, un 404 cuenta
+  // como «cargando» (sin «No encontramos este video» de paso).
+  const sesion = useSesion();
+  const conCatalogo = sesion.datos?.capacidades.catalogo_videos === true;
+  const ventas404 = !consulta.datos && consulta.error?.codigo === 'no_encontrado';
+  const esperaSesion = ventas404 && !sesion.datos && !sesion.error;
+  const catalogoVisto = useConsulta('catalogo_video', { id }, { activa: false });
+  const sinVentas = conCatalogo && !consulta.datos && (ventas404 || catalogoVisto.datos !== undefined);
+  const catalogo = useConsulta('catalogo_video', { id }, { activa: id !== '' && sinVentas });
+  // Desde cuándo hay pedidos guardados, de la MISMA lista que usa «Todos» (en caché si se viene de ahí).
+  const listaCatalogo = useConsulta('catalogo_videos', PARAMS_CATALOGO, { activa: sinVentas });
   const productos = useConsulta('productos', {});
   const tablero7 = useConsulta('dashboard', { periodo: '7d' });
   const p7 = tablero7.datos?.periodo;
@@ -266,7 +231,14 @@ export function PantallaVideo(): ReactElement {
   const ancho = useClaseAncho();
   const android = usePlataforma() === 'android';
   const compacta = ancho === 'compacta';
-  const d = consulta.datos;
+  const dc = sinVentas ? catalogo.datos : undefined;
+  // Si entre una petición y otra el video ya vendió, el catálogo trae su detalle de ventas: se muestra el de siempre.
+  const ventasDeCatalogo = useMemo(
+    (): C.VideoDetalleResponse | undefined => (dc?.ventas ? { ...dc.ventas, ...(dc.tendencia ? { tendencia: dc.tendencia } : {}) } : undefined),
+    [dc],
+  );
+  const d = consulta.datos ?? ventasDeCatalogo;
+  const sinVentasDetalle = dc && !dc.ventas ? dc : undefined;
   const lugar = useMemo(
     () => (d && historial.datos ? rankingPorComision(historial.datos.items).get(d.video.content_id) ?? null : null),
     [d, historial.datos],
@@ -279,31 +251,49 @@ export function PantallaVideo(): ReactElement {
     for (const [k, valor] of mapaNombres(d?.productos)) m.set(k, valor);
     return m;
   }, [productos.datos, d]);
-  const nombre = d ? nombreVideo(d.video, nombres) : T.titulo;
+  const nombre = d ? nombreVideo(d.video, nombres) : sinVentasDetalle ? nombreCatalogo(sinVentasDetalle.video) : T.titulo;
   const vendiendo = d && p7 && semana.datos ? idsVendiendo(semana.datos.items)?.has(d.video.content_id) ?? false : false;
 
   // Sin la PC, la franja «Sin conexión con tu PC · datos del {fecha}» la pone el marco (02 §7.9).
   // Si el video no tiene nombre de producto, el título ya es «Video 7680…4613»: el contexto pasa a ser la tienda.
   // En la ventana, si el título se acortó, el contexto lleva el nombre completo antes del ID corto.
-  const idCorto = d ? T.nombreVideo(formato.idCorto(d.video.content_id)) : null;
+  const idVideo = d?.video.content_id ?? sinVentasDetalle?.video.content_id ?? null;
+  const enlace = d?.video.enlace ?? sinVentasDetalle?.video.enlace ?? null;
+  const idCorto = idVideo !== null ? T.nombreVideo(formato.idCorto(idVideo)) : null;
   const titulo = (compacta ? nombreCorto(nombre, TITULO_CELULAR) : nombreCorto(nombre, TITULO_VENTANA)) || nombre;
-  const contexto = !d ? undefined
-    : nombre === idCorto ? d.video.tienda_principal ?? undefined
+  const contexto = idVideo === null ? undefined
+    : nombre === idCorto ? d?.video.tienda_principal ?? undefined
       : !compacta && titulo !== nombre ? T.contextoDetalle(nombre, idCorto ?? '') : idCorto ?? undefined;
 
+  const error = esperaSesion ? null : sinVentas ? catalogo.error : consulta.error;
+  const hayDatos = !!d || !!sinVentasDetalle;
+  const cargando = esperaSesion || (sinVentas ? catalogo.cargando : consulta.cargando) || (!hayDatos && !error);
+  const refrescando = sinVentas ? catalogo.refrescando : consulta.refrescando;
+
   return (
-    <Pantalla titulo={nombre} lista={!!d || !!consulta.error}>
+    <Pantalla titulo={nombre} lista={hayDatos || !!error}>
       <div className={cx(css.pantalla)}>
         <EncabezadoPantalla
           titulo={titulo}
-          volver={{ a: '/videos', etiqueta: T.volver }}
+          volver={{ a: volverA, etiqueta: T.volver }}
           {...(contexto ? { contexto } : {})}
-          {...(d && !android && !compacta ? { acciones: <BotonAbrirVideo enlace={d.video.enlace} variante="secundario" className={cx(css.soloVentanaAncha)} /> } : {})}
+          {...(enlace && !android && !compacta ? { acciones: <BotonAbrirVideo enlace={enlace} variante="secundario" className={cx(css.soloVentanaAncha)} /> } : {})}
         />
-        <div className={cx(css.trasEncabezado, consulta.refrescando && css.refrescando)}>
-          {consulta.cargando || (!d && !consulta.error) ? <CargaDetalle /> : null}
-          {consulta.error && !d ? <ErrorVista error={consulta.error} titulo={T.errorDetalleTitulo} alReintentar={() => void consulta.refrescar()} /> : null}
+        <div className={cx(css.trasEncabezado, refrescando && css.refrescando)}>
+          {cargando ? <CargaDetalle /> : null}
+          {error && !hayDatos ? (
+            <ErrorVista error={error} titulo={T.errorDetalleTitulo} alReintentar={() => void (sinVentas ? catalogo.refrescar() : consulta.refrescar())} />
+          ) : null}
           {d ? <Contenido detalle={d} nombre={nombre} lugar={lugar} vendiendo={vendiendo} compacta={compacta} android={android} tipico={tipico} /> : null}
+          {!d && sinVentasDetalle ? (
+            <ContenidoCatalogo
+              detalle={sinVentasDetalle}
+              nombre={nombre}
+              compacta={compacta}
+              android={android}
+              pedidosDesde={listaCatalogo.datos ? listaCatalogo.datos.pedidos_desde : undefined}
+            />
+          ) : null}
         </div>
       </div>
     </Pantalla>

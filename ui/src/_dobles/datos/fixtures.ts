@@ -82,6 +82,8 @@ export const RUTAS_CONSULTA: Readonly<Record<ClaveConsulta, DefRutaConsulta>> = 
   ajustes_pc: { ruta: '/api/ajustes/pc' },
   uso_datos: { ruta: '/api/datos/uso' },
   display: { ruta: '/api/display/estado' },
+  catalogo_videos: { ruta: '/api/catalogo/videos' },
+  catalogo_video: { ruta: '/api/catalogo/videos', enRuta: 'id' },
 };
 
 function valorQuery(v: unknown): string | null {

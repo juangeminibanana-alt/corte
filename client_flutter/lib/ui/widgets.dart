@@ -190,11 +190,15 @@ class ApiData extends StatefulWidget {
     required this.builder,
     this.query = const {},
     this.padding = const EdgeInsets.all(24),
+    this.errorBuilder,
   });
   final String path;
   final Map<String, Object?> query;
   final Widget Function(BuildContext context, JsonMap data) builder;
   final EdgeInsets padding;
+
+  /// Vista propia para un error (p. ej. un 404 que tiene otra fuente). Si devuelve null, se muestra el aviso de siempre.
+  final Widget? Function(BuildContext context, Object error)? errorBuilder;
   @override
   State<ApiData> createState() => _ApiDataState();
 }
@@ -226,6 +230,10 @@ class _ApiDataState extends State<ApiData> {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           final error = snapshot.error;
+          final propia = error == null
+              ? null
+              : widget.errorBuilder?.call(context, error);
+          if (propia != null) return propia;
           return SingleChildScrollView(
             padding: widget.padding,
             child: EmptyState(

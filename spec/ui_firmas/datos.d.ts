@@ -5,6 +5,8 @@
  * rev. 3.1: ErrorHub.vigente (409), AccionesLocales.deshacerUltimo (Ctrl+Z global), importarLocal(ruta) (C46) y el
  * registro de metadatos de imagen delegado en dominio.registroImagenes (C47).
  * rev. 5 (15/11, solo agregados): consulta 'display' y hub.display* (Display API, métricas de tus videos).
+ * rev. 6 (18/11, solo agregados): consultas 'catalogo_videos' y 'catalogo_video' (videos publicados y con ventas; solo si
+ * la sesión anuncia capacidades.catalogo_videos; un hub anterior responde 404 y la pantalla sigue con 'videos').
  */
 import type * as C from '@/contrato';
 import type { EstadoConexionPc } from '@/plataforma';
@@ -83,6 +85,15 @@ export interface Consultas {
   /** rev. 5 · GET /api/display/estado (SOLO la ventana de Windows; Android → ErrorHub('solo_en_pc')). Se actualiza sola
    *  con el evento 'display.cambio' (trae el EstadoDisplay completo: no hay sondeo). */
   display: { params: SinParams; respuesta: C.EstadoDisplay };
+  /** rev. 6 · GET /api/catalogo/videos: publicados (Display API) y con ventas. Sin desde/hasta (el hub responde 400). */
+  catalogo_videos: { params: ParamsCatalogoVideos; respuesta: C.CatalogoVideosResponse };
+  /** rev. 6 · GET /api/catalogo/videos/{id}: también videos sin ventas o que solo conservan historial (404 si no está). */
+  catalogo_video: { params: { id: string }; respuesta: C.VideoCatalogoDetalleResponse };
+}
+export interface ParamsCatalogoVideos {
+  orden?: 'publicado' | 'vistas' | 'comision';
+  incluir?: 'publicos' | 'historial';
+  limite?: number;
 }
 export type ClaveConsulta = keyof Consultas;
 export type ParamsDe<K extends ClaveConsulta> = Consultas[K]['params'];
