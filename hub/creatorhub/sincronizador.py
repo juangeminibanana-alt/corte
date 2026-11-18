@@ -36,6 +36,11 @@ Rev. 5 (15/11/2026, Display API): el paso «videos_tiktok» (sincronizador_video
 en silencio y el paso `videos` queda exactamente como en la rev. 4. `PasoSync` no cambia.
 
 Rev. 6 (18/11/2026): se quitó la fase «origen de cada venta» (orders/trace/search, retirada por TikTok el 15/08/2026).
+Rev. 7 (18/11/2026): el paso de pedidos guarda trace_info.type de cada línea de orders/search 202410 en
+orden_lineas_traza (etapa 2 de docs/ORDER_TRACE_RETIREMENT.md), sin llamadas nuevas: solo en ventanas completas y en la
+misma transacción que las líneas. Un pedido sin cambios que aún no tiene trazas se reescribe una vez desde la misma
+respuesta (líneas y trazas de la misma lista; nada se alinea por posición). Nunca se lee ni se guarda trace_info.id.
+También cuenta, sin guardarlas, las monedas y los estados que no son los esperados (resumen 'ordenes_calidad').
 `productos_ventas` termina con cuatro fases y `orden_trazas` queda como histórico cerrado (ver sincronizador_ficha.py).
 """
 from __future__ import annotations
@@ -134,6 +139,13 @@ CODIGOS_VALIDACION: frozenset[Any] = frozenset({-10005})
 RE_ID_IMAGEN = re.compile(r'^\d{1,25}$')
 RE_REF_GALERIA = re.compile(r'^\d{1,25}-(?:\d|1[01])$')      # 'g:<product_id>-<n>' (rev. 4)
 ESTADOS_VALIDOS: tuple[str, ...] = ('SETTLED', 'To-SETTLE', 'AWAITING PAYMENT')
+# rev. 7 · Estados que documenta orders/search 202410 (se guardan crudos; los demás solo se cuentan en el resumen).
+ESTADOS_DOCUMENTADOS: frozenset[str] = frozenset({'UNSPECIFIED', 'AWAITING PAYMENT', 'To-SETTLE', 'SETTLED', 'REFUNDED',
+                                                   'FROZEN'})
+MONEDA_ESPERADA = 'MXN'
+# Importes {amount, currency} de una línea que Corte guarda: si sus monedas no coinciden se cuenta (no se convierte).
+IMPORTES_LINEA: tuple[str, ...] = ('price', 'estimated_commission', 'actual_commission', 'estimated_commission_base',
+                                   'actual_commission_base', 'isr', 'iva', 'shared_with_partner')
 REV_VITRINA = '4'                       # sync_cursores 'vitrina.rev': con otro valor la vitrina se vuelve a leer
 
 _SQL_PORTADAS = f"""
@@ -169,6 +181,31 @@ ORDER BY v.fecha_limite_at, v.application_id
 
 class _Cancelada(Exception):
     """La sincronización se canceló (ContextoSync.cancelar)."""
+
+
+def tipo_traza(sku: dict[str, Any]) -> tuple[bool, str | None]:
+    """(se_puede_afirmar, traza_tipo) de una línea de orders/search 202410 (etapa 2 de ORDER_TRACE_RETIREMENT.md).
+    - trace_info ausente, null, {} o con type vacío → (True, None): «sin traza reportada» (no es «orgánico» ni «video»).
+    - type textual (o número) → (True, norm_estado(type)): GENERAL, SPECIFIC u otro valor, tal cual.
+    - trace_info o type de otro tipo (lista, objeto…) → (False, None): no se afirma nada; la línea queda «sin dato».
+    Nunca se lee trace_info.id."""
+    ti = sku.get('trace_info')
+    if ti is None or ti == {}:
+        return True, None
+    if not isinstance(ti, dict):
+        return False, None
+    t = ti.get('type')
+    if t is None or (isinstance(t, str) and not t.strip()):
+        return True, None
+    if isinstance(t, (str, int, float)) and not isinstance(t, bool):
+        return True, norm_estado(t)
+    return False, None
+
+
+def acum_trazas() -> dict[str, Any]:
+    """Contadores de una ventana (resumen 'trazas_202410'): responden qué trae de verdad la API sin guardar respuestas."""
+    return {'lineas_observadas': 0, 'escritas': 0, 'con_traza': 0, 'por_tipo': {}, 'tipo_no_textual': 0,
+            'id_sin_tipo': 0, 'clave_trace_antigua': 0}
 
 
 def huella_url(url: str | None) -> str | None:
@@ -1364,7 +1401,11 @@ class _Sincronizador(FasesFicha, PasoVideosTikTok):
              s.get('refunded_quantity'), s.get('returned_quantity'), s.get('content_id'), s.get('last_update_time'))
             for s in skus))
 
-    def _insertar_lineas(self, db: Any, oid: str, skus: list[dict[str, Any]]) -> None:
+    def _insertar_lineas(self, db: Any, oid: str, skus: list[dict[str, Any]], observar: bool = False,
+                         acum: dict[str, Any] | None = None) -> None:
+        """Reescribe las líneas del pedido. rev. 7: con `observar` (ventana completa) guarda también la traza de cada
+        línea en orden_lineas_traza, DESPUÉS de su línea (la FK lo exige) y en la misma transacción. El DELETE de las
+        líneas ya borró en cascada las trazas anteriores del pedido."""
         db.execute('DELETE FROM orden_lineas WHERE order_id=?', (oid,))
         for i, s in enumerate(skus):
             tk = self._tienda(db, s.get('shop_name'))
@@ -1389,6 +1430,63 @@ class _Sincronizador(FasesFicha, PasoVideosTikTok):
                         s.get('content_type'), s.get('content_id') or None, s.get('campaign_id'),
                         s.get('open_collaboration_id'), s.get('target_collaboration_id'),
                         None if s.get('is_carousel') is None else int(bool(s.get('is_carousel'))), s.get('last_update_time')))
+            if not observar:
+                continue
+            ok, tipo = tipo_traza(s)
+            if acum is not None:
+                acum['lineas_observadas'] += 1
+                ti = s.get('trace_info')
+                if isinstance(ti, dict) and ti.get('id') not in (None, '') and tipo is None and ok:
+                    acum['id_sin_tipo'] += 1
+                if 'trace' in s:
+                    acum['clave_trace_antigua'] += 1            # la clave de la ruta retirada: se cuenta, nunca se usa
+                if not ok:
+                    acum['tipo_no_textual'] += 1
+                elif tipo is not None:
+                    acum['con_traza'] += 1
+                if ok:
+                    clave = tipo or 'SIN_TRAZA'
+                    acum['por_tipo'][clave] = acum['por_tipo'].get(clave, 0) + 1
+                    acum['escritas'] += 1
+            if ok:
+                db.execute('INSERT INTO orden_lineas_traza(order_id, linea_n, traza_tipo, capturada_at) VALUES (?,?,?,?)',
+                           (oid, i, tipo, self.ahora))
+
+    def _sumar_trazas(self, acum: dict[str, Any], rellenos: int) -> None:
+        if not acum['lineas_observadas'] and not rellenos:
+            return
+        r = self.resumen.setdefault('trazas_202410', {**acum_trazas(), 'pedidos_rellenados': 0})
+        for k in ('lineas_observadas', 'escritas', 'con_traza', 'tipo_no_textual', 'id_sin_tipo', 'clave_trace_antigua'):
+            r[k] += acum[k]
+        for t, n in acum['por_tipo'].items():
+            r['por_tipo'][t] = r['por_tipo'].get(t, 0) + n
+        r['pedidos_rellenados'] += rellenos
+
+    def _sumar_calidad(self, por_orden: dict[str, dict[str, Any]]) -> None:
+        """rev. 7 · Cuenta (sin guardar nada) lo que la doc de 202410 no garantiza: monedas distintas de MXN o mezcladas en
+        una línea, y estados fuera de los documentados. Responde con datos reales si hace falta guardar más monedas."""
+        lineas = no_mxn = mixtas = 0
+        estados: dict[str, int] = {}
+        for o in por_orden.values():
+            st = o.get('status') or 'UNSPECIFIED'
+            if st not in ESTADOS_DOCUMENTADOS:
+                estados[str(st)] = estados.get(str(st), 0) + 1
+            for sku in o.get('skus') or []:
+                lineas += 1
+                precio = sku.get('price') if isinstance(sku.get('price'), dict) else {}
+                if precio.get('currency') not in (None, '', MONEDA_ESPERADA):
+                    no_mxn += 1
+                monedas = {v.get('currency') for c in IMPORTES_LINEA
+                           if isinstance(v := sku.get(c), dict) and v.get('currency')}
+                if len(monedas) > 1:
+                    mixtas += 1
+        r = self.resumen.setdefault('ordenes_calidad', {'lineas': 0, 'moneda_precio_no_mxn': 0, 'monedas_mixtas': 0,
+                                                        'estados_desconocidos': {}})
+        r['lineas'] += lineas
+        r['moneda_precio_no_mxn'] += no_mxn
+        r['monedas_mixtas'] += mixtas
+        for st, n in estados.items():
+            r['estados_desconocidos'][st] = r['estados_desconocidos'].get(st, 0) + n
 
     def _bajar_y_guardar_ventana(self, ge: int, lt: int) -> tuple[int, int, int, dict[str, Any] | None]:
         por_orden, total, n, anom = self._bajar_ventana(ge, lt)
@@ -1397,7 +1495,8 @@ class _Sincronizador(FasesFicha, PasoVideosTikTok):
         completa = n >= total
         aviso = ({'ge': ge, 'lt': lt, 'total': total, 'lineas': n, 'anomalias': sorted(set(anom))}
                  if (not completa or anom) else None)
-        n_v = c_v = hechos = 0
+        n_v = c_v = hechos = rellenos = 0
+        acum = acum_trazas()
         with self._tx() as db:
             for oid, o in por_orden.items():
                 hechos += 1
@@ -1415,6 +1514,13 @@ class _Sincronizador(FasesFicha, PasoVideosTikTok):
                 h = self._huella_orden(o) if completa else 'incompleta'
                 if prev is not None and prev['huella'] == h:
                     db.execute('UPDATE ordenes SET vista_en_sync=? WHERE order_id=?', (self.sid, oid))
+                    # rev. 7 · Sin cambios pero aún sin trazas (guardado antes de la rev. 7): se reescriben líneas y trazas
+                    # desde ESTA respuesta, una sola vez. No cuenta como pedido cambiado.
+                    skus = o.get('skus') or []
+                    if completa and skus and db.execute('SELECT 1 FROM orden_lineas_traza WHERE order_id=? LIMIT 1',
+                                                        (oid,)).fetchone() is None:
+                        self._insertar_lineas(db, oid, skus, observar=True, acum=acum)
+                        rellenos += 1
                     continue
                 n_v += prev is None
                 c_v += prev is not None
@@ -1423,7 +1529,7 @@ class _Sincronizador(FasesFicha, PasoVideosTikTok):
                               entregada_at=excluded.entregada_at, vista_en_sync=excluded.vista_en_sync, huella=excluded.huella,
                               actualizado_at=excluded.actualizado_at""",
                            (oid, int(o['create_time']), o.get('delivery_time') or None, estado, self.sid, h, self.ahora))
-                self._insertar_lineas(db, oid, o.get('skus') or [])
+                self._insertar_lineas(db, oid, o.get('skus') or [], observar=completa, acum=acum)
             if completa:
                 # ventana bajada completa: lo que está en la base y TikTok ya no devuelve deja de contar
                 vistas = set(por_orden)
@@ -1435,10 +1541,13 @@ class _Sincronizador(FasesFicha, PasoVideosTikTok):
                         c_v += 1
                 if lt == self._cursor_desde:               # cobertura contigua desde el tope: reanudable
                     self._cursor_desde = ge
-            if n_v + c_v:
-                self.alm.marcar_data_version(db)
+            if n_v + c_v or acum['escritas']:
+                self.alm.marcar_data_version(db)            # rev. 7: también si solo se escribieron trazas
             self._guardar_cursor_ordenes(db)
         self.cambios += n_v + c_v                          # se cuentan al CONFIRMAR cada ventana
+        self._sumar_trazas(acum, rellenos)
+        if completa:
+            self._sumar_calidad(por_orden)
         return n_v, c_v, hechos, aviso
 
     # ------------------------------------------------------------------ vitrina, detalles, videos, imágenes
@@ -1735,4 +1844,5 @@ def crear_sincronizador(dep: Dependencias) -> Sincronizador:
 
 __all__: list[str] = ['crear_sincronizador', 'ORDEN_PASOS', 'PASOS_TABLA', 'PASOS_EXTRA', 'PESOS', 'TEXTOS',
                       'TEXTO_LISTO', 'SECCIONES_PC1', 'SECCIONES_PC2', 'huella_url', 'ventanas', 'restar_cobertura',
-                      'ORDEN_FASES', 'TEXTOS_FASES', 'urls_galeria', 'huella_galeria', 'REV_VITRINA']
+                      'ORDEN_FASES', 'TEXTOS_FASES', 'urls_galeria', 'huella_galeria', 'REV_VITRINA', 'tipo_traza',
+                      'acum_trazas', 'ESTADOS_DOCUMENTADOS']

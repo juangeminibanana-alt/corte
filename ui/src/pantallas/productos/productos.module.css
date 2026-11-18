@@ -872,24 +872,19 @@ a.tienda:focus-visible {
   align-self: flex-start;
 }
 
-/* ---- Origen de las ventas y la nota del permiso que falta. */
+/* ---- Origen de las ventas (rev. 7): pedidos recientes con el enlace que reporta TikTok y, aparte, el histórico. Entre
+   bloques más aire que entre las barras de un mismo bloque. */
+.origenBloques {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
 .origenBarras {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
   min-width: 0;
-}
-.notaPermiso {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  margin: calc(var(--space-2) * -1) 0 0;
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
-  color: var(--text-3);
-}
-.notaPermiso svg {
-  flex: none;
 }
 
 /* ---- Parecidos en el marketplace: rejilla de TarjetaProducto con columnas por clase de ancho (2 · 3 · 4 · 5) y dos

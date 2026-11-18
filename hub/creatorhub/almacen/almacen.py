@@ -1,12 +1,13 @@
 """Almacén SQLite del hub (BUILD_SPEC §4.3, §6.2 `Almacen`; 03 §2.6, §3.2–§3.4).
 
 - Abre la base con los PRAGMA de siempre (WAL, foreign_keys, synchronous=NORMAL, busy_timeout) y mira `user_version`:
-  0 → `schema.sql` (rev. 6, user_version 6) + semillas de `meta`; 1/2/3/4/5 → `migraciones/00{n+1}.sql` … `006.sql` en UNA
+  0 → `schema.sql` (rev. 7, user_version 7) + semillas de `meta`; 1…6 → `migraciones/00{n+1}.sql` … `007.sql` en UNA
   transacción con copia previa `hub.sqlite.bak-v{n}` (3 = las bases de Corte 1.0.0: 004.sql reconstruye `imagenes`
   copiando todas sus filas y agrega lo de la ficha completa de producto; 4 = rev. 4: 005.sql solo crea las tablas de la
-  Display API); 5 → 006.sql conserva imágenes y añade evidencia de producto; 6 → nada; > 6 → solo lectura
-  (`base_de_version_nueva`). Los .sql se leen con importlib.resources
-  (también dentro del exe).
+  Display API); 5 → 006.sql conserva imágenes y añade evidencia de producto; 6 → 007.sql solo agrega
+  `orden_lineas_traza` (trace_info de orders/search 202410); 7 → nada; > 7 → solo lectura (`base_de_version_nueva`).
+  Los .sql se leen con importlib.resources (también dentro del exe). La línea «Base migrada…» también va a stderr: en la
+  nube, el registro del hub vive en el disco de la VM y solo la salida del contenedor llega a Cloud Logging.
 - NO siembra plantillas ni preferencias: eso lo hace solo `EstadoLocal.sembrar()` (BUILD §4.3).
 - Un escritor: candado + `BEGIN IMMEDIATE` + comprobación de `meta.epoca_datos` (si cambió: ROLLBACK y
   ErrorApi('credenciales_cambiaron', decision='abortar')). Cuatro lectores `query_only` en una cola fija; cada `lector()`
@@ -31,6 +32,7 @@ import queue
 import re
 import secrets
 import sqlite3
+import sys
 import threading
 import time
 from importlib import resources
@@ -41,7 +43,7 @@ from ..interfaces import Alcance, Almacen, Reloj, Versiones
 
 _log = logging.getLogger('creatorhub.almacen')
 
-USER_VERSION = 6
+USER_VERSION = 7
 PRAGMAS_APERTURA: tuple[str, ...] = ('journal_mode=WAL', 'foreign_keys=ON', 'synchronous=NORMAL', 'busy_timeout=5000')
 TZ_OFFSET_S = -21600
 SEMILLAS_META: tuple[tuple[str, str], ...] = (
@@ -51,7 +53,7 @@ LECTORES = 4
 RETENCION_COPIAS_S = 7 * 86400
 
 # Alcances de borrar() (03 §3.4). Orden: hijas antes que padres (claves foráneas).
-TABLAS_TIKTOK: tuple[str, ...] = ('producto_evidencia', 'orden_lineas', 'ordenes', 'cumplimientos', 'muestras_historial', 'muestras', 'vitrina',
+TABLAS_TIKTOK: tuple[str, ...] = ('producto_evidencia', 'orden_lineas_traza', 'orden_lineas', 'ordenes', 'cumplimientos', 'muestras_historial', 'muestras', 'vitrina',
                                   'productos', 'videos', 'imagenes', 'tienda_alias', 'tiendas', 'cuenta', 'sync_cursores',
                                   # rev. 4 (ficha completa de producto): también vienen de TikTok y se borran igual
                                   'muestra_etiquetas', 'solicitudes_recuperadas', 'colaboraciones_dirigidas',
@@ -199,6 +201,9 @@ class _Almacen:
         w.execute('COMMIT')
         _log.info('Base migrada de user_version %d a %d (copia previa: %s)', desde, USER_VERSION,
                   os.path.basename(copia))
+        # También a stderr: en la nube es lo único que llega a Cloud Logging (el registro del hub vive en el disco).
+        print(f'Corte: base migrada de user_version {desde} a {USER_VERSION} (copia previa: {os.path.basename(copia)})',
+              file=sys.stderr, flush=True)
 
     def _purgar_copias_viejas(self) -> None:
         for p in glob.glob(glob.escape(self.ruta) + '.bak-v*'):

@@ -11,7 +11,9 @@
  * - elegibilidad de muestra con SKU de color/talla según la categoría y la variante que ya pediste;
  * - parecidos del catálogo de la misma categoría: los que están en Corte enlazan a su ficha; los «del marketplace»
  *   son otro vendedor del mismo artículo (id sintético '9…', foto '/img/m/9…' que el middleware de demo resuelve);
- * - origen de las ventas para los productos con ventas; con `?trazas=sin_permiso` simula el código 105005.
+ * - origen de las ventas para los productos con ventas: histórico cerrado (rev. 6 ya no simula el permiso 105005: la
+ *   ruta orders/trace/search se retiró y `origen_ventas_aviso` siempre va en null) y, aparte, el bloque actual de la
+ *   rev. 7 (trace_info de orders/search 202410), casi todo «Sin enlace reportado».
  * Este módulo solo lo importa transporte_demo.ts (que solo se carga con DEV && VITE_DEMO): nunca llega a dist.
  */
 import type * as C from '@/contrato';
@@ -257,8 +259,8 @@ function comisionRealDe(fila: C.FilaProducto, abierto: number | null, dirigido: 
   };
 }
 
-function origenDe(fila: C.FilaProducto, r: () => number): C.OrigenVentas | null {
-  const total = fila.pedidos_validos;
+/** Histórico cerrado de orders/trace/search (= vista.origen_ventas): las líneas que esa ruta llegó a registrar. */
+function origenDe(fila: C.FilaProducto, total: number, desde: C.EpochS, hasta: C.EpochS, r: () => number): C.OrigenVentas | null {
   if (total <= 0) return null;
   const video = 0.74 + r() * 0.12;
   const contenido: Array<[string | null, number]> = fila.videos > 0
@@ -273,7 +275,31 @@ function origenDe(fila: C.FilaProducto, r: () => number): C.OrigenVentas | null 
       .filter((x) => x.lineas > 0)
       .sort((a, b) => b.lineas - a.lineas);
   };
-  return { lineas: total, por_tipo_contenido: armar(contenido, TEXTO_CONTENIDO, 'Sin dato'), por_tipo_enlace: armar(enlace, TEXTO_ENLACE, 'Sin enlace compartido') };
+  return {
+    lineas: total, por_tipo_contenido: armar(contenido, TEXTO_CONTENIDO, 'Sin dato'), por_tipo_enlace: armar(enlace, TEXTO_ENLACE, 'Sin enlace reportado'),
+    fuente: 'orders_trace_search_202505_retirada', pedidos: total, desde_at: desde, hasta_at: hasta,
+  };
+}
+
+/** Bloque actual (= vista.origen_ventas_actual, rev. 7): trace_info de orders/search 202410 en las líneas que Corte
+ *  observó, sin los pedidos del histórico. Corte no crea enlaces, así que casi todas llegan «Sin enlace reportado»; en
+ *  algunos productos TikTok no reporta ninguno y la ficha no muestra el bloque. Generador propio: no mueve otras cifras. */
+function origenActualDe(pid: string, lineas: number, desde: C.EpochS, hasta: C.EpochS, ahora: C.EpochS): C.OrigenVentasActual | null {
+  if (lineas <= 0) return null;
+  const r = generador(huella(`origen-actual:${pid}`));
+  const conEnlace = r() < 0.35 ? 0 : 0.08 + r() * 0.22;
+  const especifico = r();
+  const pares: Array<[string | null, number]> = [[null, 1 - conEnlace], ['SPECIFIC', conEnlace * especifico], ['GENERAL', conEnlace * (1 - especifico)]];
+  const n = repartir(lineas, pares.map((x) => x[1]));
+  const por_tipo_enlace = pares
+    .map(([tipo], i) => ({ tipo, texto: tipo ? (TEXTO_ENLACE[tipo] ?? tipo) : 'Sin enlace reportado', lineas: n[i] ?? 0 }))
+    .filter((x) => x.lineas > 0)
+    .sort((a, b) => b.lineas - a.lineas || (a.tipo ?? '~').localeCompare(b.tipo ?? '~'));
+  return {
+    lineas, con_enlace: por_tipo_enlace.reduce((s, x) => s + (x.tipo ? x.lineas : 0), 0), por_tipo_enlace,
+    lineas_sin_dato: r() < 0.25 ? 1 + Math.floor(r() * 3) : 0, pedidos: lineas, fuente: 'orders_search_202410',
+    desde_at: desde, hasta_at: hasta, capturada_at: ahora - 2 * HORA,
+  };
 }
 
 interface Candidato { producto: C.ProductoResumen; tienda: string }
@@ -343,8 +369,6 @@ export interface FuentesFichaDemo {
   /** meta_imagenes del catálogo (los parecidos usan la misma foto: mismo LQIP y color). */
   metaCatalogo: C.MetaImagenes;
   ahora: C.EpochS;
-  /** `?trazas=sin_permiso`: el hub aún no tiene el permiso de orders/trace/search (105005). */
-  trazasSinPermiso: boolean;
 }
 
 /** ProductoDetalleResponse del fixture + `extendido` sintético (y `en_vitrina` coherente con la vitrina inventada). */
@@ -453,10 +477,16 @@ export function completarFichaDemo(d: C.ProductoDetalleResponse, f: FuentesFicha
     }
   }
 
-  const origen_ventas = !f.trazasSinPermiso && fila ? origenDe(fila, r) : null;
+  // Un pedido nunca cuenta en los dos bloques: el histórico se queda con los más antiguos (hasta hace 12 días) y el
+  // bloque actual con los que Corte observó después.
+  const totalOrigen = fila?.pedidos_validos ?? 0;
+  const enHistorico = Math.round(totalOrigen * 0.6);
+  const hastaHistorico = f.ahora - 12 * DIA;
+  const origen_ventas = fila ? origenDe(fila, enHistorico, hastaHistorico - 90 * DIA, hastaHistorico, r) : null;
+  const origen_ventas_actual = fila ? origenActualDe(pid, totalOrigen - enHistorico, hastaHistorico + DIA, f.ahora - DIA, f.ahora) : null;
   const extendido: C.ProductoExtendido = {
     galeria, vitrina, muestra, solicitudes_recuperadas: recuperadas, planes_dirigidos: planes, comision_real, parecidos,
-    origen_ventas, origen_ventas_aviso: f.trazasSinPermiso ? 'sin_permiso' : null,
+    origen_ventas, origen_ventas_aviso: null, origen_ventas_actual,
   };
 
   // Coherencia dentro de la ficha: si está en tu vitrina, la ficha, la fila y sus muestras lo dicen.

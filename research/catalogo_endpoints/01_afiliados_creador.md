@@ -321,7 +321,7 @@ Abreviaturas de fuente:
     - Otros: `trace_info{id,type}`, `tag`, `last_update_time`, `is_carousel`.
   - `next_page_token`, `total_count` (cuenta líneas SKU, no pedidos).
 - **Límites:** `page_size` cuenta filas SKU antes de agruparlas en pedidos. Observado por Corte, no documentado: sin `create_time_ge` solo trae unos 30 días, por eso pide ventanas semanales. No hay filtro por fecha de actualización.
-- **¿Sirve a Corte?** Sí, en uso. Corte ya guarda `isr`, `iva`, `is_carousel`, `last_update_time` y el desglose de shop ads.
+- **¿Sirve a Corte?** Sí, en uso. Corte ya guarda `isr`, `iva`, `is_carousel`, `last_update_time` y las **tasas** del desglose (estándar, shop ads, bono), no sus importes. Desde la rev. 7 (18/11/2026) también guarda `trace_info.type` por línea, nunca `trace_info.id` (ver `docs/ORDER_TRACE_RETIREMENT.md`).
 - **Valor:** alto (ya capturado).
 - **Fuente:** [LOCAL] `search-creator-affiliate-orders-202410.txt`; [SPEC] `searchCreatorAffiliateOrders`; [DOC] `search-creator-affiliate-orders-202410`.
 

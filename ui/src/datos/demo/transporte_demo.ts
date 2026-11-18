@@ -283,7 +283,7 @@ function esDetalleProducto(v: unknown): v is C.ProductoDetalleResponse {
 
 /**
  * rev. 4 (15/11): los fixtures son anteriores a la ficha completa y no traen `extendido`; el demo lo arma con datos
- * sintéticos coherentes (demo/ficha_demo.ts). `?trazas=sin_permiso` simula el código 105005 de orders/trace/search.
+ * sintéticos coherentes (demo/ficha_demo.ts).
  */
 async function conFichaCompleta(datos: unknown, escenario: string | null): Promise<unknown> {
   if (!esDetalleProducto(datos) || datos.extendido) return datos;
@@ -293,7 +293,6 @@ async function conFichaCompleta(datos: unknown, escenario: string | null): Promi
     catalogo: itemsDe(muestras).filter(esMuestra),
     metaCatalogo: meta,
     ahora: dom.ahoraS(),
-    trazasSinPermiso: parametroUrl('trazas') === 'sin_permiso',
   });
 }
 

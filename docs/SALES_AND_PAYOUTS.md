@@ -10,6 +10,17 @@ Según ese contrato, `AWAITING PAYMENT` significa que el comprador todavía no h
 
 La comisión estimada y la real son importes de la fuente. No se restan otra vez ISR, IVA o participación de agencia ni se multiplica la comisión por la cantidad de unidades. Falta de monto, moneda distinta de MXN u orden incompleta produce un total monetario `null`, sin fabricar un cero.
 
+### Composición de la comisión: lo que el contrato no cierra
+
+Revisado el 18/11/2026 sobre la ficha de 202410 y la de la ruta retirada 202505:
+
+- **Shop Ads.** Según 202410, `commission_rate` es la tasa total (estándar + Shop Ads + bono + recompensa de partner) y `actual_commission` es el ingreso final, ya sin impuestos ni la parte de la agencia; eso implica que incluye Shop Ads. La ficha 202505 decía lo contrario: su `actual_commission` incluía bono y recompensa, pero no Shop Ads. Corte muestra `actual_commission` tal cual y **no le suma** `actual_shop_ads_commission`: con la definición de 202410 la duplicaría. Si valiera la de 202505, la cifra quedaría corta, no inflada.
+- **Estimada contra real.** La doc no dice si `estimated_commission` descuenta impuestos o agencia. «Por liquidar» (estimada) y «liquidado» (real) se muestran por separado y no se presentan como la misma magnitud.
+- **Moneda y formato.** Cada importe llega como `{amount, currency}` con `amount` en texto, sin formato documentado para MXN (símbolo, separadores, negativos). Corte solo guarda y valida la moneda de `price`. Desde la rev. 7 cada sincronización cuenta, sin guardar las respuestas, las líneas cuyo `price` no viene en MXN y las líneas con monedas distintas entre sus importes (`resumen_json.ordenes_calidad`). Un conteo distinto de cero indica que hace falta guardar más monedas antes de confiar en las sumas.
+- **Estados.** Los documentados son `UNSPECIFIED`, `AWAITING PAYMENT`, `To-SETTLE`, `SETTLED`, `REFUNDED` y `FROZEN`. Un valor distinto se guarda crudo, no cuenta como venta válida y también se cuenta en `ordenes_calidad.estados_desconocidos`.
+- **Niveles.** `commission_model` y `commission_tier_setting` (otra unidad, por ejemplo «3.0 OR 5.0») no se guardan ni se convierten: deducir qué nivel se aplicó sería inventar el dato.
+- Los valores de ejemplo de la ficha 202410 se contradicen entre sí (una tasa total menor que sus componentes, un bono mayor que la comisión que lo incluye, impuestos en MXN dentro de una línea en IDR). No sirven como datos de prueba ni para validar fórmulas.
+
 ### Próximo miércoles
 
 El usuario indicó que recibe sus pagos los miércoles de madrugada. El contrato conserva ese dato como `origen_calendario: usuario`, `dia_pago: 3`, `horario: madrugada` y `fecha_programada` del miércoles próximo, inclusive el día actual si ya es miércoles. No se conoce una hora exacta.

@@ -500,8 +500,13 @@ class ProductEvidenceMigrationTests(unittest.TestCase):
                                       '', schema, flags=re.S)
             self.assertEqual(removed, 1, 'the legacy fixture must remove the v6 evidence table')
             legacy = re.sub(r'CREATE INDEX[^;]+ ON producto_evidencia[^;]+;', '', legacy)
+            # rev. 7 · Una base v5 tampoco tiene la tabla de trazas de orders/search 202410 (007.sql).
+            legacy, sin_trazas = re.subn(r'CREATE TABLE IF NOT EXISTS orden_lineas_traza\s*\(.*?\) STRICT;', '', legacy,
+                                         flags=re.S)
+            self.assertEqual(sin_trazas, 1, 'the legacy fixture must remove the v7 trace table')
             legacy = legacy.replace("('p','v','a','g','m','e')", "('p','v','a','g','m')")
-            legacy = re.sub(r'PRAGMA user_version\s*=\s*6\s*;', 'PRAGMA user_version = 5;', legacy)
+            legacy, versiones = re.subn(r'PRAGMA user_version\s*=\s*\d+\s*;', 'PRAGMA user_version = 5;', legacy)
+            self.assertEqual(versiones, 1)
             db = sqlite3.connect(path)
             db.executescript(legacy)
             db.execute("INSERT INTO productos(product_id,titulo,actualizado_at) VALUES('100','Original sintético',1800000000)")
@@ -517,7 +522,8 @@ class ProductEvidenceMigrationTests(unittest.TestCase):
             store = crear_almacen(str(path), clock)
             try:
                 with store.lector() as db:
-                    self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 6)
+                    self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0], 7)      # 5 → 6 → 7 en una sola apertura
+                    self.assertEqual(db.execute('SELECT count(*) FROM orden_lineas_traza').fetchone()[0], 0)
                     self.assertEqual(db.execute('SELECT titulo FROM productos WHERE product_id=?', ('100',)).fetchone()[0],
                                      'Original sintético')
                     self.assertEqual(tuple(db.execute('SELECT tipo,version,estado FROM imagenes').fetchone()),

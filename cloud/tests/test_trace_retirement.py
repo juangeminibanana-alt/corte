@@ -226,10 +226,10 @@ class RetiroTrazasEnSyncTests(unittest.TestCase):
         self.assertEqual(set(avisos), {None})
 
     def test_la_etag_del_snapshot_cambia_de_representacion(self) -> None:
-        self.assertEqual(REV_SNAPSHOT, 'f4')
+        self.assertEqual(REV_SNAPSHOT, 'f5')                   # f5 (rev. 7): origen_ventas_actual en la ficha
         status, cabeceras, _ = self.api('/api/snapshot')
         self.assertEqual(status, 200)
-        self.assertIn('-f4-', cabeceras['ETag'])
+        self.assertIn('-f5-', cabeceras['ETag'])
 
 
 class FaseRetiradaTests(unittest.TestCase):

@@ -194,13 +194,17 @@ export const T = {
   verMenos: 'Ver menos',
   listaSkus: 'Variantes y si puedes pedirlas',
 
-  // Origen de las ventas
+  // Origen de las ventas (rev. 7: pedidos recientes con el enlace que reporta TikTok y, aparte, el histórico cerrado)
   origen: 'De dónde vienen tus ventas',
-  origenNota: (lineas: number): string => `${plural(lineas, 'pedido', 'pedidos')} con su origen registrado`,
+  origenNota: 'Según lo que TikTok reporta de cada pedido. «Sin enlace reportado» no dice de dónde vino la venta.',
+  origenPedidos: (lineas: number): string => `${plural(lineas, 'pedido', 'pedidos')} con su origen registrado`,
+  origenActual: (desde: string, hasta: string): string => (desde === hasta ? `Pedidos del ${desde}` : `Pedidos del ${desde} al ${hasta}`),
+  origenActualNota: (lineas: number, sinDato: number): string =>
+    [plural(lineas, 'pedido', 'pedidos'), ...(sinDato > 0 ? [`${n(sinDato)} más sin dato todavía`] : [])].join(' · '),
+  origenHistorico: (hasta: string | null): string => (hasta ? `Histórico hasta el ${hasta}` : 'Histórico'),
   origenContenido: 'Tipo de contenido',
   origenEnlace: 'Tipo de enlace',
   colOrigen: 'Origen',
-  origenSinPermiso: 'Origen de cada venta: requiere un permiso extra en Partner Center',
 
   // Parecidos en el marketplace
   parecidos: 'Parecidos en el marketplace',

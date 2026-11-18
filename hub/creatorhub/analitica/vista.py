@@ -60,6 +60,9 @@ TEXTO_TIPO_CONTENIDO: dict[str, str] = {
     'PROMOTION_PAGE': 'Página de promoción', 'LINKSHARE': 'Enlace compartido'}
 TEXTO_TIPO_ENLACE: dict[str, str] = {'GENERAL': 'Enlace general', 'SPECIFIC': 'Enlace para un publicador'}
 FUENTE_ORIGEN_HISTORICO = 'orders_trace_search_202505_retirada'   # OrigenVentas.fuente (contrato rev. 6)
+FUENTE_ORIGEN_ACTUAL = 'orders_search_202410'                     # OrigenVentasActual.fuente (contrato rev. 7)
+# Un pedido que ya está en el histórico cerrado (orden_trazas) se queda solo ahí: nunca cuenta en los dos bloques.
+_FUERA_DEL_HISTORICO = 'l.order_id NOT IN (SELECT order_id FROM orden_trazas)'
 
 
 def texto_elegibilidad(puede: bool | None, estado: str | None, limite: bool | None) -> str:
@@ -1113,7 +1116,8 @@ class Vista:
                 'evidencia_rev': evidencia['rev'],
                 'muestra': self.elegibilidad_muestra(pid), 'solicitudes_recuperadas': self.solicitudes_recuperadas(pid),
                 'planes_dirigidos': self.planes_dirigidos(pid), 'comision_real': self.comision_real(pid),
-                'parecidos': self.parecidos(pid), 'origen_ventas': origen, 'origen_ventas_aviso': None}
+                'parecidos': self.parecidos(pid), 'origen_ventas': origen, 'origen_ventas_aviso': None,
+                'origen_ventas_actual': self.origen_ventas_actual(pid)}
 
     def galeria_vitrina(self, pid: str) -> list[str]:
         v = self.fila('SELECT galeria_json FROM vitrina WHERE product_id = ?', (pid,))
@@ -1272,6 +1276,36 @@ class Vista:
                 'por_tipo_enlace': lista(enlace, TEXTO_TIPO_ENLACE, 'Sin enlace reportado'),
                 'fuente': FUENTE_ORIGEN_HISTORICO, 'pedidos': int(periodo['pedidos']),
                 'desde_at': periodo['desde'], 'hasta_at': periodo['hasta']}
+
+    def origen_ventas_actual(self, pid: str) -> Json | None:
+        """rev. 7 · Enlaces que reporta orders/search 202410 (trace_info.type) en las líneas de este producto que el paso
+        de pedidos observó en una ventana completa (orden_lineas_traza). Es un bloque APARTE del histórico: los pedidos
+        que ya están en orden_trazas se quedan solo en el histórico (cerrado y estable), así que ningún pedido cuenta en
+        los dos y nunca se suman. traza_tipo NULL = «Sin enlace reportado» (no es «orgánico» ni «vino de un video»). Las
+        líneas sin fila son «sin dato»: no entran en los conteos y solo se informan aparte. None si no hay ninguna línea
+        observada (antes de la primera sync de la rev. 7, o un producto sin pedidos)."""
+        filas = self.filas('SELECT t.traza_tipo, COUNT(*) AS n FROM orden_lineas l '
+                           'JOIN orden_lineas_traza t ON t.order_id = l.order_id AND t.linea_n = l.linea_n '
+                           f'WHERE l.product_id = ? AND {_FUERA_DEL_HISTORICO} GROUP BY t.traza_tipo', (pid,))
+        if not filas:
+            return None
+        periodo = self.fila('SELECT MIN(o.creada_at) AS desde, MAX(o.creada_at) AS hasta, '
+                            'COUNT(DISTINCT l.order_id) AS pedidos, MAX(t.capturada_at) AS capturada FROM orden_lineas l '
+                            'JOIN orden_lineas_traza t ON t.order_id = l.order_id AND t.linea_n = l.linea_n '
+                            'JOIN ordenes o ON o.order_id = l.order_id '
+                            f'WHERE l.product_id = ? AND {_FUERA_DEL_HISTORICO}', (pid,))
+        sin_dato = self.fila('SELECT COUNT(*) AS n FROM orden_lineas l '
+                             'LEFT JOIN orden_lineas_traza t ON t.order_id = l.order_id AND t.linea_n = l.linea_n '
+                             f'WHERE l.product_id = ? AND t.order_id IS NULL AND {_FUERA_DEL_HISTORICO}', (pid,))
+        enlace: dict[str | None, int] = collections.Counter()
+        for f in filas:
+            enlace[f['traza_tipo']] += int(f['n'])
+        lineas = sum(enlace.values())
+        return {'lineas': lineas, 'con_enlace': lineas - enlace.get(None, 0),
+                'por_tipo_enlace': [{'tipo': t, 'texto': TEXTO_TIPO_ENLACE.get(t, t) if t else 'Sin enlace reportado',
+                                     'lineas': n} for t, n in sorted(enlace.items(), key=lambda kv: (-kv[1], kv[0] or '~'))],
+                'lineas_sin_dato': int(sin_dato['n']), 'pedidos': int(periodo['pedidos']), 'fuente': FUENTE_ORIGEN_ACTUAL,
+                'desde_at': periodo['desde'], 'hasta_at': periodo['hasta'], 'capturada_at': periodo['capturada']}
 
     def dashboard(self, clave: str, conexion: Mapping[str, Any] | None) -> Json:
         per = F.resolver_periodo(clave, self.hoy, self.primera_fecha)

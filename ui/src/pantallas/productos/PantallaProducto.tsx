@@ -6,7 +6,7 @@
  * SIN FICHA (ficha = null): se ocultan precio, comisión, categoría, vendidos e inventario y se dice por qué.
  * rev. 4 (15/11) · FICHA COMPLETA con `extendido` (./FichaCompleta): galería de tu vitrina bajo la foto, tarjetas de
  * Comisión (la tasa real de tus pedidos contra el plan abierto y los dirigidos) y Precio (lista, vitrina, descuento de
- * TikTok Shop y lo que pagaron tus compradores), origen de las ventas (o la nota del permiso), elegibilidad de muestra
+ * TikTok Shop y lo que pagaron tus compradores), origen de las ventas (rev. 7: recientes e histórico), elegibilidad de muestra
  * con sus variantes y solicitudes anteriores, y parecidos del marketplace. Cada parte se oculta si no hay datos.
  * rev. 5 (15/11) · Display API: en «Videos que lo venden», la portada REAL de cada video y sus vistas y pedidos por 1,000
  * vistas (del video completo); sin métricas, todo queda como antes.
@@ -24,7 +24,7 @@ import { FichaPrecio, ListaNotas, TarjetaMuestra } from '@/bloques';
 import { abrirExterno, copiarTexto } from '@/plataforma';
 import { CargaDetalle, ErrorVista } from './Estados';
 import {
-  BloqueMuestraExtendida, ChipsVitrina, GaleriaProducto, NotaPermisoOrigen, Seccion, SeccionComision, SeccionOrigen, SeccionParecidos,
+  BloqueMuestraExtendida, ChipsVitrina, GaleriaProducto, Seccion, SeccionComision, SeccionOrigen, SeccionParecidos,
   SeccionPrecio,
 } from './FichaCompleta';
 import {
@@ -187,7 +187,6 @@ function Contenido(p: { d: C.ProductoDetalleResponse; compacta: boolean; ancho: 
       ) : (
         <p className={cx(css.vacioCorto)}>{T.sinSerie}</p>
       )}
-      <NotaPermisoOrigen d={d} />
       <SeccionOrigen d={d} />
     </>
   ) : (

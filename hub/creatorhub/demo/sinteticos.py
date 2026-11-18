@@ -466,7 +466,7 @@ def _ficha_completa(d: DatosApi, cat: Catalogo, dom: list[Producto], hoy: dt.dat
                            'status': 'LIVE' if rng.random() < 0.6 else 'EXPIRED',
                            'products': [producto_plan(p, p.tasa_bp + 100 * (1 + rng.randrange(4))) for p in elegidos]})
         d.dirigidas[sid] = planes
-    # --- origen de cada venta (orders/trace/search): enlace general o para un publicador en algunas líneas
+    # --- enlace de cada línea (trace_info de orders/search 202410): general o para un publicador en algunas líneas
     for o in d.ordenes:
         tipos: list[str | None] = []
         for s in o['skus']:

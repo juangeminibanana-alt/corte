@@ -25,6 +25,9 @@
  * va en null; la ETag del snapshot pasa a '-f4-'. Catálogo de videos sin depender de las ventas: rutas NUEVAS
  * GET /api/catalogo/videos y /api/catalogo/videos/{content_id} (VideoCatalogo, CatalogoVideosResponse,
  * VideoCatalogoDetalleResponse) y Capacidades.catalogo_videos?. Las rutas y tipos de ventas no cambian.
+ * rev. 7 (18/11/2026, trace_info de orders/search 202410): SOLO agregados opcionales — ProductoExtendido.origen_ventas_actual?
+ * (OrigenVentasActual): enlaces que reporta TikTok en las líneas que Corte observa desde la rev. 7, en un bloque APARTE del
+ * histórico `origen_ventas` (un pedido nunca cuenta en los dos). La ETag del snapshot pasa a '-f5-'.
  *
  * Fuente de verdad de los tipos que intercambian el hub (Python, Windows) y la interfaz
  * (React + TypeScript, compartida por Windows y Android). El frontend la importa tal cual:
@@ -830,6 +833,10 @@ export interface ProductoExtendido {
   /** rev. 6 · Siempre null: la ruta está retirada y no hay un permiso que pedir. Se conserva el tipo para que las
    *  copias y los clientes anteriores sigan leyendo; 'sin_permiso' solo puede venir de una copia antigua. */
   origen_ventas_aviso: 'sin_permiso' | null;
+  /** rev. 7 · Enlaces que reporta orders/search 202410 (trace_info.type) en las líneas de este producto que Corte observó.
+   *  Bloque APARTE de `origen_ventas`: los pedidos del histórico se quedan solo allá y nunca se suman. Ausente en hubs
+   *  anteriores; null si Corte aún no observa ninguna línea de este producto. */
+  origen_ventas_actual?: OrigenVentasActual | null;
 }
 
 /** Evidencia explícita aportada a Corte. No implica extracción automática ni verificación de compra por Corte. */
@@ -1070,6 +1077,30 @@ export interface OrigenVentas {
   /** rev. 6 · Periodo que cubre el histórico (creación de los pedidos). */
   desde_at?: EpochS;
   hasta_at?: EpochS;
+}
+
+/** rev. 7 · Enlaces de seguimiento que reporta POST /affiliate_creator/202410/orders/search (trace_info.type) en las líneas
+ *  SKU que Corte observó completas. Corte no crea enlaces: lo normal es que casi todas queden «Sin enlace reportado», y eso
+ *  no significa «orgánico» ni «vino de un video». Nunca se guarda trace_info.id. */
+export interface OrigenVentasActual {
+  /** Líneas SKU observadas (con o sin enlace reportado). */
+  lineas: number;
+  /** De ellas, con un enlace reportado (GENERAL, SPECIFIC u otro valor tal cual). 0 = TikTok no reportó ninguno. */
+  con_enlace: number;
+  /** tipo = trace_info.type tal cual; tipo null = 'Sin enlace reportado'. */
+  por_tipo_enlace: CuentaOrigen[];
+  /** Líneas de este producto que Corte aún no observa con la rev. 7 (guardadas antes o en una ventana incompleta). No
+   *  son un negativo: no entran en ningún conteo. */
+  lineas_sin_dato: number;
+  /** Pedidos distintos de las líneas observadas. */
+  pedidos: number;
+  /** 'orders_search_202410'. */
+  fuente: string;
+  /** Creación del pedido observado más antiguo y del más reciente. */
+  desde_at: EpochS;
+  hasta_at: EpochS;
+  /** Última observación (inicio de la sync que la hizo). */
+  capturada_at: EpochS;
 }
 
 export interface LineaVista {
@@ -1500,7 +1531,7 @@ export interface OpsResultado {
 export interface OpsResponse { resultados: OpsResultado[]; local_rev: number }
 
 // ============================================================================ copia sin conexión (Android)
-/** GET /api/snapshot — ETag W/"dv<data_version>-lr<local_rev>-ir<img_rev>-f4-YYYY-MM-DD"; If-None-Match -> 304; gzip.
+/** GET /api/snapshot — ETag W/"dv<data_version>-lr<local_rev>-ir<img_rev>-f5-YYYY-MM-DD"; If-None-Match -> 304; gzip.
  *  f3 incluye actualidad; la fecha MX es la de generado_at y evita conservar las ventas de ayer como hoy.
  *  img_rev del cuerpo es autoritativo. */
 export interface SnapshotResponse {

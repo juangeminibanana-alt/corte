@@ -6,7 +6,9 @@
  *    dirigidos, y las tasas por pedido;
  *  - SeccionPrecio: lista, venta en tu vitrina, con descuento de TikTok Shop y lo que pagaron tus compradores;
  *  - BloqueMuestraExtendida: si puedes pedir muestra, solicitudes anteriores con su variante y las variantes (SKU);
- *  - SeccionOrigen / NotaPermisoOrigen: de dónde vienen tus ventas, o la nota discreta del permiso que falta;
+ *  - SeccionOrigen: de dónde vienen tus ventas, en dos bloques que nunca se suman: pedidos recientes con el enlace que
+ *    reporta orders/search 202410 (rev. 7; solo si TikTok reportó alguno) y el histórico cerrado de orders/trace/search
+ *    (retirada el 15/08/2026; ya no hay nota de permiso: la ruta dejó de existir);
  *  - SeccionParecidos: parecidos del marketplace por palabras del título, por mejor comisión o más vendidos.
  * Solo componentes de @/componentes y @/bloques; textos en ./textos y cifras con `formato`.
  */
@@ -20,8 +22,8 @@ import { BotonGuardarImagen } from '@/bloques';
 import { formato } from '@/dominio';
 import { abrirExterno } from '@/plataforma';
 import {
-  type CriterioParecidos, MAX_SKUS, estadoOrigen, estiloCumplimiento, estiloElegibilidad, estiloSku, extendidoDe, ordenarParecidos,
-  puedePedirOtra, puntosDe, resumenSkus, vistaComision, vistaPrecio,
+  type CriterioParecidos, MAX_SKUS, estiloCumplimiento, estiloElegibilidad, estiloSku, extendidoDe, ordenarParecidos,
+  puedePedirOtra, puntosDe, resumenSkus, vistaComision, vistaOrigen, vistaPrecio,
 } from './logicaFicha';
 import { nombreVisible } from './logica';
 import { T } from './textos';
@@ -363,35 +365,56 @@ function partesOrigen(cuentas: readonly C.CuentaOrigen[]): BarraApiladaProps['pa
   });
 }
 
-export function SeccionOrigen(p: { d: C.ProductoDetalleResponse }): ReactElement | null {
-  const o = extendidoDe(p.d)?.origen_ventas ?? null;
-  if (estadoOrigen(p.d) !== 'datos' || !o) return null;
-  const tabla = (cuentas: readonly C.CuentaOrigen[]) => ({
-    columnas: [T.colOrigen, T.colPedidos, T.colParte],
-    filas: cuentas.map((c) => [c.texto, formato.numero(c.lineas), formato.porcentaje(o.lineas > 0 ? c.lineas / o.lineas : 0)]),
-  });
+function BarraOrigen(p: { titulo: string; cuentas: readonly C.CuentaOrigen[]; total: number }): ReactElement | null {
+  if (p.cuentas.length === 0) return null;
   return (
-    <Seccion titulo={T.origen} nota={T.origenNota(o.lineas)} id="ficha-origen">
-      <div className={cx(css.origenBarras)}>
-        {o.por_tipo_contenido.length > 0 ? (
-          <BarraApilada titulo={T.origenContenido} etiquetasDirectas partes={partesOrigen(o.por_tipo_contenido)} tablaGemela={tabla(o.por_tipo_contenido)} />
-        ) : null}
-        {o.por_tipo_enlace.length > 0 ? (
-          <BarraApilada titulo={T.origenEnlace} etiquetasDirectas partes={partesOrigen(o.por_tipo_enlace)} tablaGemela={tabla(o.por_tipo_enlace)} />
-        ) : null}
-      </div>
-    </Seccion>
+    <BarraApilada
+      titulo={p.titulo}
+      etiquetasDirectas
+      partes={partesOrigen(p.cuentas)}
+      tablaGemela={{
+        columnas: [T.colOrigen, T.colPedidos, T.colParte],
+        filas: p.cuentas.map((c) => [c.texto, formato.numero(c.lineas), formato.porcentaje(p.total > 0 ? c.lineas / p.total : 0)]),
+      }}
+    />
   );
 }
 
-/** Nota discreta cuando la app aún no tiene el permiso de orders/trace/search (código 105005) y el producto vende. */
-export function NotaPermisoOrigen(p: { d: C.ProductoDetalleResponse }): ReactElement | null {
-  if (estadoOrigen(p.d) !== 'aviso') return null;
+/** Dos bloques que nunca se suman: los pedidos recientes con el enlace que reporta TikTok (rev. 7) y el histórico cerrado.
+ *  Un hub anterior a la rev. 6 no manda el periodo del histórico: entonces la sección queda como antes, sin subtítulos. */
+export function SeccionOrigen(p: { d: C.ProductoDetalleResponse }): ReactElement | null {
+  const v = vistaOrigen(p.d);
+  if (!v) return null;
+  const { actual: a, historico: h } = v;
+  const legado = !a && !!h && h.hasta_at === undefined;
   return (
-    <p className={cx(css.notaPermiso)} data-nota-permiso="">
-      <Icono nombre="Lock" tamano={14} />
-      <span>{T.origenSinPermiso}</span>
-    </p>
+    <Seccion titulo={T.origen} nota={legado && h ? T.origenPedidos(h.lineas) : T.origenNota} id="ficha-origen">
+      <div className={cx(css.origenBloques)}>
+        {a ? (
+          <div className={cx(css.subbloque)} data-origen="actual">
+            <div className={cx(css.subcabeza)}>
+              <h3 className={cx(css.subtitulo)}>{T.origenActual(formato.fechaCorta(a.desde_at), formato.fechaCorta(a.hasta_at))}</h3>
+              <span className={cx(css.subnota)}>{T.origenActualNota(a.lineas, a.lineas_sin_dato)}</span>
+            </div>
+            <BarraOrigen titulo={T.origenEnlace} cuentas={a.por_tipo_enlace} total={a.lineas} />
+          </div>
+        ) : null}
+        {h ? (
+          <div className={cx(css.subbloque)} data-origen="historico">
+            {legado ? null : (
+              <div className={cx(css.subcabeza)}>
+                <h3 className={cx(css.subtitulo)}>{T.origenHistorico(h.hasta_at !== undefined ? formato.fechaCorta(h.hasta_at) : null)}</h3>
+                <span className={cx(css.subnota)}>{T.origenPedidos(h.lineas)}</span>
+              </div>
+            )}
+            <div className={cx(css.origenBarras)}>
+              <BarraOrigen titulo={T.origenContenido} cuentas={h.por_tipo_contenido} total={h.lineas} />
+              <BarraOrigen titulo={T.origenEnlace} cuentas={h.por_tipo_enlace} total={h.lineas} />
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </Seccion>
   );
 }
 

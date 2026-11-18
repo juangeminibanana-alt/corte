@@ -96,9 +96,10 @@ class DatosApi:
     # rev. 4 (ficha completa de producto)
     etiquetas: dict[str, dict[str, Any]] = field(default_factory=dict)        # product_id -> label de samples/labels
     dirigidas: dict[str, list[dict[str, Any]]] = field(default_factory=dict)  # shop_id -> target_collaborations
-    # order_id -> trace.type por SKU. Nada lo sirve (orders/trace/search se retiró); los sintéticos lo siguen llenando
-    # para no mover la secuencia de su semilla ni ninguna cifra documentada de la demo.
-    trazas: dict[str, list[str | None]] = field(default_factory=dict)
+    # order_id -> traza por SKU (alineada con o['skus']). Los sintéticos la llenan sin mover la secuencia de su semilla.
+    # rev. 7: orders/search 202410 la sirve como trace_info: str → {'id', 'type'}; dict → trace_info tal cual (pruebas);
+    # '__null__' → trace_info null; None → sin la clave. orders/trace/search sigue retirada.
+    trazas: dict[str, list[Any]] = field(default_factory=dict)
 
 
 class TransporteApiFalsa:
@@ -226,12 +227,18 @@ class TransporteApiFalsa:
         lt = lt if lt is not None else ahora + 1
         sel = sorted((o for o in self.datos.ordenes if ge <= o['create_time'] < lt),
                      key=lambda o: (-o['create_time'], o['id']))
-        lineas = [(o, s) for o in sel for s in o['skus']]
+        lineas = [(o, i, s) for o in sel for i, s in enumerate(o['skus'])]
         ini = int(q.get('page_token') or 0)
         trozo = lineas[ini:ini + size]
         agrupado: dict[str, dict[str, Any]] = collections.OrderedDict()
-        for o, s in trozo:
-            agrupado.setdefault(o['id'], {k: v for k, v in o.items() if k != 'skus'} | {'skus': []})['skus'].append(dict(s))
+        for o, i, s in trozo:
+            linea = dict(s)
+            traza = (self.datos.trazas.get(o['id']) or [])[i:i + 1]
+            if traza and traza[0] is not None:
+                t = traza[0]
+                linea['trace_info'] = (None if t == '__null__' else dict(t) if isinstance(t, dict)
+                                       else {'id': str(1_000_000 + i), 'type': t})
+            agrupado.setdefault(o['id'], {k: v for k, v in o.items() if k != 'skus'} | {'skus': []})['skus'].append(linea)
         sig = str(ini + size) if ini + size < len(lineas) else ''
         return _ok({'orders': list(agrupado.values()), 'next_page_token': sig, 'total_count': len(lineas)})
 

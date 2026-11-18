@@ -16,7 +16,7 @@ rutas `api/catalogo/*` el hash cubre además el instante de la última pasada de
 de los videos guardados (cambia también con las páginas de una pasada interrumpida) y las pasadas aún sin registrar,
 leídos en la misma transacción que las versiones: de ellos dependen `publicacion`, `metricas_at` y
 `display.ultima_sync_at`. La forma visible no cambia.
-`GET /api/snapshot` lleva la forma `W/"dv<N>-lr<M>-ir<K>-f4-YYYY-MM-DD"`, con las versiones y fecha MX del propio cuerpo.
+`GET /api/snapshot` lleva la forma `W/"dv<N>-lr<M>-ir<K>-f5-YYYY-MM-DD"`, con las versiones y fecha MX del propio cuerpo.
 La ruta llega SIN decodificar: se parte en segmentos y cada segmento se decodifica por separado (nunca se normaliza la
 ruta completa). Ya no existe `POST /local/activar` (C40).
 """
@@ -42,8 +42,10 @@ TIPO_JSON = 'application/json; charset=utf-8'
 GZIP_DESDE = 1024
 MAX_CUERPO = config.MAX_CUERPO_BYTES
 MAX_CAMPOS_QUERY = 64
-REV_SNAPSHOT = 'f4'               # f3: actualidad de ventas/pagos · f4: origen de ventas histórico, sin aviso de permiso.
-REV_LECTURAS = 'r6'               # Entra en la ETag de cada lectura compuesta: subirlo renueva las copias de los clientes.
+REV_SNAPSHOT = 'f5'               # f3: actualidad de ventas/pagos · f4: origen de ventas histórico, sin aviso de permiso
+#                                   · f5: origen_ventas_actual (trace_info de orders/search 202410).
+REV_LECTURAS = 'r7'               # Entra en la ETag de cada lectura compuesta: subirlo renueva las copias de los clientes.
+#                                   r7: la ficha de producto agrega origen_ventas_actual.
 PREFIJO_CATALOGO = 'api/catalogo/'  # rev. 6: su ETag también cubre la última pasada de la Display API.
 ModoLan = Literal['lectura', 'escritura', 'local']
 TipoEtag = Literal['lectura', 'snapshot'] | None

@@ -9,6 +9,7 @@ import 'widgets.dart';
 import 'desktop.dart';
 import 'work.dart';
 import 'product_evidence.dart';
+import 'sales_origin.dart';
 import 'video_catalog.dart';
 
 Future<void> openPublicLink(BuildContext context, String? value) async {
@@ -641,8 +642,7 @@ class _ExtendedProduct extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vitr = mapOf(extended['vitrina']),
-        commission = mapOf(extended['comision_real']),
-        origin = mapOf(extended['origen_ventas']);
+        commission = mapOf(extended['comision_real']);
     return Padding(
       padding: const EdgeInsets.only(top: 24),
       child: Column(
@@ -708,28 +708,9 @@ class _ExtendedProduct extends StatelessWidget {
                   ),
               ],
             ),
-          if (origin.isNotEmpty || extended['origen_ventas_aviso'] != null)
-            ExpansionTile(
-              title: const Text('Origen de tus ventas'),
-              tilePadding: EdgeInsets.zero,
-              children: [
-                if (extended['origen_ventas_aviso'] == 'sin_permiso')
-                  const InlineNotice(
-                    text:
-                        'Origen de cada venta: requiere un permiso extra en Partner Center.',
-                  ),
-                for (final o in rowsOf(origin['por_tipo_contenido']))
-                  DefinitionRow(
-                    textOf(o['texto']),
-                    '${integer(o['lineas'])} líneas',
-                  ),
-                for (final o in rowsOf(origin['por_tipo_enlace']))
-                  DefinitionRow(
-                    textOf(o['texto']),
-                    '${integer(o['lineas'])} líneas',
-                  ),
-              ],
-            ),
+          // rev. 7 · Pedidos recientes con el enlace que reporta orders/search 202410 y, aparte, el histórico cerrado de
+          // orders/trace/search (origen_ventas_aviso siempre llega en null: ya no hay un permiso que pedir).
+          SalesOriginTile(extended: extended),
           if (rowsOf(mapOf(extended['parecidos'])['items']).isNotEmpty)
             ExpansionTile(
               title: const Text('Parecidos por palabras del título'),

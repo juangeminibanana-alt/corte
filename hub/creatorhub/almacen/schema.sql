@@ -1,5 +1,7 @@
 -- =====================================================================================
--- Corte (creator-hub) · esquema SQLite rev. 4 (15/11/2026) · user_version = 4 (BUILD_SPEC §4.3; 03 §3.3)
+-- Corte (creator-hub) · esquema SQLite rev. 7 (18/11/2026) · user_version = 7 (BUILD_SPEC §4.3; 03 §3.3)
+-- rev. 5 (005.sql): tablas de la Display API · rev. 6 (006.sql): evidencia de producto · rev. 7 (007.sql): la tabla
+-- orden_lineas_traza (trace_info de orders/search 202410). Lo que sigue describe la base de la rev. 4.
 -- Es spec/verificacion/schema.sql (v1, transcrito en 03 §3.1) con los cambios de la rev. 3.1 y de la rev. 4, y nada más:
 --   1. videos.portada_product_id TEXT (C4: portada = foto del producto con más pedidos válidos del video);
 --   2. muestras.en_cohorte_desde_at INTEGER (primera vez que la clasificación FINAL la vio pendiente; nunca se borra);
@@ -847,4 +849,15 @@ CREATE TABLE IF NOT EXISTS producto_evidencia (
   actualizado_at INTEGER NOT NULL
 ) STRICT;
 
-PRAGMA user_version = 6;
+-- rev. 7 (migraciones/007.sql, mismo DDL): trace_info de cada línea de orders/search 202410. Fila = observada en una
+-- ventana completa (traza_tipo NULL = sin traza reportada); sin fila = sin dato. Nunca guarda trace_info.id.
+CREATE TABLE IF NOT EXISTS orden_lineas_traza (
+  order_id TEXT NOT NULL,
+  linea_n INTEGER NOT NULL,
+  traza_tipo TEXT,                  -- trace_info.type normalizado; NULL = sin traza reportada
+  capturada_at INTEGER NOT NULL,    -- inicio de la sync que la observó
+  PRIMARY KEY (order_id, linea_n),
+  FOREIGN KEY (order_id, linea_n) REFERENCES orden_lineas(order_id, linea_n) ON DELETE CASCADE
+) STRICT;
+
+PRAGMA user_version = 7;

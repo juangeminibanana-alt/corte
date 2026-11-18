@@ -179,13 +179,24 @@ export function hayMuestraExtendida(d: C.ProductoDetalleResponse): boolean {
 
 // ---------------------------------------------------------------------------------------------- origen
 
-/** 'datos' = hay origen de ventas · 'aviso' = falta el permiso (solo se dice si el producto tiene ventas) · null. */
-export function estadoOrigen(d: C.ProductoDetalleResponse): 'datos' | 'aviso' | null {
+/** Bloques de «De dónde vienen tus ventas». Un pedido nunca cuenta en los dos: el hub los separa.
+ *  - `actual` (rev. 7): enlaces que reporta orders/search 202410 en las líneas que Corte observó. Solo se muestra si
+ *    TikTok reportó al menos uno (`con_enlace > 0`): Corte no crea enlaces, y un bloque entero de «Sin enlace reportado»
+ *    no dice de dónde vino ninguna venta (no es «orgánico» ni «vino de un video»).
+ *  - `historico`: registro cerrado de orders/trace/search (retirada el 15/08/2026).
+ *  null = sección oculta. rev. 6: `origen_ventas_aviso` ya no se lee (siempre llega en null). */
+export interface VistaOrigen {
+  actual: C.OrigenVentasActual | null;
+  historico: C.OrigenVentas | null;
+}
+
+export function vistaOrigen(d: C.ProductoDetalleResponse): VistaOrigen | null {
   const x = extendidoDe(d);
   if (!x) return null;
-  if (x.origen_ventas && x.origen_ventas.lineas > 0) return 'datos';
-  if (x.origen_ventas_aviso === 'sin_permiso' && (d.fila?.pedidos ?? 0) > 0) return 'aviso';
-  return null;
+  const a = x.origen_ventas_actual ?? null;
+  const actual = a && a.lineas > 0 && a.con_enlace > 0 && a.por_tipo_enlace.length > 0 ? a : null;
+  const historico = x.origen_ventas && x.origen_ventas.lineas > 0 ? x.origen_ventas : null;
+  return actual || historico ? { actual, historico } : null;
 }
 
 // ---------------------------------------------------------------------------------------------- parecidos
