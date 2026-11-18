@@ -28,6 +28,7 @@ AHORA = 1_790_000_000
 ID_A = '7312345678901234567'            # más de 2^53: como número se corrompe en JavaScript
 ID_B = '7400000000000000001'
 ID_INT64 = '9223372036854775808'        # 2^63: ni siquiera cabe en un entero de 64 bits con signo
+ID_SIN_CEROS = '7312345678912345678'    # cada dígito, suelto, también pasaría la regla por ID
 TEXTO_TIKTOK = 'Synthetic upstream text that must never be stored'
 CREDENCIALES = {'client_key': 'synthetic-client-key', 'client_secret': 'synthetic-client-secret',
                 'access_token': 'synthetic-access-token', 'refresh_token': 'synthetic-refresh-token',
@@ -123,7 +124,8 @@ class ContratoConsultaVideosTests(ConClienteNube):
         self.assertEqual(json.loads(self.llamadas()[0][3]), {'filters': {'video_ids': [ID_A, ID_B]}})
 
     def test_lote_de_veinte_ids_es_valido(self) -> None:
-        ids = [str(7300000000000000000 + i) for i in range(MAX_IDS_CONSULTA)]
+        self.assertEqual(MAX_IDS_CONSULTA, 20)                         # límite documentado de Query Videos
+        ids = [str(7300000000000000000 + i) for i in range(20)]
         self.responder(ok([video(i) for i in ids]))
 
         self.assertEqual([v['id'] for v in self.cliente.consultar_videos(ids)], ids)
@@ -147,7 +149,7 @@ class ValidacionLoteTests(ConClienteNube):
     def test_rechaza_lotes_invalidos_antes_de_tocar_la_red(self) -> None:
         invalidos = {
             'vacío': [],
-            'veintiuno': [str(7300000000000000000 + i) for i in range(MAX_IDS_CONSULTA + 1)],
+            'veintiuno': [str(7300000000000000000 + i) for i in range(21)],
             'entero': [int(ID_A)],
             'booleano': [True],
             'None': [None],
@@ -155,11 +157,13 @@ class ValidacionLoteTests(ConClienteNube):
             'espacios': [f' {ID_A}'],
             'signo': [f'-{ID_A}'],
             'dígitos no ASCII': ['٧٣١٢'],
+            'dígito no ASCII al final': ['7٣'],
+            'salto de línea final': [f'{ID_A}\n'],
             'cero a la izquierda': ['0012'],
             'cero': ['0'],
             'veintiún dígitos': ['1' + '0' * 20],
             'demasiado largo': ['7' * 26],
-            'cadena suelta': ID_A,
+            'cadena suelta': ID_SIN_CEROS,
             'conjunto': {ID_A},
             'nada': None,
             'bytes': ID_A.encode('ascii'),
@@ -169,6 +173,11 @@ class ValidacionLoteTests(ConClienteNube):
                 with self.assertRaises(ValueError):
                     self.cliente.consultar_videos(lote)
         self.transporte.manejar.assert_not_called()
+
+    def test_una_cadena_suelta_la_rechaza_la_regla_de_tipo(self) -> None:
+        # Sin un '0' cada carácter pasaría la regla por ID: el ValueError tiene que venir de la regla de tipo.
+        with self.assertRaisesRegex(ValueError, 'debe ser una lista'):
+            validar_ids_video(ID_SIN_CEROS)
 
     def test_validar_ids_conserva_el_texto_exacto(self) -> None:
         veinte_digitos = '1' + '0' * 19

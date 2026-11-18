@@ -12,25 +12,26 @@ Revisado el **18 de noviembre de 2026** sobre el código publicado en la nube (`
 
 ## Qué hace hoy el backend publicado
 
-La fase 5 «trazas» de la ficha completa llama la ruta retirada dentro del paso `productos_ventas` de **cada** sincronización: 5 ventanas de 7 días en una incremental y 13 en una completa (`hub/creatorhub/sincronizador_ficha.py:23-26, 49, 516-586`). Con la sincronización automática cada 30 minutos son unas 48 llamadas diarias; la fase no tiene TTL. Es la última de cinco fases, así que no impide las demás.
+La fase 5 «trazas» de la ficha completa llama la ruta retirada dentro del paso `productos_ventas` de **cada** sincronización (`hub/creatorhub/sincronizador_ficha.py:23-26, 49, 516-586`). Recorre hasta 5 ventanas de 7 días en una incremental y 13 en una completa, pero solo avanza mientras cada ventana responde código 0: con cualquier error se detiene en la primera. La sincronización automática corre 30 minutos después de que termina la anterior (como máximo unas 48 al día) y la fase no tiene TTL. Es la última de cinco fases, así que no impide las demás. Cada intento fallido deja una fila en `api_errores`.
 
 | Respuesta de TikTok | Efecto en Corte |
 | --- | --- |
-| 105005 o 16501011 | Fase `sin_permiso`. La ficha muestra «requiere un permiso extra en Partner Center» en productos con ventas y sin trazas. El mensaje es engañoso: la ruta está retirada. |
-| Otro código, o HTTP 4xx sin código | Fase `error`, sin aviso visible; un intento por sincronización. |
-| HTTP 5xx, 429 o cuerpo no JSON (por ejemplo, un 404 HTML) | Hasta 3 reintentos con espera (unos 7 s por sincronización) y fase `error`. |
+| 105005 o 16501011 | Una llamada por sincronización y fase `sin_permiso`. La web muestra «requiere un permiso extra en Partner Center» en productos con ventas y sin trazas; las apps Flutter lo muestran, dentro del mosaico «Origen de tus ventas», en cualquier producto sin trazas, aunque no tenga ventas. El mensaje es engañoso: la ruta está retirada. |
+| Cualquier otro código sin regla de reintento en `hub/creatorhub/tiktok/politica.py`, o HTTP 4xx con JSON sin código | Una llamada por sincronización y fase `error`, sin aviso visible. |
+| HTTP 5xx, 429, cuerpo no JSON (por ejemplo, un 404 HTML), 36009003 o 36009004 | 3 reintentos: 4 llamadas y 4 filas en `api_errores` por sincronización, con esperas de hasta 7 s (unos 3,5 s en promedio). Luego fase `error`. |
+| 36009002 o 98001004 | 5 y 2 reintentos (6 y 3 llamadas). 36009002 respeta `Retry-After` hasta 120 s por espera; 98001004 espera hasta 45 s en total. Luego fase `error`. |
 | 105001, 105002, 36009005, 101000 o códigos de región | Renovación del token o aborto. Puede marcar la conexión Shop para reautorizar, abortar la sincronización y suspender la automática. Es el caso de mayor riesgo. |
-| Código 0 | Reescribe las filas del pedido en `orden_trazas`. |
+| Código 0 | Recorre las 5 o 13 ventanas (al menos una llamada en cada una) y reescribe las filas del pedido en `orden_trazas`. |
 
-Los fallos solo quedan en `api_errores` (máximo 500 filas, compartidas con el resto de rutas) y en `sync_ejecuciones.resumen_json['fases']['trazas']`, dentro del SQLite del disco de la VM. No aparecen en los logs de aplicación ni en la API. La fase y la tabla datan del 15/11/2026, después del retiro, así que es probable que `orden_trazas` esté vacía en la nube; está pendiente comprobarlo en modo de solo lectura (etapa 0).
+Las respuestas que terminan en fase `sin_permiso` o `error` quedan en `api_errores` (máximo 500 filas, compartidas con el resto de rutas), en `sync_ejecuciones.resumen_json['fases']['trazas']` y en el cursor `trazas.estado`. De ellas, la API solo refleja `sin_permiso`: `origen_ventas_aviso = 'sin_permiso'` en `GET /api/productos/{id}` y en `extras.productos` de `GET /api/snapshot`. El caso de mayor riesgo no llega a `fases.trazas` ni al cursor: queda en `api_errores`, en `sync_ejecuciones.estado`/`error_codigo` y en `auth_estado`, y se ve en `/api/sync/estado`, `/api/sync/historial` y `conexion.estado` de `/api/session`; además escribe un aviso en `logs/hub-AAAAMMDD.log`. Ese registro del hub vive en el disco de la VM y no llega a Cloud Logging, que solo recibe la salida del contenedor (el acceso HTTP). La fase y la tabla datan del 15/11/2026, después del retiro, así que es probable que `orden_trazas` esté vacía en la nube; está pendiente comprobarlo en modo de solo lectura (etapa 0).
 
 ## Consumidores
 
 | Papel | Ubicación |
 | --- | --- |
-| Productor | `hub/creatorhub/sincronizador_ficha.py`: `P_TRAZAS` (49), constantes de la fase (52, 63-66), `ORDEN_FASES`/`TEXTOS_FASES` (73, 79), `_bajar_trazas` (516-532), `_fase_trazas` (534-581), cursor `trazas.estado` (583-586). `CODIGOS_SIN_PERMISO` (68) **también lo usan las otras fases**. |
+| Productor | `hub/creatorhub/sincronizador_ficha.py`: `P_TRAZAS` (49), constantes de la fase (52, 63, 64, 66), `ORDEN_FASES`/`TEXTOS_FASES` (73, 79), `_bajar_trazas` (516-532), `_fase_trazas` (534-581), cursor `trazas.estado` (583-586). `CODIGOS_SIN_PERMISO` (68) **también lo usan las otras fases** y `MAX_PAGINAS_DIRIGIDAS` (65) es de la fase dirigidas: ambos se conservan. |
 | Almacenamiento | Tabla `orden_trazas` (`hub/creatorhub/almacen/schema.sql:567-579`, `migraciones/004.sql:124-136`): PK `(order_id, linea_n)`, sin llave foránea. Guarda `traza_tipo`; nunca guardó `trace.id`. Su único escritor borra y vuelve a insertar las filas de un pedido cuando cambian (`sincronizador_ficha.py:565-575`). |
-| Borrado | Purga de 400 días en una sincronización completa (`hub/creatorhub/sincronizador.py:1260-1265`). Borrados explícitos del usuario, desconexión con borrado o cambio de cuenta (`TABLAS_TIKTOK`, `hub/creatorhub/almacen/almacen.py:54-60`). La copia en Firebase no incluye esta tabla: el único ejemplar está en el disco de la VM. |
+| Borrado | Purga de 400 días en una sincronización completa (`hub/creatorhub/sincronizador.py:1260-1265`). Borrados explícitos del usuario, desconexión con borrado o cambio de cuenta (`TABLAS_TIKTOK`, `hub/creatorhub/almacen/almacen.py:54-60`). La copia en Firebase (exportación local) no incluye esta tabla y la ruta retirada ya no puede repoblarla: además de `hub.sqlite` en el disco `corte-data`, solo la conservan sus snapshots diarios automáticos (`corte-daily-data-snapshot`, rotativos a 14 días), que también guardan durante ese plazo las filas purgadas o borradas. |
 | Lectores | `hub/creatorhub/analitica/vista.py`: `origen_ventas` (1249-1265; el balde nulo se rotula «Sin enlace compartido») y `origen_ventas_aviso` a partir del cursor `trazas.estado` (1106, 1113-1114). |
 | API | `GET /api/productos/{product_id}` (`hub/creatorhub/api/rutas.py:392-393`) y `extras.productos` de `GET /api/snapshot` (`hub/creatorhub/analitica/servicio.py`). La nube reenvía `/api/*` al despachador del hub (`cloud/app.py`). |
 | Contrato | `spec/contrato.ts:761-765` (`origen_ventas`, `origen_ventas_aviso`) y 981-996 (`CuentaOrigen`, `OrigenVentas`). |
@@ -60,14 +61,15 @@ SELECT COUNT(*), COUNT(DISTINCT order_id), MIN(creada_at), MAX(creada_at), SUM(t
 SELECT valor, actualizado_at FROM sync_cursores WHERE clave = 'trazas.estado';
 SELECT http_status, codigo, decision, COUNT(*), MIN(at), MAX(at) FROM api_errores
  WHERE endpoint = '/affiliate_creator/202505/orders/trace/search' GROUP BY 1, 2, 3;
-SELECT sync_id, json_extract(resumen_json, '$.fases.trazas') FROM sync_ejecuciones ORDER BY sync_id DESC LIMIT 5;
+SELECT sync_id, estado, error_codigo, json_extract(resumen_json, '$.fases.trazas') FROM sync_ejecuciones
+ ORDER BY sync_id DESC LIMIT 5;
 ```
 
 El resultado dice qué fila de la tabla anterior aplica y si existe histórico que conservar.
 
 ### Etapa 1: dejar de llamar la ruta y congelar el histórico (sin cambio de esquema)
 
-- Quitar la fase `trazas` de `ORDEN_FASES` y `TEXTOS_FASES`, su código y sus constantes exclusivas. Conservar `CODIGOS_SIN_PERMISO`.
+- Quitar la fase `trazas` de `ORDEN_FASES` y `TEXTOS_FASES`, su código y sus constantes exclusivas (52, 63, 64, 66). Conservar `CODIGOS_SIN_PERMISO` y `MAX_PAGINAS_DIRIGIDAS`.
 - No editar el DDL de `orden_trazas`, ni siquiera sus comentarios: SQLite los guarda en `sqlite_master` y un esquema nuevo debe ser idéntico a uno migrado (`schema.sql:12-15`).
 - Decidir explícitamente si la purga de 400 días sigue aplicando a `orden_trazas`. Quitarla conserva el histórico más allá de sus pedidos; mantenerla prioriza la minimización de datos.
 - Lectores: `origen_ventas_aviso` siempre `null`. `origen_ventas` agrega procedencia opcional (`fuente`, `desde_at`, `hasta_at`, `pedidos` distintos) y rotula el balde nulo como «Sin enlace reportado» en lugar de afirmar «Sin enlace compartido».
@@ -83,10 +85,10 @@ El resultado dice qué fila de la tabla anterior aplica y si existe histórico q
 - En pedidos sin cambios, escribir solo si la secuencia `(sku_id, product_id)` guardada coincide con la respuesta; si no, contarlo como `trazas_sin_alinear`. No agregar `trace_info` a la huella del pedido.
 - No guardar `trace_info.id` (minimización; el código anterior tampoco guardaba `trace.id`).
 - Lectores: bloque actual desde `v_lineas` con la tabla nueva y bloque `historico` opcional desde `orden_trazas`; nunca sumar ambas fuentes para el mismo pedido.
-- **Reversión:** la etapa 2 sube `user_version` a 7 y la imagen anterior abriría la base en solo lectura. Antes de desplegarla, tomar un snapshot del disco de datos; el respaldo automático `hub.sqlite.bak-v6` se borra a los 7 días. Mantener `initialize_empty_data_disk=false`.
+- **Reversión:** la etapa 2 sube `user_version` a 7 y la imagen anterior abriría la base en solo lectura. Antes de desplegarla, tomar un snapshot manual del disco de datos: los automáticos rotan a los 14 días y el respaldo `hub.sqlite.bak-v6` se borra a los 7. Mantener `initialize_empty_data_disk=false`.
 
 ## Pendiente de verificar
 
 - La respuesta actual de la ruta retirada en la nube y el contenido de `orden_trazas` (etapa 0).
 - Si las respuestas reales de 202410 traen `trace_info`, `trace` o ninguno: Corte no las guarda hoy.
-- El hub de Windows comparte este código y también llama la ruta cada 30 minutos hasta actualizarse.
+- Clientes Windows: los paquetes publicados 1.1.x (`CreatorHub.exe` en modo `cliente_nube` desde `a066bd7`) y 2.0.0 (Flutter) son clientes de la nube: no ejecutan la sincronización local ni llaman a la API de TikTok Shop, así que basta con desplegar la etapa 1 en la nube. Solo una instalación 1.0.3 sin actualizar, con conexión propia de TikTok Shop y sincronización automática, seguiría llamando la ruta; eso se resuelve instalando una versión ya publicada. Falta confirmar si queda alguna activa.
