@@ -22,7 +22,8 @@
   como números: pasan de 2^53). La lista se valida ANTES de tocar la red (`validar_ids_video`). Solo se devuelven los
   videos pedidos, en el orden pedido; un ID que TikTok no devuelve (ajeno, privado o borrado) simplemente falta.
 - Errores: `data.error {code, message, log_id}` o un error HTTP → `ErrorDisplay`. access_token inválido o vencido →
-  refresh + 1 reintento; scope_not_authorized → permiso_faltante.
+  refresh + 1 reintento; scope_not_authorized (TikTok lo manda con HTTP 401) o scope_permission_missed →
+  permiso_faltante, sin refresh ni marca de reautorizar.
 
 Nunca se registra una URL con datos, una cabecera, un cuerpo, el `code`, el verifier ni un token: solo códigos cortos,
 el estado HTTP y el `log_id` de TikTok.
@@ -343,9 +344,13 @@ class ClienteDisplay:
         codigo, log_id = _codigo_y_log(resp) if isinstance(resp, dict) else ('', None)
         if isinstance(resp, dict) and status == 200 and codigo in ('', 'ok'):
             return None
+        if codigo in CODIGOS_PERMISO:
+            # TikTok responde scope_not_authorized con HTTP 401: renovar el token no lo arregla y marcar «reautorizar»
+            # mostraría «la conexión venció». Va antes de la regla genérica del 401.
+            return ErrorDisplay('permiso_faltante', http=status, log_id=log_id)
         if codigo in CODIGOS_TOKEN or status == 401:
             return ErrorDisplay('token_invalido', http=status, log_id=log_id)
-        if codigo in CODIGOS_PERMISO or status == 403:
+        if status == 403:
             return ErrorDisplay('permiso_faltante', http=status, log_id=log_id)
         if codigo == 'rate_limit_exceeded' or status == 429:
             return ErrorDisplay('limite', http=status, log_id=log_id)

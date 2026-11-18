@@ -286,6 +286,61 @@ class ErroresConsultaVideosTests(ConClienteNube):
         self.transporte.manejar.assert_not_called()
 
 
+class ClasificacionPermisosTests(ConClienteNube):
+    """TikTok manda scope_not_authorized con HTTP 401: es un permiso que falta, no un token vencido."""
+
+    RENOVADO = (200, {'access_token': 'synthetic-access-token-2', 'refresh_token': 'synthetic-refresh-token-2',
+                      'expires_in': 7200, 'refresh_expires_in': 180 * 86400, 'open_id': 'synthetic-open-id',
+                      'scope': 'user.info.basic,video.list'})
+
+    def assert_permiso_sin_renovar(self, ctx, http: int) -> None:
+        self.assertEqual(ctx.exception.codigo, 'permiso_faltante')
+        self.assertEqual(ctx.exception.http, http)
+        self.assertEqual(ctx.exception.log_id, 'synthetic-log-error')
+        self.assertFalse(ctx.exception.reautorizar)
+        self.assertEqual(len(self.llamadas()), 1)                         # sin /v2/oauth/token/ ni reintento
+        guardado = self.boveda.leer()
+        self.assertEqual(guardado['refresh_token'], 'synthetic-refresh-token')
+        self.assertFalse(guardado.get('reautorizar'))
+
+    def test_scope_no_autorizado_401_en_la_consulta(self) -> None:
+        self.responder(fallo(401, 'scope_not_authorized'))
+        with self.assertRaises(ErrorDisplay) as ctx:
+            self.cliente.consultar_videos([ID_A])
+        self.assert_permiso_sin_renovar(ctx, 401)
+
+    def test_scope_permission_missed_400(self) -> None:
+        self.responder(fallo(400, 'scope_permission_missed'))
+        with self.assertRaises(ErrorDisplay) as ctx:
+            self.cliente.consultar_videos([ID_A])
+        self.assert_permiso_sin_renovar(ctx, 400)
+
+    def test_scope_no_autorizado_401_en_perfil_y_listado(self) -> None:
+        llamadas = {'perfil': self.cliente.usuario,
+                    'listado': lambda: [p for p in self.cliente.listar_videos(tope=20)]}
+        for nombre, llamar in llamadas.items():
+            with self.subTest(nombre):
+                self.transporte.manejar.reset_mock()
+                self.responder(fallo(401, 'scope_not_authorized'))
+                with self.assertRaises(ErrorDisplay) as ctx:
+                    llamar()
+                self.assert_permiso_sin_renovar(ctx, 401)
+
+    def test_401_sin_codigo_sigue_renovando_y_reintentando(self) -> None:
+        self.responder((401, None), self.RENOVADO, ok([video(ID_A)]))
+
+        self.assertEqual([v['id'] for v in self.cliente.consultar_videos([ID_A])], [ID_A])
+        self.assertEqual([urlsplit(c[1]).path for c in self.llamadas()],
+                         [P_CONSULTA_VIDEOS, P_TOKEN, P_CONSULTA_VIDEOS])
+
+    def test_403_sin_codigo_es_permiso_faltante(self) -> None:
+        self.responder((403, None))
+        with self.assertRaises(ErrorDisplay) as ctx:
+            self.cliente.consultar_videos([ID_A])
+        self.assertEqual(ctx.exception.codigo, 'permiso_faltante')
+        self.assertEqual(len(self.llamadas()), 1)
+
+
 class DemoConsultaVideosTests(unittest.TestCase):
     """El transporte demo entiende video/query con los mismos videos sintéticos de video/list."""
 
