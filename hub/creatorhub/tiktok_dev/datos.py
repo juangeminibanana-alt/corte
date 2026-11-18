@@ -57,6 +57,15 @@ def _url_https(v: Any) -> str | None:
     return v
 
 
+def usuario_normalizado(valor: Any) -> str:
+    """Nombre de usuario de TikTok comparable entre la Display API y TikTok Shop: sin '@', sin espacios y en
+    minúsculas. '' si no es un nombre de usuario válido (así nunca coinciden dos valores vacíos o raros)."""
+    if not isinstance(valor, str):
+        return ''
+    normalizado = valor.strip().removeprefix('@').lower()
+    return normalizado if re.fullmatch(r'[a-z0-9._]{1,128}', normalizado) else ''
+
+
 def normalizar_video(v: Mapping[str, Any]) -> dict[str, Any] | None:
     """Un elemento de video/list → fila de videos_tiktok (sin marcas de tiempo). None si no trae un id válido."""
     vid = v.get('id')
@@ -184,6 +193,6 @@ def leer_perfil(db: sqlite3.Connection) -> dict[str, Any] | None:
     return d
 
 
-__all__ = ['normalizar_video', 'normalizar_usuario', 'guardar_perfil', 'guardar_videos', 'quitar_no_vistos',
+__all__ = ['usuario_normalizado', 'normalizar_video', 'normalizar_usuario', 'guardar_perfil', 'guardar_videos', 'quitar_no_vistos',
            'podar_historial', 'borrar_todo', 'leer_perfil', 'fecha_mx', 'TABLAS_DISPLAY', 'CLAVE_ULTIMA_SYNC',
            'DIAS_HISTORIAL']

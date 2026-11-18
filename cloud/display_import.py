@@ -30,10 +30,8 @@ def _visible(value: Any, minimum: int, maximum: int) -> bool:
 
 
 def username(value: Any) -> str:
-    if not isinstance(value, str):
-        return ''
-    normalized = value.strip().removeprefix('@').lower()
-    return normalized if re.fullmatch(r'[a-z0-9._]{1,128}', normalized) else ''
+    """Same normalization the video catalog uses to keep Display content on the Shop creator's account."""
+    return D.usuario_normalizado(value)
 
 
 def validate(body: Any, now: int) -> dict[str, Any]:

@@ -101,6 +101,16 @@ class AnaliticaSqlite:
         cid = F.id_numerico(content_id, 'video')
         return self._leer(lambda v: v.video_detalle(cid))
 
+    def catalogo_videos(self, filtros: Mapping[str, str]) -> Json:
+        """rev. 6: videos publicados y videos con ventas en una sola lista (GET /api/catalogo/videos)."""
+        orden, historial, limite = F.catalogo(filtros)
+        return self._leer(lambda v: v.videos_catalogo(orden, historial, limite))
+
+    def video_catalogo(self, content_id: str) -> Json:
+        """rev. 6: detalle de un video del catálogo, tenga o no ventas (GET /api/catalogo/videos/{content_id})."""
+        cid = F.id_numerico(content_id, 'video')
+        return self._leer(lambda v: v.video_catalogo_detalle(cid))
+
     def productos(self, filtros: Mapping[str, str]) -> Json:
         desde, hasta, limite = F.con_limite(filtros)
 

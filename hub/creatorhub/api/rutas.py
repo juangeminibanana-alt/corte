@@ -390,6 +390,10 @@ class DespachadorHub:
             R('GET', 'api/analitica/videos', lambda p: a().videos(p.query), L, 'lectura'),
             R('GET', 'api/analitica/productos', lambda p: a().productos(p.query), L, 'lectura'),
             R('GET', 'api/videos/{content_id}', lambda p: a().video_detalle(p.params['content_id']), L, 'lectura'),
+            # rev. 6: catálogo de videos publicados y con ventas (rutas nuevas: las de ventas no cambian)
+            R('GET', 'api/catalogo/videos', lambda p: a().catalogo_videos(p.query), L, 'lectura'),
+            R('GET', 'api/catalogo/videos/{content_id}', lambda p: a().video_catalogo(p.params['content_id']),
+              L, 'lectura'),
             R('GET', 'api/productos/{product_id}', lambda p: a().producto_detalle(p.params['product_id']),
               L, 'lectura'),
             R('GET', 'api/productos/{product_id}/evidencia',

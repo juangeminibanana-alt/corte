@@ -26,8 +26,8 @@ def invalido(mensaje: str, parametro: str | None = None) -> ErrorDominio:
                         detalle={'parametro': parametro} if parametro else None)
 
 
-def no_encontrado(mensaje: str) -> ErrorDominio:
-    return ErrorDominio('no_encontrado', mensaje, http=404)
+def no_encontrado(mensaje: str, detalle: Mapping[str, Any] | None = None) -> ErrorDominio:
+    return ErrorDominio('no_encontrado', mensaje, http=404, detalle=dict(detalle) if detalle else None)
 
 
 def _texto(filtros: Mapping[str, Any], clave: str) -> str | None:
@@ -226,6 +226,17 @@ def con_limite(filtros: Mapping[str, Any] | None) -> tuple[dt.date | None, dt.da
     f = solo_permitidos(filtros, ('desde', 'hasta', 'limite'))
     d, h = rango(f)
     return d, h, entero(f, 'limite', 50, 1, 1000)
+
+
+ORDENES_CATALOGO: tuple[str, ...] = ('publicado', 'vistas', 'comision')
+INCLUIR_CATALOGO: tuple[str, ...] = ('publicos', 'historial')
+
+
+def catalogo(filtros: Mapping[str, Any] | None) -> tuple[str, bool, int]:
+    """GET /api/catalogo/videos (rev. 6): orden, ¿incluir videos que solo quedan en el historial?, límite."""
+    f = solo_permitidos(filtros, ('orden', 'incluir', 'limite'))
+    orden = uno_de(f, 'orden', ORDENES_CATALOGO, 'publicado') or 'publicado'
+    return orden, uno_de(f, 'incluir', INCLUIR_CATALOGO, 'publicos') == 'historial', entero(f, 'limite', 200, 1, 2000)
 
 
 @dataclass(frozen=True)

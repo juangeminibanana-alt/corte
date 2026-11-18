@@ -1315,3 +1315,107 @@ class Vista:
         d = self.display
         resumen = display_api.resumen_perfil(self.conn, d, self.hoy) if d is not None else None
         return {'perfil_tiktok': resumen} if resumen is not None else {}
+
+    # ================================================================== rev. 6 (18/11): catálogo de videos
+    def misma_cuenta_display(self) -> bool | None:
+        """¿La cuenta de la Display API es la del creador de TikTok Shop? Compara nombres de usuario normalizados.
+        None si falta alguno de los dos (no se puede comprobar)."""
+        from ..tiktok_dev.datos import usuario_normalizado
+        d = self.display
+        shop = usuario_normalizado(self.username)
+        propia = usuario_normalizado((d.perfil or {}).get('username')) if d is not None else ''
+        if not shop or not propia:
+            return None
+        return shop == propia
+
+    def _catalogo_items(self, incluir_historial: bool) -> tuple[list[Json], Json | None]:
+        """VideoCatalogo de cada video PUBLICADO (Display API) o CON VENTAS, unidos por ID exacto (video_id de la
+        Display API == content_id de las líneas VIDEO). Los videos sin ventas solo entran si la cuenta de la Display
+        API es la del creador; con ventas entran siempre. Nunca se inventa una cifra: lo que no se sabe va en null y
+        un video sin pedidos lleva `ventas: null`, no ceros. -> (items sin ordenar, bloque `display` | None)."""
+        d = self.display
+        vendidos = {f['content_id']: f for f in self.videos_todos(None, None)}
+        organicos: Mapping[str, Json] = {}
+        historial: dict[str, Json] = {}
+        bloque: Json | None = None
+        ultima_at: int | None = None
+        if d is not None:
+            ultima_at = display_api.ultima_sync_at(self.conn)
+            misma = self.misma_cuenta_display()
+            bloque = {'ultima_sync_at': ultima_at, 'misma_cuenta': misma}
+            if misma is True:
+                organicos = d.videos
+                if incluir_historial:
+                    historial = display_api.fotos_sin_video(self.conn)
+        vinculadas: dict[str, list[str]] = collections.defaultdict(list)
+        for m in self.M:
+            if m['plan_content_id']:
+                vinculadas[m['plan_content_id']].append(m['application_id'])
+        ids = list(dict.fromkeys([*vendidos, *organicos, *historial]))
+        self.img.cargar(f'v:{cid}' for cid in ids)
+        items: list[Json] = []
+        for cid in ids:
+            venta = vendidos.get(cid)
+            v = d.videos.get(cid) if d is not None and (venta is not None or cid in organicos) else None
+            h = historial.get(cid) if v is None else None
+            if v is not None:
+                publicacion = 'publico' if ultima_at is not None and v['visto_at'] == ultima_at else 'no_confirmado'
+            elif h is not None:
+                publicacion = 'no_publico'
+            else:
+                publicacion = 'desconocido'
+            fuente = v if v is not None else h
+            items.append({
+                'content_id': cid,
+                'origen': 'display_y_ventas' if venta is not None and fuente is not None
+                          else 'ventas' if venta is not None else 'display',
+                'publicacion': publicacion,
+                'descripcion': (v['titulo'] or v['descripcion']) if v is not None else None,
+                'portada': self.miniatura_video(cid)[0],
+                'enlace': self.enlace_video(cid),
+                'publicado_at': v['creado_at'] if v is not None else None,
+                'duracion_s': v['duracion_s'] if v is not None else None,
+                'vistas': fuente['vistas'] if fuente is not None else None,
+                'likes': fuente['likes'] if fuente is not None else None,
+                'comentarios': fuente['comentarios'] if fuente is not None else None,
+                'compartidos': fuente['compartidos'] if fuente is not None else None,
+                'metricas_at': (v['visto_at'] if v is not None else h['actualizado_at'] if h is not None else None),
+                'ventas': venta,
+                'muestras_vinculadas': venta['muestras_vinculadas'] if venta is not None
+                                       else sorted(vinculadas.get(cid, []))})
+        return items, bloque
+
+    @staticmethod
+    def _orden_catalogo(items: list[Json], orden: str) -> list[Json]:
+        def ultima_venta(i: Json) -> int:
+            return -dt.date.fromisoformat(i['ventas']['ultima_venta']).toordinal() if i['ventas'] else 0
+        if orden == 'vistas':
+            clave = lambda i: (i['vistas'] is None, -(i['vistas'] or 0), i['content_id'])  # noqa: E731
+        elif orden == 'comision':
+            clave = lambda i: (i['ventas'] is None,  # noqa: E731
+                               -(i['ventas']['comision_estimada_centavos'] if i['ventas'] else 0), i['content_id'])
+        else:                                       # 'publicado': lo más nuevo primero; sin fecha, por última venta
+            clave = lambda i: (i['publicado_at'] is None, -(i['publicado_at'] or 0), ultima_venta(i),  # noqa: E731
+                               i['content_id'])
+        return sorted(items, key=clave)
+
+    def videos_catalogo(self, orden: str, incluir_historial: bool, limite: int) -> Json:
+        """CatalogoVideosResponse (rev. 6). Las rutas de ventas (/api/analitica/videos, /api/videos/{id}) no cambian."""
+        items, bloque = self._catalogo_items(incluir_historial)
+        items = self._orden_catalogo(items, orden)
+        return {'items': items[:limite], 'total': len(items), 'data_version': self.data_version, 'display': bloque,
+                'pedidos_desde': self.primera_fecha.isoformat() if self.primera_fecha else None}
+
+    def video_catalogo_detalle(self, cid: str) -> Json:
+        """VideoCatalogoDetalleResponse (rev. 6): sirve también para videos sin ventas y para los que solo conservan
+        historial. `ventas` = el detalle de ventas de siempre (sin `tendencia`) o null."""
+        items, _ = self._catalogo_items(incluir_historial=True)
+        item = next((i for i in items if i['content_id'] == cid), None)
+        if item is None:
+            raise F.no_encontrado('No encontramos ese video.', {'recurso': 'video'})
+        ventas = None
+        if item['ventas'] is not None:
+            ventas = self.video_detalle(cid)
+            ventas.pop('tendencia', None)
+        return {'video': item, 'ventas': ventas,
+                'tendencia': display_api.tendencia(self.conn, cid) if self.display is not None else None}

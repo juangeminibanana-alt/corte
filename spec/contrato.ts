@@ -22,7 +22,9 @@
  * de 'videos'.
  * rev. 6 (18/11/2026, Corte en la nube): SOLO agregados opcionales o tipos nuevos — orders/trace/search se retiró:
  * OrigenVentas es un histórico cerrado con fuente?, pedidos?, desde_at? y hasta_at?, y origen_ventas_aviso siempre
- * va en null; la ETag del snapshot pasa a '-f4-'.
+ * va en null; la ETag del snapshot pasa a '-f4-'. Catálogo de videos sin depender de las ventas: rutas NUEVAS
+ * GET /api/catalogo/videos y /api/catalogo/videos/{content_id} (VideoCatalogo, CatalogoVideosResponse,
+ * VideoCatalogoDetalleResponse) y Capacidades.catalogo_videos?. Las rutas y tipos de ventas no cambian.
  *
  * Fuente de verdad de los tipos que intercambian el hub (Python, Windows) y la interfaz
  * (React + TypeScript, compartida por Windows y Android). El frontend la importa tal cual:
@@ -165,6 +167,7 @@ export interface Capacidades {
   portapapeles: boolean;   // detectar URL de autorización en el portapapeles (solo Windows)
   escribir: boolean;       // puede crear notas/plan/recordatorios (Android: según permisos del dispositivo)
   sincronizar: boolean;    // puede disparar /api/sync
+  catalogo_videos?: boolean; // rev. 6: el hub tiene GET /api/catalogo/videos (ausente en hubs anteriores)
 }
 
 /** GET /api/session */
@@ -676,6 +679,58 @@ export interface VideoDetalleResponse {
   /** rev. 5 · Fotos diarias de la Display API, de la más vieja a la más nueva (máx. 400). Escalonada: un día solo
    *  aparece si alguna cifra cambió. AUSENTE si nunca se conectó la Display API; [] si este video no tiene fotos. */
   tendencia?: PuntoTendenciaVideo[];
+}
+
+/** rev. 6 · Un video del catálogo: PUBLICADO en la cuenta (Display API) y/o CON VENTAS, unidos por ID exacto
+ *  (video_id de la Display API == content_id de las líneas VIDEO). Nunca se inventa una cifra: lo que no se sabe va
+ *  en null y un video sin pedidos lleva `ventas: null` (no ceros). Los videos sin ventas solo aparecen si la cuenta de
+ *  la Display API es la del creador de TikTok Shop (`display.misma_cuenta`). */
+export interface VideoCatalogo {
+  content_id: string;
+  origen: 'display' | 'ventas' | 'display_y_ventas';
+  /** 'publico' = salió en la última pasada de la Display API · 'no_confirmado' = sigue guardado, pero no salió en la
+   *  última pasada · 'no_publico' = solo queda su historial (dejó de estar entre los públicos) · 'desconocido' = solo
+   *  se conoce por sus ventas (sin Display API, privado, borrado o fuera del tope de 1,000). */
+  publicacion: 'publico' | 'no_confirmado' | 'no_publico' | 'desconocido';
+  /** Título o descripción de la Display API (null si no está en ella). */
+  descripcion: string | null;
+  /** Portada real '/img/v/<content_id>' (C45); null si no hay. Nunca una foto de producto. */
+  portada: UrlImagen | null;
+  enlace: string;
+  publicado_at: EpochS | null;
+  duracion_s: number | null;
+  vistas: number | null;
+  likes: number | null;
+  comentarios: number | null;
+  compartidos: number | null;
+  /** Cuándo se leyeron esas cifras (última pasada que vio el video o su última foto diaria). */
+  metricas_at: EpochS | null;
+  /** La FilaVideo de siempre, de TODA la vida del video (idéntica a la de /api/analitica/videos), o null sin ventas. */
+  ventas: FilaVideo | null;
+  muestras_vinculadas: string[];
+}
+/** rev. 6 · GET /api/catalogo/videos?orden=publicado|vistas|comision&incluir=publicos|historial&limite=200 (máx. 2000).
+ *  Solo existe si `capacidades.catalogo_videos`; un hub anterior responde 404 y el cliente vuelve a /api/analitica/videos. */
+export interface CatalogoVideosResponse {
+  items: VideoCatalogo[];
+  total: number;
+  data_version: number;
+  meta_imagenes?: MetaImagenes;
+  /** null si nunca se conectó la Display API (entonces solo hay videos con ventas). `misma_cuenta` null = falta un
+   *  nombre de usuario para comprobarlo (no se listan videos sin ventas). */
+  display: { ultima_sync_at: EpochS | null; misma_cuenta: boolean | null } | null;
+  /** Pedido más antiguo guardado: «sin pedidos» solo puede afirmarse desde esta fecha. */
+  pedidos_desde: FechaLocal | null;
+}
+/** rev. 6 · GET /api/catalogo/videos/{content_id} — también para videos sin ventas o que solo conservan historial.
+ *  404 con `detalle.recurso = 'video'` si el ID no está en el catálogo. */
+export interface VideoCatalogoDetalleResponse {
+  video: VideoCatalogo;
+  /** El detalle de ventas de siempre, sin `tendencia`; null si el video no tiene ventas. */
+  ventas: Omit<VideoDetalleResponse, 'tendencia'> | null;
+  /** Fotos diarias de la Display API; null si nunca se conectó. */
+  tendencia: PuntoTendenciaVideo[] | null;
+  meta_imagenes?: MetaImagenes;
 }
 
 export interface FilaProducto {

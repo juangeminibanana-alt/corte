@@ -12,6 +12,7 @@ El `video_id` de la Display API ES el `content_id` de las líneas de orders/sear
 from __future__ import annotations
 
 import datetime as dt
+import json
 import sqlite3
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
@@ -86,6 +87,37 @@ def campos_video_producto(d: DatosDisplay, cid: str, pedidos_validos: int, comis
             'comision_por_mil_vistas_centavos': por_mil(comision_centavos, vistas, None)}
 
 
+def ultima_sync_at(conn: sqlite3.Connection) -> int | None:
+    """Instante de la última pasada de la Display API (sync_cursores 'display.ultima_sync'); None si nunca hubo."""
+    try:
+        r = conn.execute("SELECT valor FROM sync_cursores WHERE clave = 'display.ultima_sync'").fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if r is None:
+        return None
+    try:
+        at = json.loads(r[0]).get('at')
+    except (ValueError, AttributeError):
+        return None
+    return at if isinstance(at, int) and not isinstance(at, bool) and at > 0 else None
+
+
+def fotos_sin_video(conn: sqlite3.Connection) -> dict[str, Json]:
+    """Videos que ya no están en videos_tiktok (dejaron de ser públicos tras un listado completo) pero conservan
+    historial diario: su foto más reciente {fecha, vistas, likes, comentarios, compartidos, actualizado_at}."""
+    try:
+        filas = conn.execute("""SELECT d.video_id, d.fecha, d.vistas, d.likes, d.comentarios, d.compartidos,
+                                       d.actualizado_at
+                                FROM videos_tiktok_dias d
+                                WHERE d.video_id NOT IN (SELECT video_id FROM videos_tiktok)
+                                  AND d.fecha = (SELECT MAX(fecha) FROM videos_tiktok_dias x WHERE x.video_id = d.video_id)
+                             """).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    return {str(f[0]): {'fecha': f[1], 'vistas': f[2], 'likes': f[3], 'comentarios': f[4], 'compartidos': f[5],
+                        'actualizado_at': f[6]} for f in filas}
+
+
 def tendencia(conn: sqlite3.Connection, cid: str) -> list[Json]:
     """Fotos diarias guardadas de un video (escalonadas: un día solo aparece si alguna cifra cambió), de la más vieja a
     la más nueva; máx. 400."""
@@ -118,4 +150,4 @@ def resumen_perfil(conn: sqlite3.Connection, d: DatosDisplay, hoy: dt.date) -> J
 
 
 __all__ = ['DatosDisplay', 'cargar', 'campos_fila_video', 'campos_video_producto', 'tendencia', 'resumen_perfil',
-           'por_mil', 'CAMPOS_FILA_VIDEO', 'CAMPOS_VIDEO_PRODUCTO']
+           'ultima_sync_at', 'fotos_sin_video', 'por_mil', 'CAMPOS_FILA_VIDEO', 'CAMPOS_VIDEO_PRODUCTO']

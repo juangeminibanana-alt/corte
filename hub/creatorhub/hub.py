@@ -366,7 +366,8 @@ class Hub:
             'modo': 'real' if self.modo == 'real' else 'demo',
             'capacidades': {'auth': local, 'lan_admin': local and not self.op.nube,
                             'portapapeles': local and not self.op.nube,
-                            'escribir': ctx.puede_escribir, 'sincronizar': ctx.puede_escribir},
+                            'escribir': ctx.puede_escribir, 'sincronizar': ctx.puede_escribir,
+                            'catalogo_videos': True},   # rev. 6: GET /api/catalogo/videos existe en este hub
         }
         if local:
             r['lan'] = self.lan.resumen() if self.lan is not None else {
