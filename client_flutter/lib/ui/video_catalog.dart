@@ -71,6 +71,10 @@ String catalogTitle(Map<String, dynamic> v) {
 
 bool tieneVentas(Map<String, dynamic> v) => v['ventas'] is Map;
 
+/// '1 pedido' · '2 pedidos' (pedidos válidos de toda la vida del video).
+String pedidosTexto(Object? n) =>
+    '${integer(n)} ${intOf(n) == 1 ? 'pedido' : 'pedidos'}';
+
 /// El mismo orden que el hub: sin el dato, al final; empates por ID.
 List<Map<String, dynamic>> sortCatalog(
   List<Map<String, dynamic>> rows,
@@ -348,10 +352,7 @@ class CatalogVideoRow extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    '${integer(ventas['pedidos_validos'])} pedidos',
-                    style: muted,
-                  ),
+                  Text(pedidosTexto(ventas['pedidos_validos']), style: muted),
                 ],
               )
             else

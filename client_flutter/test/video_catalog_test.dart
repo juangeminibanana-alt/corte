@@ -174,6 +174,11 @@ void main() {
       expect(fechaMexico(_epoch('2026-03-01', 0)), '2026-03-01');
       expect(fechaMexico(_epoch('2026-03-01', 23)), '2026-03-01');
     });
+    test('un pedido en singular', () {
+      expect(pedidosTexto(1), '1 pedido');
+      expect(pedidosTexto(2), '2 pedidos');
+      expect(pedidosTexto(1200), '1,200 pedidos');
+    });
     test('avisos y estados de publicación', () {
       expect(catalogNotice(null), contains('Conecta las métricas'));
       expect(catalogNotice({'misma_cuenta': false}), contains('no es la de tu tienda'));
