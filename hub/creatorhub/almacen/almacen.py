@@ -4,7 +4,8 @@
   0 → `schema.sql` (rev. 6, user_version 6) + semillas de `meta`; 1/2/3/4/5 → `migraciones/00{n+1}.sql` … `006.sql` en UNA
   transacción con copia previa `hub.sqlite.bak-v{n}` (3 = las bases de Corte 1.0.0: 004.sql reconstruye `imagenes`
   copiando todas sus filas y agrega lo de la ficha completa de producto; 4 = rev. 4: 005.sql solo crea las tablas de la
-  Display API); 5 → 006.sql conserva imágenes y añade evidencia de producto; 6 → nada; > 6 → solo lectura
+  Display API); 5 → 006.sql conserva imágenes y añade evidencia de producto; 6 → nada; 7 (rev. 7) → se regresa a 6
+  quitando orden_lineas_traza si es lo único distinto (solo en la imagen de vuelta atrás); > 6 en otro caso → solo lectura
   (`base_de_version_nueva`). Los .sql se leen con importlib.resources
   (también dentro del exe).
 - NO siembra plantillas ni preferencias: eso lo hace solo `EstadoLocal.sembrar()` (BUILD §4.3).
@@ -31,6 +32,7 @@ import queue
 import re
 import secrets
 import sqlite3
+import sys
 import threading
 import time
 from importlib import resources
@@ -151,7 +153,55 @@ class _Almacen:
         if uv < USER_VERSION:
             self._migrar(w, uv)
             return USER_VERSION
+        if uv == USER_VERSION + 1 and self._bajar_de_rev7(w):
+            return USER_VERSION
         return uv
+
+    # Imagen de VUELTA ATRÁS de la rev. 7 (docs/ORDER_TRACE_RETIREMENT.md, etapa 2): solo existe en la rama
+    # claude/corte-vuelta-atras-rev6. La rev. 7 únicamente agregó la tabla orden_lineas_traza (migraciones/007.sql, con
+    # user_version 7); este código la quita para que la imagen anterior arranque con la base actual sin perder nada más.
+    TABLA_REV7 = 'orden_lineas_traza'
+
+    def _bajar_de_rev7(self, w: sqlite3.Connection) -> bool:
+        """user_version 7 → 6 SOLO si, comparada con un esquema rev. 6 nuevo, la base no tiene nada de menos y lo único de
+        más es `orden_lineas_traza`. Antes copia la base a `hub.sqlite.bak-v7`. Con cualquier otra diferencia no toca nada
+        (False) y la base se abre en solo lectura como siempre. Las trazas que se pierden vuelven con la siguiente
+        sincronización completa si después se despliega otra vez la rev. 7."""
+        esperado = sqlite3.connect(':memory:')
+        try:
+            for s in _sentencias(leer_recurso_sql('schema.sql')):
+                esperado.execute(s)
+
+            def objetos(c: sqlite3.Connection) -> set[tuple[str, str]]:
+                return {(t, n) for t, n in c.execute("SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'")}
+            de_mas, de_menos = objetos(w) - objetos(esperado), objetos(esperado) - objetos(w)
+        finally:
+            esperado.close()
+        if de_menos or de_mas != {('table', self.TABLA_REV7)}:
+            _log.warning('La base tiene user_version 7 con otras diferencias (%s / %s): no se regresa a la rev. 6',
+                         sorted(de_mas), sorted(de_menos))
+            return False
+        copia = f'{self.ruta}.bak-v7'
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(copia)
+        destino = sqlite3.connect(copia)
+        try:
+            w.backup(destino)
+        finally:
+            destino.close()
+        w.execute('BEGIN IMMEDIATE')
+        try:
+            w.execute(f'DROP TABLE {self.TABLA_REV7}')
+            w.execute(f'PRAGMA user_version = {USER_VERSION}')
+        except BaseException:
+            w.execute('ROLLBACK')
+            raise
+        w.execute('COMMIT')
+        mensaje = (f'Corte: base regresada de user_version 7 a {USER_VERSION} sin {self.TABLA_REV7} '
+                   f'(copia previa: {os.path.basename(copia)})')
+        _log.warning(mensaje)
+        print(mensaje, file=sys.stderr, flush=True)          # en la nube es lo único que llega a Cloud Logging
+        return True
 
     def _crear(self, w: sqlite3.Connection) -> None:
         sql = leer_recurso_sql('schema.sql')
