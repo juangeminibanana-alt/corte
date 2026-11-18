@@ -213,7 +213,8 @@ class Analitica(Protocol):                                          # analitica.
     def producto_detalle(self, product_id: str) -> Json: ...
     def ordenes(self, filtros: Mapping[str, str]) -> Json: ...
     def snapshot(self, cuenta: Json | None, conexion: Json, sync: Json) -> Json: ...
-    def etag(self) -> str: ...                                      # 'dv<N>-lr<M>-ir<K>' leído en la misma transacción
+    def etag(self, con_display: bool = False) -> str: ...           # 'dv<N>-lr<M>-ir<K>' (+ '|d<at>' de la última pasada
+                                                                    # de la Display API) leído en la misma transacción
 
 
 class EvidenciaProducto(Protocol):

@@ -87,38 +87,75 @@ def campos_video_producto(d: DatosDisplay, cid: str, pedidos_validos: int, comis
             'comision_por_mil_vistas_centavos': por_mil(comision_centavos, vistas, None)}
 
 
-def ultima_sync_at(conn: sqlite3.Connection) -> int | None:
-    """Instante de la última pasada de la Display API (sync_cursores 'display.ultima_sync'); None si nunca hubo."""
+def _entero_positivo(v: Any, minimo: int = 1) -> int | None:
+    return v if isinstance(v, int) and not isinstance(v, bool) and v >= minimo else None
+
+
+def ultima_sync(conn: sqlite3.Connection) -> tuple[int | None, int | None]:
+    """(instante, tope) de la última pasada REGISTRADA de la Display API (sync_cursores 'display.ultima_sync'). `tope` =
+    el visto_at más reciente cuando se escribió ese cursor (un cursor anterior a la rev. 6 no lo trae: vale el
+    instante). (None, None) si nunca hubo."""
     try:
         r = conn.execute("SELECT valor FROM sync_cursores WHERE clave = 'display.ultima_sync'").fetchone()
     except sqlite3.OperationalError:
-        return None
+        return None, None
     if r is None:
-        return None
+        return None, None
     try:
-        at = json.loads(r[0]).get('at')
+        valor = json.loads(r[0])
+        at, tope = valor.get('at'), valor.get('visto_tope')
     except (ValueError, AttributeError):
-        return None
-    return at if isinstance(at, int) and not isinstance(at, bool) and at > 0 else None
+        return None, None
+    at = _entero_positivo(at)
+    if at is None:
+        return None, None
+    tope = _entero_positivo(tope, 0)
+    return at, (at if tope is None else tope)
 
 
-def fotos_sin_video(conn: sqlite3.Connection, solo: str | None = None) -> dict[str, Json]:
+def ultima_sync_at(conn: sqlite3.Connection) -> int | None:
+    """Instante de la última pasada registrada de la Display API; None si nunca hubo."""
+    return ultima_sync(conn)[0]
+
+
+def huella_vistos(conn: sqlite3.Connection) -> str:
+    """Resumen de visto_at de los videos guardados: cambia también con las páginas que guarda una pasada aún sin
+    registrar (en curso o interrumpida), que mueven `metricas_at` y `publicacion` del catálogo (para su ETag)."""
+    try:
+        n, suma, maximo = conn.execute('SELECT COUNT(*), COALESCE(SUM(visto_at), 0), COALESCE(MAX(visto_at), 0) '
+                                       'FROM videos_tiktok').fetchone()
+    except sqlite3.OperationalError:
+        return '0.0.0'
+    return f'{n}.{suma}.{maximo}'
+
+
+def fotos_sin_video(conn: sqlite3.Connection, solo: str | None = None,
+                    ids: list[str] | None = None) -> dict[str, Json]:
     """Videos que ya no están en videos_tiktok (dejaron de ser públicos tras un listado completo) pero conservan
     historial diario: su foto más reciente {fecha, vistas, likes, comentarios, compartidos, actualizado_at}.
-    `solo`: limita la búsqueda a un ID (el detalle no recorre todo el historial)."""
-    filtro, params = ('AND video_id = ?', (solo,)) if solo is not None else ('', ())
-    try:
-        filas = conn.execute(f"""SELECT d.video_id, d.fecha, d.vistas, d.likes, d.comentarios, d.compartidos,
-                                        d.actualizado_at
-                                 FROM videos_tiktok_dias d
-                                 JOIN (SELECT video_id, MAX(fecha) AS fecha FROM videos_tiktok_dias
-                                       WHERE video_id NOT IN (SELECT video_id FROM videos_tiktok) {filtro}
-                                       GROUP BY video_id) m ON m.video_id = d.video_id AND m.fecha = d.fecha""",
-                             params).fetchall()
-    except sqlite3.OperationalError:
-        return {}
-    return {str(f[0]): {'fecha': f[1], 'vistas': f[2], 'likes': f[3], 'comentarios': f[4], 'compartidos': f[5],
-                        'actualizado_at': f[6]} for f in filas}
+    `solo`: limita la búsqueda a un ID (el detalle no recorre todo el historial); `ids`: a esos IDs (por la llave
+    primaria, en tandas de 500)."""
+    if ids is not None:
+        unicos = list(dict.fromkeys(ids))
+        tandas = [unicos[i:i + 500] for i in range(0, len(unicos), 500)]
+    else:
+        tandas = [[solo] if solo is not None else []]
+    fotos: dict[str, Json] = {}
+    for tanda in tandas:
+        filtro = f'AND video_id IN ({",".join("?" * len(tanda))})' if tanda else ''
+        try:
+            filas = conn.execute(f"""SELECT d.video_id, d.fecha, d.vistas, d.likes, d.comentarios, d.compartidos,
+                                            d.actualizado_at
+                                     FROM videos_tiktok_dias d
+                                     JOIN (SELECT video_id, MAX(fecha) AS fecha FROM videos_tiktok_dias
+                                           WHERE video_id NOT IN (SELECT video_id FROM videos_tiktok) {filtro}
+                                           GROUP BY video_id) m ON m.video_id = d.video_id AND m.fecha = d.fecha""",
+                                 tanda).fetchall()
+        except sqlite3.OperationalError:
+            return {}
+        fotos.update({str(f[0]): {'fecha': f[1], 'vistas': f[2], 'likes': f[3], 'comentarios': f[4],
+                                  'compartidos': f[5], 'actualizado_at': f[6]} for f in filas})
+    return fotos
 
 
 def tendencia(conn: sqlite3.Connection, cid: str) -> list[Json]:
@@ -153,4 +190,5 @@ def resumen_perfil(conn: sqlite3.Connection, d: DatosDisplay, hoy: dt.date) -> J
 
 
 __all__ = ['DatosDisplay', 'cargar', 'campos_fila_video', 'campos_video_producto', 'tendencia', 'resumen_perfil',
-           'ultima_sync_at', 'fotos_sin_video', 'por_mil', 'CAMPOS_FILA_VIDEO', 'CAMPOS_VIDEO_PRODUCTO']
+           'ultima_sync', 'ultima_sync_at', 'huella_vistos', 'fotos_sin_video', 'por_mil', 'CAMPOS_FILA_VIDEO',
+           'CAMPOS_VIDEO_PRODUCTO']

@@ -2,6 +2,8 @@
 
 Revisado el **18 de noviembre de 2026** sobre el código publicado en la nube (`f3f963c`, imagen `corte@sha256:71e0ad75…`). Este documento identifica a cada consumidor del origen de ventas y fija cómo conservar su histórico. Por sí mismo no cambia el comportamiento: la migración corresponde al siguiente incremento.
 
+**Estado (18/11/2026):** la parte del backend de la etapa 1 está implementada en `df5ff36`: Corte ya no llama la ruta, `origen_ventas_aviso` siempre va en null y `orden_trazas` queda como histórico cerrado. **Sigue pendiente la parte web**: retirar `NotaPermisoOrigen`, el texto del permiso (`origenSinPermiso`) y la rama `'aviso'` de `estadoOrigen`, y mostrar «histórico hasta {fecha}» con `origen_ventas.hasta_at`. En producción la nota ya no aparece porque el aviso llega en null; la demo web todavía la simula con `?trazas=sin_permiso`. Las secciones «Qué hace hoy el backend publicado» y «Consumidores», con sus números de línea, describen `f3f963c`, el código anterior a ese cambio.
+
 ## Estado oficial
 
 - `POST /affiliate_creator/202505/orders/trace/search` quedó **retirada para todos los mercados el 15 de agosto de 2026** según el [aviso oficial](https://partner.tiktokshop.com/docv2/page/si5r1bv3) ("Breaking Change", "Action Required"). TikTok advierte que las llamadas posteriores fallan.
@@ -46,7 +48,7 @@ No consumen trazas: `cloud/display_import.py`, `hub/creatorhub/nube.py`, `hub/cr
 
 ### Principios
 
-1. **Registro cerrado.** `orden_trazas` queda como histórico de una fuente retirada. Después de apagar el productor nada la escribe ni la reescribe; solo la vacían los borrados explícitos de usuario o de cuenta.
+1. **Registro cerrado.** `orden_trazas` queda como histórico de una fuente retirada. Después de apagar el productor nada la escribe ni la reescribe; solo la vacían la purga de 400 días de la sincronización completa (la misma retención que los pedidos) y los borrados explícitos de usuario o de cuenta.
 2. **Procedencia por tabla.** Lo que llegue de 202410 va a otra tabla. Escribirlo en `orden_trazas` mezclaría fuentes: las posiciones `linea_n` vienen de respuestas distintas, la llave chocaría y el escritor actual borra el pedido completo antes de insertar.
 3. **La ausencia no es un negativo.** Cada línea nueva queda en uno de tres estados: *traza reportada* (`GENERAL`, `SPECIFIC` u otro valor guardado tal cual), *sin traza reportada* (línea capturada por el código nuevo en una ventana completa, sin `trace_info` o con tipo vacío) o *sin dato* (no capturada). Ninguno de ellos significa «orgánico» ni «vino de un video».
 4. **Sin atribución fabricada.** Nunca derivar una traza de `content_type`, `LINKSHARE`, `tag` o campañas; nunca copiar filas históricas a líneas nuevas; nunca unir ambas fuentes por `linea_n` o `sku_id`; nunca usar datos demo.
@@ -71,9 +73,9 @@ El resultado dice qué fila de la tabla anterior aplica y si existe histórico q
 
 - Quitar la fase `trazas` de `ORDEN_FASES` y `TEXTOS_FASES`, su código y sus constantes exclusivas (52, 63, 64, 66). Conservar `CODIGOS_SIN_PERMISO` y `MAX_PAGINAS_DIRIGIDAS`.
 - No editar el DDL de `orden_trazas`, ni siquiera sus comentarios: SQLite los guarda en `sqlite_master` y un esquema nuevo debe ser idéntico a uno migrado (`schema.sql:12-15`).
-- Decidir explícitamente si la purga de 400 días sigue aplicando a `orden_trazas`. Quitarla conserva el histórico más allá de sus pedidos; mantenerla prioriza la minimización de datos.
+- Purga de 400 días: **se mantiene** para `orden_trazas` (decisión de la etapa 1). Prioriza la minimización de datos y conserva la misma retención que los pedidos; el histórico se va retirando con la antigüedad de sus pedidos.
 - Lectores: `origen_ventas_aviso` siempre `null`. `origen_ventas` agrega procedencia opcional (`fuente`, `desde_at`, `hasta_at`, `pedidos` distintos) y rotula el balde nulo como «Sin enlace reportado» en lugar de afirmar «Sin enlace compartido».
-- Web: retirar `NotaPermisoOrigen` y el texto del permiso; mostrar «histórico hasta {fecha}». Flutter: la rama `sin_permiso` queda inalcanzable.
+- **Pendiente.** Web: retirar `NotaPermisoOrigen` y el texto del permiso; mostrar «histórico hasta {fecha}» solo cuando llegue `hasta_at` (un hub anterior no lo envía). Flutter: la rama `sin_permiso` queda inalcanzable.
 - Demo: retirar la ruta del transporte falso; una llamada accidental recibe el 404 demo y las pruebas pueden exigir cero llamadas.
 - Subir `REV_SNAPSHOT`, porque el snapshot incluye `producto_extendido`.
 - Se revierte redeplegando el digest anterior: no hay migración.

@@ -11,7 +11,10 @@ Convenciones: éxito sin envoltorio; errores `ErrorRespuesta` (ErrorDominio.a_re
 `vigente` con `codigo='conflicto'`); un 500 nunca trae texto de la excepción, solo `detalle.ref`. JSON UTF-8, gzip si
 `Accept-Encoding: gzip` y el cuerpo pasa de 1 KB, `Cache-Control: no-store` salvo las lecturas compuestas, que llevan
 `ETag: W/"dv<N>-lr<M>-ir<K>-<hash>"` (el hash cubre la ruta, la query ordenada, la fecha local de hoy, porque hay
-campos como `dias_restantes` que cambian con el día, y `REV_LECTURAS`) y responden `304` a `If-None-Match`.
+campos como `dias_restantes` que cambian con el día, y `REV_LECTURAS`) y responden `304` a `If-None-Match`. En las
+rutas `api/catalogo/*` el hash cubre además el instante de la última pasada de la Display API y una huella del visto_at
+de los videos guardados (cambia también con las páginas de una pasada interrumpida), leídos en la misma transacción que
+las versiones: de ellos dependen `publicacion`, `metricas_at` y `display.ultima_sync_at`. La forma visible no cambia.
 `GET /api/snapshot` lleva la forma `W/"dv<N>-lr<M>-ir<K>-f4-YYYY-MM-DD"`, con las versiones y fecha MX del propio cuerpo.
 La ruta llega SIN decodificar: se parte en segmentos y cada segmento se decodifica por separado (nunca se normaliza la
 ruta completa). Ya no existe `POST /local/activar` (C40).
@@ -40,6 +43,7 @@ MAX_CUERPO = config.MAX_CUERPO_BYTES
 MAX_CAMPOS_QUERY = 64
 REV_SNAPSHOT = 'f4'               # f3: actualidad de ventas/pagos · f4: origen de ventas histórico, sin aviso de permiso.
 REV_LECTURAS = 'r6'               # Entra en la ETag de cada lectura compuesta: subirlo renueva las copias de los clientes.
+PREFIJO_CATALOGO = 'api/catalogo/'  # rev. 6: su ETag también cubre la última pasada de la Display API.
 ModoLan = Literal['lectura', 'escritura', 'local']
 TipoEtag = Literal['lectura', 'snapshot'] | None
 
@@ -311,15 +315,19 @@ class DespachadorHub:
         return ErrorDominio('tiktok_no_disponible', MSG_TIKTOK, http=503, reintentar_en_s=60)
 
     # -------------------------------------------------------------- lecturas compuestas: ETag y 304
-    def _versiones_etag(self) -> str | None:
+    def _versiones_etag(self, r: Ruta | None = None) -> str | None:
         try:
-            v = self.hub.analitica.etag()
+            if r is not None and r.plantilla.startswith(PREFIJO_CATALOGO):
+                v = self.hub.analitica.etag(con_display=True)
+            else:
+                v = self.hub.analitica.etag()
             return v if isinstance(v, str) and v else None
         except Exception:  # noqa: BLE001 - sin ETag, nunca sin respuesta
             _log.warning('No se pudo leer la versión para la ETag', exc_info=True)
             return None
 
     def _etiqueta(self, versiones: str, p: Peticion, tipo: TipoEtag, generado_at: int | None = None) -> str:
+        versiones, _, marca = versiones.partition('|')   # marca: última pasada de la Display API (solo el catálogo)
         if tipo == 'snapshot':
             # Hoy/semana/próximo miércoles cambian aunque no haya ventas nuevas.
             # La etiqueta del cuerpo usa su propio instante al cruzar medianoche.
@@ -327,11 +335,12 @@ class DespachadorHub:
             return f'W/"{versiones}-{REV_SNAPSHOT}-{dia}"'
         canon = '&'.join(f'{k}={v}' for k, v in sorted(p.query.items()))
         hoy = comun.fecha_local(self.hub.reloj.ahora())
-        h = hashlib.sha256(f'{p.ruta}?{canon}|{hoy}|{REV_LECTURAS}'.encode('utf-8')).hexdigest()[:12]
+        base = f'{p.ruta}?{canon}|{hoy}|{REV_LECTURAS}' + (f'|{marca}' if marca else '')
+        h = hashlib.sha256(base.encode('utf-8')).hexdigest()[:12]
         return f'W/"{versiones}-{h}"'
 
     def _lectura_compuesta(self, r: Ruta, p: Peticion, gz: bool) -> RespuestaHttp:
-        antes = self._versiones_etag()
+        antes = self._versiones_etag(r)
         if antes is not None:
             etiqueta = self._etiqueta(antes, p, r.etag)
             if coincide_etag(p.cabecera('if-none-match'), etiqueta):
@@ -344,7 +353,7 @@ class DespachadorHub:
             momento = datos.get('generado_at')
             extra = [('ETag', self._etiqueta(propia, p, 'snapshot', momento if isinstance(momento, int) else None)),
                      ('Cache-Control', 'private, no-cache')]
-        elif antes is not None and self._versiones_etag() == antes:
+        elif antes is not None and self._versiones_etag(r) == antes:
             # nada cambió entre el antes y el después: la respuesta corresponde exactamente a esas versiones
             extra = [('ETag', self._etiqueta(antes, p, r.etag)), ('Cache-Control', 'private, no-cache')]
         return self._json(r.status, datos, gz, extra)

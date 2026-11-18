@@ -15,6 +15,12 @@ EstadoDisplay.ultima_sync).
   videos_tiktok: sus campos en la analítica vuelven a null.
 - Sus errores NUNCA vuelven parcial ni fallida la sync de TikTok Shop ni tocan auth_estado: quedan en EstadoDisplay
   (ultimo_error) y en el resumen. Solo se propagan los de control de la sync (cancelar, cambio de cuenta/época).
+- Rev. 6 (18/11/2026): antes de guardar el perfil decide de quién es lo guardado (`ServicioDisplay.cuenta_de_lo_guardado`,
+  que puede preguntar a TikTok con video/query, fuera de toda transacción). Si se comprueba que es de otra cuenta, lo
+  borra en la misma transacción que guarda el perfil nuevo; si es del creador y la conexión es de otra cuenta, olvida
+  esa autorización sin escribir nada. Cubre una conexión cuyo perfil no se pudo comprobar al conectar.
+- El cursor guarda también `visto_tope` (el visto_at más reciente al escribirlo): `publicacion` del catálogo lo usa para
+  reconocer los videos que vio una pasada posterior sin depender de que el reloj nunca se atrase.
 """
 from __future__ import annotations
 
@@ -22,6 +28,7 @@ import json
 import logging
 from typing import Any
 
+from .errores import ErrorApi
 from .interfaces import PedidoImagen
 
 _log = logging.getLogger('creatorhub.sincronizador')
@@ -63,8 +70,23 @@ class PasoVideosTikTok:
         self._escala[paso] = (desde, 1.0 - desde)
         self._avance(paso, 0.0, texto=TEXTO_VIDEOS_TIKTOK)
         try:
+            conexion = s.boveda.leer()
+            revision = (conexion.get('client_key'), conexion.get('epoca_credenciales', 0))
             perfil = D.normalizar_usuario(s.cliente.usuario())
+            perfil['open_id'] = perfil.get('open_id') or conexion.get('open_id')   # la cuenta de esta conexión
+            # De quién es lo guardado: puede preguntar a TikTok (video/query), así que nunca con una transacción abierta.
+            decision = s.cuenta_de_lo_guardado(perfil)
+            if decision == 'rechazar':
+                raise s.olvidar_autorizacion_ajena(revision) or ErrorDisplay('solicitud_rechazada', D.MSG_OTRA_CUENTA)
             with self._tx() as db:
+                if decision == 'otra':
+                    # Una conexión cuyo perfil no se pudo comprobar al conectar: lo guardado era de otra cuenta.
+                    _log.info('Los datos guardados de la Display API eran de otra cuenta: se borran (sync %s)',
+                              getattr(self, 'sid', '?'))
+                    D.borrar_todo(db)
+                    self.alm.subir_img_rev(db)
+                    self.alm.marcar_data_version(db)
+                    self.secciones.update(('videos', 'cuenta'))
                 if D.guardar_perfil(db, perfil, self.ahora):
                     self.alm.marcar_data_version(db)
                     self.secciones.add('cuenta')
@@ -123,7 +145,14 @@ class PasoVideosTikTok:
         ultima = {'at': self.ahora, 'estado': r['estado'], 'videos': r['videos'], 'nuevos': r['nuevos'],
                   'cambiados': r['cambiados'], 'quitados': r['quitados'], 'completa': r['completa'],
                   'error': None if error is None else {'codigo': error.codigo, 'mensaje': error.mensaje}}
-        self._poner_cursor_tx(D.CLAVE_ULTIMA_SYNC, json.dumps(ultima, ensure_ascii=False))
+        try:
+            with self._tx() as db:
+                # visto_tope: el visto_at más reciente al escribir el cursor, en su misma transacción. Un visto_at mayor
+                # solo puede venir de una pasada POSTERIOR (en curso o interrumpida), aunque el reloj se haya atrasado.
+                ultima['visto_tope'] = db.execute('SELECT MAX(visto_at) FROM videos_tiktok').fetchone()[0] or 0
+                self._poner_cursor(db, D.CLAVE_ULTIMA_SYNC, json.dumps(ultima, ensure_ascii=False), self.ahora)
+        except ErrorApi:                                 # cambió la cuenta o la época: igual que _poner_cursor_tx
+            pass
         s.anotar_resultado(error)
         s.publicar()
         self._avance(paso, 1.0)

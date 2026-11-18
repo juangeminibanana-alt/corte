@@ -1,7 +1,8 @@
 """orders/trace/search se retiró (15/08/2026): Corte deja de llamarla y conserva su histórico sin reescribirlo.
 
 Corre un hub REAL en modo nube con el transporte falso de la demo (datos sintéticos, sin firmas ni red) y una
-sincronización completa. Nunca lee una conexión del operador ni llama a TikTok.
+sincronización completa. Nunca lee una conexión del operador ni llama a TikTok: las imágenes usan un descargador sin
+red y, mientras corre la clase, resolver un nombre fuera de esta máquina falla la prueba.
 """
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ import gzip
 import json
 import os
 from pathlib import Path
+import socket
 import sys
 import tempfile
 import time
@@ -25,10 +27,33 @@ from creatorhub.api.rutas import REV_SNAPSHOT
 from creatorhub.demo import sinteticos
 from creatorhub.demo.transporte import TransporteApiFalsa
 from creatorhub.hub import iniciar_hub
+from creatorhub.imagenes.claves import ErrorImagen
 from creatorhub.interfaces import CTX_UI, OpcionesHub
 
 RUTA_RETIRADA = '/affiliate_creator/202505/orders/trace/search'
 P_HISTORICO = '1729000000000000001'          # producto que solo existe en el histórico de trazas
+FASES = ('recuperadas', 'etiquetas', 'dirigidas', 'parecidos')
+CAMPOS_DISPLAY = ('descripcion', 'publicado_at', 'duracion_s', 'vistas', 'likes', 'comentarios', 'compartidos',
+                  'metricas_at')
+LOCALES = frozenset({None, '', 'localhost', '127.0.0.1', '::1', '0.0.0.0'})
+
+
+def _sin_red(url: str) -> bytes:
+    """Descargador de imágenes de las pruebas: nunca sale a la red (la imagen se queda en '?v=0')."""
+    raise ErrorImagen('sin_red_en_pruebas', permanente=True)
+
+
+def _bloquear_red(intentos: list[str]):
+    """Parche de socket.getaddrinfo: resolver un nombre fuera de esta máquina falla y queda anotado."""
+    real = socket.getaddrinfo
+
+    def resolver(host, *args, **kwargs):
+        nombre = host.decode('ascii', 'replace') if isinstance(host, bytes) else host
+        if nombre not in LOCALES:
+            intentos.append(str(nombre))
+            raise OSError(f'Red bloqueada en las pruebas: {nombre}')
+        return real(host, *args, **kwargs)
+    return patch('socket.getaddrinfo', resolver)
 
 
 class RetiroTrazasEnSyncTests(unittest.TestCase):
@@ -36,12 +61,20 @@ class RetiroTrazasEnSyncTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.carpeta = tempfile.TemporaryDirectory()
-        cls.env = patch.dict(os.environ, {'CORTE_PUBLIC_URL': 'https://corte.example',
-                                          'CORTE_ENCRYPTION_KEY': 'synthetic-master-' * 4})
-        cls.env.start()
-        cls.hub = iniciar_hub(OpcionesHub(modo='real', nube=True, sin_lan=True, raiz_datos=cls.carpeta.name,
-                                          sync_al_iniciar=False))
+        cls.intentos_de_red: list[str] = []
+        cls.red = _bloquear_red(cls.intentos_de_red)
+        cls.red.start()
+        try:
+            cls.carpeta = tempfile.TemporaryDirectory()
+            cls.env = patch.dict(os.environ, {'CORTE_PUBLIC_URL': 'https://corte.example',
+                                              'CORTE_ENCRYPTION_KEY': 'synthetic-master-' * 4})
+            cls.env.start()
+            with patch('creatorhub.imagenes.servicio.DescargadorHttps', return_value=_sin_red):
+                cls.hub = iniciar_hub(OpcionesHub(modo='real', nube=True, sin_lan=True, raiz_datos=cls.carpeta.name,
+                                                  sync_al_iniciar=False))
+        except BaseException:
+            cls.red.stop()
+            raise
         try:
             cls.ahora = int(time.time())
             futuro = cls.ahora + 86400
@@ -83,12 +116,17 @@ class RetiroTrazasEnSyncTests(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls) -> None:
-        cls.hub.detener(10)
-        cls.env.stop()
-        cls.carpeta.cleanup()
+        try:
+            cls.hub.detener(10)
+            cls.env.stop()
+            cls.carpeta.cleanup()
+        finally:
+            cls.red.stop()
+        if cls.intentos_de_red:
+            raise AssertionError(f'Las pruebas intentaron salir a la red: {sorted(set(cls.intentos_de_red))}')
 
-    def api(self, ruta: str):
-        r = self.hub.despachador.despachar('GET', ruta, '', {}, b'', CTX_UI)
+    def api(self, ruta: str, consulta: str = ''):
+        r = self.hub.despachador.despachar('GET', ruta, consulta, {}, b'', CTX_UI)
         cuerpo = gzip.decompress(r.cuerpo) if r.cuerpo[:2] == b'\x1f\x8b' else r.cuerpo
         return r.status, dict(r.cabeceras), json.loads(cuerpo or b'null')
 
@@ -101,7 +139,11 @@ class RetiroTrazasEnSyncTests(unittest.TestCase):
             estado, resumen = db.execute('SELECT estado, resumen_json FROM sync_ejecuciones '
                                          'ORDER BY sync_id DESC LIMIT 1').fetchone()
         self.assertIn(estado, ('ok', 'parcial'))
-        self.assertEqual(list(json.loads(resumen)['fases']), ['recuperadas', 'etiquetas', 'dirigidas', 'parecidos'])
+        fases = json.loads(resumen)['fases']
+        self.assertEqual(list(fases), list(FASES))
+        # Una fase que falla queda en 'error' sin volver parcial la sync: cada una debe terminar bien y llamar a TikTok.
+        self.assertEqual({f: (v['estado'], v['llamadas'] > 0) for f, v in fases.items()},
+                         dict.fromkeys(FASES, ('ok', True)))
 
     def test_el_historico_queda_intacto(self) -> None:
         with self.hub.almacen.lector() as db:
@@ -119,6 +161,53 @@ class RetiroTrazasEnSyncTests(unittest.TestCase):
         enlace = {c['tipo']: (c['texto'], c['lineas']) for c in origen['por_tipo_enlace']}
         self.assertEqual(enlace, {'GENERAL': ('Enlace general', 1), 'SPECIFIC': ('Enlace para un publicador', 1),
                                   None: ('Sin enlace reportado', 1)})
+
+    def test_el_historico_llega_a_la_ficha_y_a_la_copia_del_snapshot(self) -> None:
+        status, _, snapshot = self.api('/api/snapshot')
+        self.assertEqual(status, 200)
+        en_copia = set((snapshot.get('extras') or {}).get('productos') or {})
+        with self.hub.almacen.lector() as db:
+            con_lineas = {r[0] for r in db.execute('SELECT DISTINCT product_id FROM orden_lineas '
+                                                   'WHERE product_id IS NOT NULL')}
+            sin_historico = db.execute('SELECT product_id FROM orden_lineas WHERE product_id IS NOT NULL '
+                                       'ORDER BY product_id LIMIT 1').fetchone()[0]   # el de la prueba del aviso
+        pid = sorted((en_copia & con_lineas) - {sin_historico})[0]
+        creada = self.ahora - 3 * 86400
+        with self.hub.almacen.escritor() as db:
+            db.execute('INSERT INTO orden_trazas(order_id, linea_n, sku_id, product_id, tipo_contenido, traza_tipo, '
+                       "creada_at, actualizado_at) VALUES ('HX', 0, 'SX', ?, 'VIDEO', 'GENERAL', ?, ?)",
+                       (pid, creada, creada))
+        try:
+            esperado = {'fuente': FUENTE_ORIGEN_HISTORICO, 'lineas': 1, 'pedidos': 1, 'desde_at': creada,
+                        'hasta_at': creada}
+            status, _, cuerpo = self.api(f'/api/productos/{pid}')
+            self.assertEqual(status, 200)
+            origen = cuerpo['extendido']['origen_ventas']
+            self.assertEqual({k: origen[k] for k in esperado}, esperado)
+            self.assertIsNone(cuerpo['extendido']['origen_ventas_aviso'])
+            status, _, snapshot = self.api('/api/snapshot')
+            self.assertEqual(status, 200)
+            copia = snapshot['extras']['productos'][pid]['origen_ventas']
+            self.assertEqual({k: copia[k] for k in esperado}, esperado)
+        finally:
+            with self.hub.almacen.escritor() as db:
+                db.execute("DELETE FROM orden_trazas WHERE order_id = 'HX'")
+
+    def test_el_catalogo_sin_display_api_solo_trae_videos_con_ventas(self) -> None:
+        status, _, legado = self.api('/api/analitica/videos', 'limite=1000')
+        self.assertEqual(status, 200)
+        status, _, cat = self.api('/api/catalogo/videos', 'limite=2000')
+        self.assertEqual(status, 200)
+        self.assertIsNone(cat['display'])                       # nunca se conectó la Display API
+        self.assertEqual({i['content_id'] for i in cat['items']}, {f['content_id'] for f in legado['items']})
+        for i in cat['items']:
+            self.assertEqual((i['origen'], i['publicacion']), ('ventas', 'desconocido'))
+            self.assertEqual({k: i[k] for k in CAMPOS_DISPLAY}, dict.fromkeys(CAMPOS_DISPLAY))   # null, nunca ceros
+        cid = cat['items'][0]['content_id']
+        status, _, detalle = self.api(f'/api/catalogo/videos/{cid}')
+        self.assertEqual(status, 200)
+        self.assertEqual(detalle['video'], cat['items'][0])
+        self.assertIsNone(detalle['tendencia'])
 
     def test_la_ficha_ya_no_avisa_un_permiso_aunque_quede_el_cursor_viejo(self) -> None:
         with self.hub.almacen.lector() as db:

@@ -110,6 +110,14 @@ def import_display(hub: Any, body: Any) -> dict[str, Any]:
         raise _error('cuenta_distinta', 'La conexión de videos no corresponde a la cuenta de TikTok Shop actual. No se guardó.', 409)
     if not MIN_SCOPES <= set(checked.get('scopes') or []):
         raise _error('sin_permiso_tiktok', 'La conexión renovada no tiene los permisos necesarios de perfil y videos.')
+    # Whose are the metrics already stored? Same rule as the OAuth connection; it may ask TikTok (video/query) with
+    # the verified connection, so it runs before taking the locks. 'otra' is wiped in the same transaction below.
+    try:
+        decision = service.cuenta_de_lo_guardado(profile, cliente=client)
+    except ErrorDisplay as exc:
+        raise _error(exc.codigo, exc.mensaje, 503 if exc.transitorio else 422) from None
+    if decision == 'rechazar':
+        raise _error('cuenta_distinta', 'Las métricas guardadas pertenecen a otra cuenta. No se cambiaron.', 409)
 
     with hub._candado_mutacion:
         current_identity, current_name = _shop_identity(hub)
@@ -130,9 +138,18 @@ def import_display(hub: Any, body: Any) -> dict[str, Any]:
             service.boveda.mutar(lambda target: target.update(fields), cambia_credenciales=True)
             revision = (fields['client_key'], fields['open_id'], actual.get('epoca_credenciales', 0) + 1)
             with hub.almacen.escritor() as db:
+                if decision == 'otra':      # stored metrics proven to be another account's: never mixed with these
+                    D.borrar_todo(db)
+                    hub.almacen.subir_img_rev(db)
+                    hub.almacen.marcar_data_version(db)
                 if D.guardar_perfil(db, profile, now):
                     hub.almacen.marcar_data_version(db)
         hub.almacen.confirmar_data_version()
+        if decision == 'otra':
+            try:
+                hub.bus.notificar_cambio(hub.almacen.versiones(), ['videos', 'cuenta'])
+            except Exception:  # noqa: BLE001 - the clients refresh on their next revision check
+                pass
         with service._candado:
             service._intentos.clear()
             service._terminados.clear()

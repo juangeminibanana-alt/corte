@@ -11,6 +11,7 @@ import logging
 from typing import Callable, Mapping
 
 from ..interfaces import Almacen, Json, Reloj
+from . import display as display_api
 from . import filtros as F
 from . import reglas as R
 from .vista import Vista
@@ -203,10 +204,16 @@ class AnaliticaSqlite:
                 break
         return salida
 
-    def etag(self) -> str:
+    def etag(self, con_display: bool = False) -> str:
+        """'dv<N>-lr<M>-ir<K>'. `con_display` (rutas del catálogo, rev. 6) agrega '|d<instante de la última pasada de la
+        Display API>-<huella de visto_at>', leído en LA MISMA transacción: `publicacion`, `metricas_at` y
+        `display.ultima_sync_at` dependen de cada pasada, aunque no cambie data_version (una pasada sin videos nuevos ni
+        cambiados no la sube) y aunque se interrumpa después de guardar alguna página."""
         with self.almacen.lector() as conn:
             dv, lr, ir = self.almacen.versiones(conn)
-        return f'dv{dv}-lr{lr}-ir{ir}'
+            marca = (f'|d{display_api.ultima_sync_at(conn) or 0}-{display_api.huella_vistos(conn)}'
+                     if con_display else '')
+        return f'dv{dv}-lr{lr}-ir{ir}{marca}'
 
 
 def crear(almacen: Almacen, reloj: Reloj) -> AnaliticaSqlite:

@@ -1333,6 +1333,8 @@ class Vista:
         Display API == content_id de las líneas VIDEO). Los videos sin ventas solo entran si la cuenta de la Display
         API es la del creador; con ventas entran siempre. Nunca se inventa una cifra: lo que no se sabe va en null y
         un video sin pedidos lleva `ventas: null`, no ceros. `solo`: arma únicamente ese ID (detalle).
+        `incluir_historial` solo decide si entran los videos SIN ventas que únicamente conservan historial: un video
+        con ventas que dejó de ser público lleva su última foto en toda vista (lista, historial y detalle coinciden).
         -> (items sin ordenar, bloque `display` | None)."""
         d = self.display
         vendidos = {f['content_id']: f for f in self.videos_todos(None, None)}
@@ -1340,14 +1342,19 @@ class Vista:
         historial: dict[str, Json] = {}
         bloque: Json | None = None
         ultima_at: int | None = None
+        tope: int | None = None
         if d is not None:
-            ultima_at = display_api.ultima_sync_at(self.conn)
+            ultima_at, tope = display_api.ultima_sync(self.conn)
             misma = self.misma_cuenta_display()
             bloque = {'ultima_sync_at': ultima_at, 'misma_cuenta': misma}
             if misma is True:
                 organicos = d.videos
-                if incluir_historial:
-                    historial = display_api.fotos_sin_video(self.conn, solo)
+            if misma is True and incluir_historial:
+                historial = display_api.fotos_sin_video(self.conn, solo=solo)
+            else:
+                # Por ID exacto: la foto de un video con ventas solo pudo venir de la cuenta del creador.
+                faltan = [c for c in vendidos if c not in d.videos and (solo is None or c == solo)]
+                historial = display_api.fotos_sin_video(self.conn, ids=faltan) if faltan else {}
         vinculadas: dict[str, list[str]] = collections.defaultdict(list)
         for m in self.M:
             if m['plan_content_id']:
@@ -1362,7 +1369,11 @@ class Vista:
             v = d.videos.get(cid) if d is not None and (venta is not None or cid in organicos) else None
             h = historial.get(cid) if v is None else None
             if v is not None:
-                publicacion = 'publico' if ultima_at is not None and v['visto_at'] == ultima_at else 'no_confirmado'
+                # Salió en la pasada registrada (visto_at == su instante) o en una POSTERIOR en curso o interrumpida
+                # (visto_at mayor que el tope guardado con el cursor: no depende de que el reloj nunca se atrase); sin
+                # cursor, la primera pasada no terminó y todo lo guardado salió en ella.
+                publicacion = ('publico' if ultima_at is None or v['visto_at'] == ultima_at
+                               or (tope is not None and v['visto_at'] > tope) else 'no_confirmado')
             elif h is not None:
                 publicacion = 'no_publico'
             else:

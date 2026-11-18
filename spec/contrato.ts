@@ -684,13 +684,16 @@ export interface VideoDetalleResponse {
 /** rev. 6 · Un video del catálogo: PUBLICADO en la cuenta (Display API) y/o CON VENTAS, unidos por ID exacto
  *  (video_id de la Display API == content_id de las líneas VIDEO). Nunca se inventa una cifra: lo que no se sabe va
  *  en null y un video sin pedidos lleva `ventas: null` (no ceros). Los videos sin ventas solo aparecen si la cuenta de
- *  la Display API es la del creador de TikTok Shop (`display.misma_cuenta`). */
+ *  la Display API es la del creador de TikTok Shop (`display.misma_cuenta`). Al conectar otra cuenta, lo guardado se
+ *  borra solo si se comprueba que es de otra cuenta; si es del creador, se rechaza la cuenta nueva y no se toca nada.
+ *  La lista y el detalle dan el mismo `origen`, `publicacion` y cifras para un mismo video. */
 export interface VideoCatalogo {
   content_id: string;
   origen: 'display' | 'ventas' | 'display_y_ventas';
-  /** 'publico' = salió en la última pasada de la Display API · 'no_confirmado' = sigue guardado, pero no salió en la
-   *  última pasada · 'no_publico' = solo queda su historial (dejó de estar entre los públicos) · 'desconocido' = solo
-   *  se conoce por sus ventas (sin Display API, privado, borrado o fuera del tope de 1,000). */
+  /** 'publico' = salió en la última pasada de la Display API (o en una posterior que sigue en curso o se interrumpió)
+   *  · 'no_confirmado' = sigue guardado, pero no salió en la última pasada · 'no_publico' = solo queda su historial
+   *  (dejó de estar entre los públicos; con o sin ventas) · 'desconocido' = solo se conoce por sus ventas (sin Display
+   *  API, privado, borrado o fuera del tope de 1,000, sin historial guardado). */
   publicacion: 'publico' | 'no_confirmado' | 'no_publico' | 'desconocido';
   /** Título o descripción de la Display API (null si no está en ella). */
   descripcion: string | null;
@@ -710,7 +713,10 @@ export interface VideoCatalogo {
   muestras_vinculadas: string[];
 }
 /** rev. 6 · GET /api/catalogo/videos?orden=publicado|vistas|comision&incluir=publicos|historial&limite=200 (máx. 2000).
- *  Solo existe si `capacidades.catalogo_videos`; un hub anterior responde 404 y el cliente vuelve a /api/analitica/videos. */
+ *  Solo existe si `capacidades.catalogo_videos`; un hub anterior responde 404 y el cliente vuelve a /api/analitica/videos.
+ *  `incluir=historial` agrega los videos SIN ventas que solo conservan historial. La ETag (también la del detalle)
+ *  cambia con cada pasada de la Display API, aunque no cambien las versiones, y con cada página que guarde una pasada
+ *  interrumpida. */
 export interface CatalogoVideosResponse {
   items: VideoCatalogo[];
   total: number;

@@ -34,6 +34,9 @@ campos de showcases/products que ya llegaban; tras la migración a la rev. 4 se 
 Rev. 5 (15/11/2026, Display API): el paso «videos_tiktok» (sincronizador_videos.py) corre dentro del paso público
 `videos`, después de las portadas C4, solo si hub.py enlazó el servicio (`fijar_display`) y hay conexión; si no, se salta
 en silencio y el paso `videos` queda exactamente como en la rev. 4. `PasoSync` no cambia.
+
+Rev. 6 (18/11/2026): se quitó la fase «origen de cada venta» (orders/trace/search, retirada por TikTok el 15/08/2026).
+`productos_ventas` termina con cuatro fases y `orden_trazas` queda como histórico cerrado (ver sincronizador_ficha.py).
 """
 from __future__ import annotations
 

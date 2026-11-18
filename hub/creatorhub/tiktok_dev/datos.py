@@ -184,6 +184,75 @@ def borrar_todo(db: sqlite3.Connection) -> None:
     db.execute("DELETE FROM sync_cursores WHERE clave LIKE 'display.%'")
 
 
+# ---------------------------------------------------------------- de quién es lo guardado (rev. 6, 18/11/2026)
+# Las filas de videos no dicen de qué cuenta vienen y la Display API solo devuelve cifras ACTUALES de videos públicos:
+# un historial borrado no se puede recuperar. Por eso lo guardado solo se borra cuando se comprueba que es de otra
+# cuenta, y nunca si se comprueba que es del creador de la tienda (entonces se rechaza la cuenta nueva).
+MSG_OTRA_CUENTA = ('Autorizaste una cuenta de TikTok que no es la de tu TikTok Shop. Tus métricas guardadas siguen '
+                   'intactas: vuelve a conectar con la cuenta de tu tienda.')
+MAX_IDS_COMPROBAR = 20
+_RE_ID_CONSULTA = re.compile(r'[1-9][0-9]{0,19}')    # el formato que acepta video/query (cliente.validar_ids_video)
+
+
+def hay_datos(db: sqlite3.Connection) -> bool:
+    """¿Hay algo guardado de la Display API (perfil, videos o su historial)?"""
+    return any(db.execute(f'SELECT 1 FROM {t} LIMIT 1').fetchone() is not None for t in TABLAS_DISPLAY)
+
+
+def usuario_de_la_tienda(db: sqlite3.Connection) -> str:
+    """Nombre de usuario normalizado del creador de TikTok Shop ('' si no se conoce)."""
+    try:
+        r = db.execute('SELECT username FROM cuenta WHERE id = 1').fetchone()
+    except sqlite3.OperationalError:
+        return ''
+    return usuario_normalizado(r[0]) if r is not None else ''
+
+
+def datos_del_creador(db: sqlite3.Connection) -> bool:
+    """¿Lo guardado es, verificablemente, del creador de la tienda? Su perfil guardado lleva el nombre de la tienda, o
+    alguno de sus videos guardados tiene ventas (unión por ID exacto: ese video es del creador)."""
+    tienda = usuario_de_la_tienda(db)
+    previo = db.execute('SELECT username FROM perfil_tiktok WHERE id = 1').fetchone()
+    if tienda and previo is not None and usuario_normalizado(previo[0]) == tienda:
+        return True
+    try:
+        return db.execute("SELECT 1 FROM orden_lineas WHERE tipo_contenido = 'VIDEO' AND content_id IN "
+                          '(SELECT video_id FROM videos_tiktok UNION SELECT video_id FROM videos_tiktok_dias) '
+                          'LIMIT 1').fetchone() is not None
+    except sqlite3.OperationalError:
+        return False
+
+
+def comparar_cuenta(db: sqlite3.Connection, perfil: Mapping[str, Any]) -> str | None:
+    """'misma' si los perfiles bastan para saber que lo guardado es de la cuenta de `perfil` (el de user/info que se va
+    a guardar, con su open_id); None si no bastan y hay que preguntarle a TikTok (`videos_para_comprobar`).
+
+    Misma cuenta: el mismo open_id (por app) o union_id (por desarrollador), el mismo nombre de usuario, o ambos son
+    verificablemente el creador de la tienda. Un nombre distinto NO prueba otra cuenta (pudo cambiarlo), ni un open_id
+    distinto (cambia con cada app)."""
+    previo = db.execute('SELECT open_id, union_id, username FROM perfil_tiktok WHERE id = 1').fetchone()
+    nuevo = usuario_normalizado(perfil.get('username'))
+    if previo is not None:
+        if any(previo[i] and previo[i] == perfil.get(clave) for i, clave in ((0, 'open_id'), (1, 'union_id'))):
+            return 'misma'
+        if nuevo and usuario_normalizado(previo[2]) == nuevo:
+            return 'misma'
+    tienda = usuario_de_la_tienda(db)
+    if tienda and nuevo == tienda and datos_del_creador(db):
+        return 'misma'
+    return None
+
+
+def videos_para_comprobar(db: sqlite3.Connection, n: int = MAX_IDS_COMPROBAR) -> list[str]:
+    """Hasta `n` IDs de video guardados para preguntarle a TikTok (video/query solo devuelve los de la cuenta
+    autorizada): primero los públicos vistos más recientemente, luego los que solo conservan historial."""
+    ids = [str(r[0]) for r in db.execute('SELECT video_id FROM videos_tiktok ORDER BY visto_at DESC, video_id LIMIT ?',
+                                         (n * 5,))]
+    ids += [str(r[0]) for r in db.execute('SELECT video_id FROM videos_tiktok_dias GROUP BY video_id '
+                                          'ORDER BY MAX(fecha) DESC, video_id LIMIT ?', (n * 5,))]
+    return [v for v in dict.fromkeys(ids) if _RE_ID_CONSULTA.fullmatch(v)][:n]
+
+
 def leer_perfil(db: sqlite3.Connection) -> dict[str, Any] | None:
     r = db.execute(f'SELECT {", ".join(_CAMPOS_PERFIL)}, actualizado_at FROM perfil_tiktok WHERE id = 1').fetchone()
     if r is None:
@@ -194,5 +263,7 @@ def leer_perfil(db: sqlite3.Connection) -> dict[str, Any] | None:
 
 
 __all__ = ['usuario_normalizado', 'normalizar_video', 'normalizar_usuario', 'guardar_perfil', 'guardar_videos', 'quitar_no_vistos',
-           'podar_historial', 'borrar_todo', 'leer_perfil', 'fecha_mx', 'TABLAS_DISPLAY', 'CLAVE_ULTIMA_SYNC',
+           'podar_historial', 'borrar_todo', 'hay_datos', 'usuario_de_la_tienda', 'datos_del_creador',
+           'comparar_cuenta', 'videos_para_comprobar', 'leer_perfil', 'fecha_mx', 'TABLAS_DISPLAY', 'CLAVE_ULTIMA_SYNC',
+           'MSG_OTRA_CUENTA', 'MAX_IDS_COMPROBAR',
            'DIAS_HISTORIAL']
