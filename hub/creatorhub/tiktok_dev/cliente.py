@@ -17,6 +17,10 @@
 - `usuario()`: GET /v2/user/info/?fields=… pidiendo SOLO los campos de los scopes concedidos (cada campo pide el suyo).
 - `listar_videos(tope, cancelar)`: POST /v2/video/list/?fields=… con {max_count: 20, cursor?}, paginando por cursor
   mientras has_more (solo videos PÚBLICOS). `ListadoVideos.completo` dice si se llegó al final (no al tope).
+- `consultar_videos(video_ids)`: POST /v2/video/query/?fields=… con {filters: {video_ids: [...]}} (scope video.list):
+  de 1 a 20 videos PROPIOS por ID, en una sola llamada y sin paginar. Los IDs viajan y vuelven como CADENAS (nunca
+  como números: pasan de 2^53). La lista se valida ANTES de tocar la red (`validar_ids_video`). Solo se devuelven los
+  videos pedidos, en el orden pedido; un ID que TikTok no devuelve (ajeno, privado o borrado) simplemente falta.
 - Errores: `data.error {code, message, log_id}` o un error HTTP → `ErrorDisplay`. access_token inválido o vencido →
   refresh + 1 reintento; scope_not_authorized → permiso_faltante.
 
@@ -27,6 +31,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 import urllib.parse
 from typing import Any, Callable, Iterator, Mapping, Sequence
@@ -45,6 +50,7 @@ P_TOKEN = '/v2/oauth/token/'
 P_REVOCAR = '/v2/oauth/revoke/'
 P_USUARIO = '/v2/user/info/'
 P_VIDEOS = '/v2/video/list/'
+P_CONSULTA_VIDEOS = '/v2/video/query/'
 SCOPES: tuple[str, ...] = ('user.info.basic', 'user.info.profile', 'user.info.stats', 'video.list')
 CAMPOS_POR_SCOPE: dict[str, tuple[str, ...]] = {
     'user.info.basic': ('open_id', 'union_id', 'avatar_url', 'display_name'),
@@ -55,6 +61,8 @@ CAMPOS_USUARIO: tuple[str, ...] = tuple(c for cs in CAMPOS_POR_SCOPE.values() fo
 CAMPOS_VIDEO: tuple[str, ...] = ('id', 'create_time', 'cover_image_url', 'share_url', 'video_description', 'duration',
                                  'title', 'embed_link', 'like_count', 'comment_count', 'share_count', 'view_count')
 MAX_POR_PAGINA = 20
+MAX_IDS_CONSULTA = 20                    # video/query: hasta 20 IDs por llamada (filters.video_ids)
+_RE_ID_VIDEO = re.compile(r'[1-9][0-9]{0,19}')   # entero decimal positivo sin ceros a la izquierda (dígitos ASCII)
 TOPE_VIDEOS = 1000
 UMBRAL_PROACTIVO_S = 300                 # refresh si al access_token le quedan < 5 min
 REINTENTOS_TIMEOUT_REFRESH = 1
@@ -77,6 +85,26 @@ def _codigo_y_log(cuerpo: Mapping[str, Any]) -> tuple[str, str | None]:
     else:
         codigo, log_id = error, cuerpo.get('log_id')
     return (str(codigo).strip().lower() if codigo not in (None, '') else ''), (log_id if isinstance(log_id, str) else None)
+
+
+def validar_ids_video(video_ids: Sequence[str]) -> list[str]:
+    """Lote para video/query → lista de IDs (cadenas de dígitos ASCII), sin repetir y en el orden recibido.
+
+    Lanza ValueError (sin tocar la red) si no es una lista o tupla de 1 a 20 IDs. Cada ID es texto con un entero
+    decimal positivo de hasta 20 dígitos ASCII y sin ceros a la izquierda (un ID que TikTok nunca emite haría fallar
+    el lote completo). Un número entero se rechaza: los IDs de TikTok pasan de 2^53 y solo como cadena llegan intactos
+    a los clientes web y Flutter. Una cadena suelta también se rechaza (iterarla daría sus dígitos uno por uno)."""
+    if not isinstance(video_ids, (list, tuple)):
+        raise ValueError('video_ids debe ser una lista de IDs de video en texto.')
+    if not 1 <= len(video_ids) <= MAX_IDS_CONSULTA:
+        raise ValueError(f'video_ids debe traer de 1 a {MAX_IDS_CONSULTA} IDs de video.')
+    ids: list[str] = []
+    for vid in video_ids:
+        if not isinstance(vid, str) or not _RE_ID_VIDEO.fullmatch(vid):
+            raise ValueError('Cada ID de video debe ser texto con un número positivo, sin ceros a la izquierda.')
+        if vid not in ids:
+            ids.append(vid)
+    return ids
 
 
 class ListadoVideos:
@@ -367,6 +395,33 @@ class ClienteDisplay:
     def listar_videos(self, tope: int = TOPE_VIDEOS, cancelar: threading.Event | None = None) -> ListadoVideos:
         return ListadoVideos(self, tope, cancelar)
 
+    def consultar_videos(self, video_ids: Sequence[str]) -> list[dict[str, Any]]:
+        """video/query: de 1 a 20 videos PROPIOS por ID (dicts crudos con `id` en texto), en el orden pedido.
+
+        Usa el mismo transporte, token, refresh + 1 reintento y clasificación de errores que video/list
+        (`ErrorDisplay`). Si la bóveda conoce los scopes concedidos y falta video.list, responde permiso_faltante sin
+        tocar la red (la misma regla que el paso de sync). Una sola llamada: cursor y has_more se ignoran. Un elemento
+        sin ID, con un ID que no se pidió o repetido se descarta. La ausencia de un ID no prueba que el video se haya
+        borrado o vuelto privado: nunca se usa este resultado para quitar filas de videos_tiktok."""
+        ids = validar_ids_video(video_ids)
+        concedidos = set(self.boveda.leer().get('scopes') or [])
+        if concedidos and 'video.list' not in concedidos:
+            raise ErrorDisplay('permiso_faltante')
+        data = self._llamar('POST', P_CONSULTA_VIDEOS, CAMPOS_VIDEO, {'filters': {'video_ids': ids}})
+        crudos = data.get('videos')
+        pedidos = set(ids)
+        por_id: dict[str, dict[str, Any]] = {}
+        for v in crudos if isinstance(crudos, list) else []:
+            if not isinstance(v, dict):
+                continue
+            vid = v.get('id')
+            if isinstance(vid, bool) or not isinstance(vid, (str, int)):
+                continue
+            vid = str(vid)
+            if vid in pedidos and vid not in por_id:
+                por_id[vid] = {**v, 'id': vid}
+        return [por_id[i] for i in ids if i in por_id]
+
 
 def crear_cliente_display(boveda: BovedaDisplay, transporte: Transporte, reloj: Reloj) -> ClienteDisplay:
     return ClienteDisplay(boveda, transporte, reloj)
@@ -380,4 +435,5 @@ def crear_transporte_display_real() -> Transporte:
 
 __all__ = ['ClienteDisplay', 'ListadoVideos', 'crear_cliente_display', 'crear_transporte_display_real', 'SCOPES',
            'CAMPOS_USUARIO', 'CAMPOS_VIDEO', 'CAMPOS_POR_SCOPE', 'URL_AUTORIZAR', 'API', 'HOST_API', 'P_TOKEN',
-           'P_REVOCAR', 'P_USUARIO', 'P_VIDEOS', 'TOPE_VIDEOS', 'MAX_POR_PAGINA']
+           'P_REVOCAR', 'P_USUARIO', 'P_VIDEOS', 'P_CONSULTA_VIDEOS', 'TOPE_VIDEOS', 'MAX_POR_PAGINA',
+           'MAX_IDS_CONSULTA', 'validar_ids_video']

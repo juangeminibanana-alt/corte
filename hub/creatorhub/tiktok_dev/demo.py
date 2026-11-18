@@ -8,7 +8,8 @@ fija): no mueve ninguna cifra documentada de la demo. Portadas en un host de dem
 (`p16-corte-demo.tiktokcdn.com`); el descargador demo las dibuja.
 
 Rutas: POST /v2/oauth/token/ (code o refresh: tokens falsos nuevos, el refresh_token ROTA) · POST /v2/oauth/revoke/ ·
-GET /v2/user/info/ · POST /v2/video/list/ (más recientes primero, cursor = create_time del último en ms, has_more).
+GET /v2/user/info/ · POST /v2/video/list/ (más recientes primero, cursor = create_time del último en ms, has_more) ·
+POST /v2/video/query/ (filters.video_ids: de 1 a 20 IDs en texto; un ID que no es de la demo no vuelve).
 """
 from __future__ import annotations
 
@@ -144,6 +145,17 @@ class TransporteDisplayDemo:
             videos = [self._video(b, ahora) for b in pagina]
             siguiente = pagina[-1]['creado_at'] * 1000 if pagina else (cursor or 0)
             return self._ok({'videos': videos, 'cursor': siguiente, 'has_more': len(lista) > maximo})
+        if ruta == '/v2/video/query/' and metodo == 'POST':
+            try:
+                pedido = json.loads((cuerpo or b'{}').decode('utf-8'))
+            except ValueError:
+                pedido = {}
+            filtros = pedido.get('filters') if isinstance(pedido, dict) else None
+            ids = filtros.get('video_ids') if isinstance(filtros, dict) else None
+            if not isinstance(ids, list) or not 1 <= len(ids) <= 20 or not all(isinstance(i, str) for i in ids):
+                return 400, {'data': {}, 'error': {'code': 'invalid_params', 'message': '', 'log_id': 'demo'}}
+            por_id = {b['id']: b for b in self._videos_base() if b['creado_at'] <= ahora}
+            return self._ok({'videos': [self._video(por_id[i], ahora) for i in ids if i in por_id]})
         return 404, {'data': {}, 'error': {'code': 'invalid_params', 'message': '', 'log_id': 'demo'}}
 
 
