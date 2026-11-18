@@ -199,11 +199,15 @@ export const T = {
   origenNota: 'Según lo que TikTok reporta de cada pedido. «Sin enlace reportado» no dice de dónde vino la venta.',
   origenPedidos: (lineas: number): string => `${plural(lineas, 'pedido', 'pedidos')} con su origen registrado`,
   origenActual: (desde: string, hasta: string): string => (desde === hasta ? `Pedidos del ${desde}` : `Pedidos del ${desde} al ${hasta}`),
-  origenActualNota: (lineas: number, sinDato: number): string =>
-    [plural(lineas, 'pedido', 'pedidos'), ...(sinDato > 0 ? [`${n(sinDato)} más sin dato todavía`] : [])].join(' · '),
+  origenPedidosActual: (lineas: number): string => plural(lineas, 'pedido', 'pedidos'),
+  origenSinDato: (lineas: number): string => `${plural(lineas, 'pedido', 'pedidos')} más todavía sin este dato`,
   origenHistorico: (hasta: string | null): string => (hasta ? `Histórico hasta el ${hasta}` : 'Histórico'),
   origenContenido: 'Tipo de contenido',
   origenEnlace: 'Tipo de enlace',
+  // Con los dos bloques a la vista, cada gráfica nombra su bloque (nombre accesible y botón «Ver como tabla» distintos).
+  origenEnlaceActual: 'Tipo de enlace en estos pedidos',
+  origenContenidoHistorico: 'Tipo de contenido en el histórico',
+  origenEnlaceHistorico: 'Tipo de enlace en el histórico',
   colOrigen: 'Origen',
 
   // Parecidos en el marketplace

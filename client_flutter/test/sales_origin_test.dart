@@ -96,8 +96,15 @@ void main() {
     );
     expect(find.text('Enlace general'), findsOneWidget);
     expect(find.text('15 líneas'), findsOneWidget);
-    expect(find.text('Sin dato todavía'), findsOneWidget);
-    expect(find.text('3 líneas'), findsOneWidget);
+    // «Sin dato» es una nota aparte, no una fila que parezca otro tipo de enlace.
+    expect(find.text('3 líneas más todavía sin este dato'), findsOneWidget);
+    expect(find.text('Sin dato todavía'), findsNothing);
+    final nota = find.text('3 líneas más todavía sin este dato');
+    expect(
+      tester.getTopLeft(nota).dy > tester.getTopLeft(find.text('Enlace general')).dy &&
+          tester.getTopLeft(nota).dy < tester.getTopLeft(historico).dy,
+      isTrue,
+    );
     // Los dos «Sin enlace reportado» quedan en su grupo, sin sumarse.
     expect(find.text('Sin enlace reportado'), findsNWidgets(2));
     expect(find.text('16 líneas'), findsNothing);
@@ -116,7 +123,7 @@ void main() {
     });
     expect(find.textContaining('Pedidos del'), findsNothing);
     expect(find.text('Histórico hasta el 14 ago'), findsOneWidget);
-    expect(find.text('Sin dato todavía'), findsNothing);
+    expect(find.textContaining('sin este dato'), findsNothing);
   });
 
   test('periodoActual y origenActualVisible', () {

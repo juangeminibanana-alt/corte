@@ -204,8 +204,10 @@ def tipo_traza(sku: dict[str, Any]) -> tuple[bool, str | None]:
 
 def acum_trazas() -> dict[str, Any]:
     """Contadores de una ventana (resumen 'trazas_202410'): responden qué trae de verdad la API sin guardar respuestas."""
+    # clave_trace_info: líneas que traen la clave (aunque sea null o {}); separa «TikTok no manda el campo» de «lo manda
+    # vacío», que en por_tipo caen juntos en SIN_TRAZA.
     return {'lineas_observadas': 0, 'escritas': 0, 'con_traza': 0, 'por_tipo': {}, 'tipo_no_textual': 0,
-            'id_sin_tipo': 0, 'clave_trace_antigua': 0}
+            'id_sin_tipo': 0, 'clave_trace_info': 0, 'clave_trace_antigua': 0}
 
 
 def huella_url(url: str | None) -> str | None:
@@ -1438,6 +1440,8 @@ class _Sincronizador(FasesFicha, PasoVideosTikTok):
                 ti = s.get('trace_info')
                 if isinstance(ti, dict) and ti.get('id') not in (None, '') and tipo is None and ok:
                     acum['id_sin_tipo'] += 1
+                if 'trace_info' in s:
+                    acum['clave_trace_info'] += 1
                 if 'trace' in s:
                     acum['clave_trace_antigua'] += 1            # la clave de la ruta retirada: se cuenta, nunca se usa
                 if not ok:
@@ -1456,7 +1460,8 @@ class _Sincronizador(FasesFicha, PasoVideosTikTok):
         if not acum['lineas_observadas'] and not rellenos:
             return
         r = self.resumen.setdefault('trazas_202410', {**acum_trazas(), 'pedidos_rellenados': 0})
-        for k in ('lineas_observadas', 'escritas', 'con_traza', 'tipo_no_textual', 'id_sin_tipo', 'clave_trace_antigua'):
+        for k in ('lineas_observadas', 'escritas', 'con_traza', 'tipo_no_textual', 'id_sin_tipo', 'clave_trace_info',
+                  'clave_trace_antigua'):
             r[k] += acum[k]
         for t, n in acum['por_tipo'].items():
             r['por_tipo'][t] = r['por_tipo'].get(t, 0) + n

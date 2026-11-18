@@ -64,10 +64,11 @@ class SalesOriginTile extends StatelessWidget {
           _Grupo(periodoActual(actual, ahora: ahora)),
           for (final o in rowsOf(actual['por_tipo_enlace']))
             DefinitionRow(textOf(o['texto']), lineasTexto(o['lineas'])),
+          // Nota aparte, no una fila más: no es un tipo de enlace y puede incluir pedidos posteriores al periodo.
           if (intOf(actual['lineas_sin_dato']) > 0)
-            DefinitionRow(
-              'Sin dato todavía',
-              lineasTexto(actual['lineas_sin_dato']),
+            Text(
+              '${lineasTexto(actual['lineas_sin_dato'])} más todavía sin este dato',
+              style: TextStyle(color: context.corte.muted),
             ),
         ],
         if (historico.isNotEmpty) ...[

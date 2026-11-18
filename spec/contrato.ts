@@ -1089,8 +1089,10 @@ export interface OrigenVentasActual {
   con_enlace: number;
   /** tipo = trace_info.type tal cual; tipo null = 'Sin enlace reportado'. */
   por_tipo_enlace: CuentaOrigen[];
-  /** Líneas de este producto que Corte aún no observa con la rev. 7 (guardadas antes o en una ventana incompleta). No
-   *  son un negativo: no entran en ningún conteo. */
+  /** Líneas de este producto, de pedidos creados desde `desde_at` que TikTok todavía devuelve, que Corte aún no observa
+   *  con la rev. 7 (por ejemplo, un pedido reciente guardado en una ventana incompleta). No son un negativo: no entran en
+   *  ningún conteo. No cuenta pedidos anteriores a `desde_at` (esperan al barrido completo) ni los que TikTok ya no
+   *  devuelve (NO_DEVUELTA). */
   lineas_sin_dato: number;
   /** Pedidos distintos de las líneas observadas. */
   pedidos: number;
@@ -1099,7 +1101,8 @@ export interface OrigenVentasActual {
   /** Creación del pedido observado más antiguo y del más reciente. */
   desde_at: EpochS;
   hasta_at: EpochS;
-  /** Última observación (inicio de la sync que la hizo). */
+  /** Última captura de una traza de este bloque (inicio de la sync que la escribió). Un pedido sin cambios no se vuelve
+   *  a leer: su traza sigue siendo la de esa captura. */
   capturada_at: EpochS;
 }
 

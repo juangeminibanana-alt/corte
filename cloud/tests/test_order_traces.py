@@ -75,6 +75,7 @@ class TipoTrazaTests(unittest.TestCase):
             ({'trace_info': {'type': True}}, (False, None)),
             ({'trace_info': 'GENERAL'}, (False, None)),
             ({'trace': {'type': 'GENERAL'}}, (True, None)),          # la clave retirada nunca se usa de respaldo
+            ({'trace_info': {'type': 1}}, (True, '1')),              # un número se guarda como texto, tal cual
         ]
         for linea, esperado in casos:
             with self.subTest(linea=linea):
@@ -218,6 +219,9 @@ class TrazasEnSyncTests(unittest.TestCase):
         self.assertGreaterEqual(r['tipo_no_textual'], 1)
         self.assertGreaterEqual(r['id_sin_tipo'], 1)
         self.assertEqual(r['clave_trace_antigua'], 0)
+        # Separa «TikTok no manda el campo» de «lo manda vacío»: casi todas las líneas sintéticas no traen la clave.
+        self.assertGreater(r['clave_trace_info'], 0)
+        self.assertLess(r['clave_trace_info'], r['lineas_observadas'])
         for tipo in ('GENERAL', 'SPECIFIC', 'RARO', 'SIN_TRAZA'):
             self.assertIn(tipo, r['por_tipo'])
         calidad = self.resumen_completa['ordenes_calidad']
@@ -283,6 +287,33 @@ class TrazasEnSyncTests(unittest.TestCase):
         x = self.ficha(pid_nt)['extendido']['origen_ventas_actual']
         if x is not None:
             self.assertGreaterEqual(x['lineas_sin_dato'], len(self.pedido['NO_TEXTUAL']['skus']))
+
+    def test_sin_dato_solo_cuenta_lo_que_aun_se_puede_observar(self) -> None:
+        from creatorhub.analitica.vista import Vista
+        pid = self.pedido['GENERAL']['skus'][0]['product_id']
+
+        def actual() -> dict:
+            with self.hub.almacen.lector() as db:
+                return Vista(db, self.ahora).origen_ventas_actual(pid)
+        base = actual()
+        desde, hasta = base['desde_at'], base['hasta_at']
+        # Sin fila de traza: uno que TikTok ya no devuelve y uno anterior al bloque (no cuentan); uno dentro del periodo y
+        # uno más reciente que el último observado (cuentan: se observarán en una próxima ventana completa).
+        falsos = {'SINDATO-NODEV': ('NO_DEVUELTA', desde), 'SINDATO-VIEJO': ('SETTLED', desde - 30 * 86400),
+                  'SINDATO-DENTRO': ('SETTLED', desde), 'SINDATO-NUEVO': ('To-SETTLE', hasta + 3600)}
+        try:
+            with self.hub.almacen.escritor() as db:
+                for oid, (estado, creada) in falsos.items():
+                    db.execute('INSERT INTO ordenes(order_id, creada_at, estado, huella, actualizado_at) VALUES (?,?,?,?,?)',
+                               (oid, creada, estado, 'h', creada))
+                    db.execute('INSERT INTO orden_lineas(order_id, linea_n, product_id, cantidad) VALUES (?,?,?,?)',
+                               (oid, 0, pid, 1))
+            despues = actual()
+            self.assertEqual(despues['lineas_sin_dato'], base['lineas_sin_dato'] + 2)
+            self.assertEqual((despues['lineas'], despues['desde_at'], despues['hasta_at']), (base['lineas'], desde, hasta))
+        finally:
+            with self.hub.almacen.escritor() as db:
+                db.executemany('DELETE FROM ordenes WHERE order_id=?', [(o,) for o in falsos])
 
     def test_relleno_una_sola_vez_y_ventana_incompleta_sin_trazas(self) -> None:
         base = self.sincronizar('incremental')                     # estable: solo se rellena el pedido sin dato

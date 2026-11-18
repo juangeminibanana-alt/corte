@@ -1282,8 +1282,10 @@ class Vista:
         de pedidos observó en una ventana completa (orden_lineas_traza). Es un bloque APARTE del histórico: los pedidos
         que ya están en orden_trazas se quedan solo en el histórico (cerrado y estable), así que ningún pedido cuenta en
         los dos y nunca se suman. traza_tipo NULL = «Sin enlace reportado» (no es «orgánico» ni «vino de un video»). Las
-        líneas sin fila son «sin dato»: no entran en los conteos y solo se informan aparte. None si no hay ninguna línea
-        observada (antes de la primera sync de la rev. 7, o un producto sin pedidos)."""
+        líneas sin fila son «sin dato»: no entran en los conteos y solo se informan aparte, y solo las de pedidos creados
+        desde el inicio del periodo del bloque que TikTok todavía devuelve: las anteriores esperan al barrido completo y un
+        NO_DEVUELTA nunca se volverá a observar. None si no hay ninguna línea observada (antes de la primera sync de la
+        rev. 7, o un producto sin pedidos)."""
         filas = self.filas('SELECT t.traza_tipo, COUNT(*) AS n FROM orden_lineas l '
                            'JOIN orden_lineas_traza t ON t.order_id = l.order_id AND t.linea_n = l.linea_n '
                            f'WHERE l.product_id = ? AND {_FUERA_DEL_HISTORICO} GROUP BY t.traza_tipo', (pid,))
@@ -1294,9 +1296,10 @@ class Vista:
                             'JOIN orden_lineas_traza t ON t.order_id = l.order_id AND t.linea_n = l.linea_n '
                             'JOIN ordenes o ON o.order_id = l.order_id '
                             f'WHERE l.product_id = ? AND {_FUERA_DEL_HISTORICO}', (pid,))
-        sin_dato = self.fila('SELECT COUNT(*) AS n FROM orden_lineas l '
+        sin_dato = self.fila('SELECT COUNT(*) AS n FROM orden_lineas l JOIN ordenes o ON o.order_id = l.order_id '
                              'LEFT JOIN orden_lineas_traza t ON t.order_id = l.order_id AND t.linea_n = l.linea_n '
-                             f'WHERE l.product_id = ? AND t.order_id IS NULL AND {_FUERA_DEL_HISTORICO}', (pid,))
+                             "WHERE l.product_id = ? AND t.order_id IS NULL AND o.estado <> 'NO_DEVUELTA' "
+                             f'AND o.creada_at >= ? AND {_FUERA_DEL_HISTORICO}', (pid, periodo['desde']))
         enlace: dict[str | None, int] = collections.Counter()
         for f in filas:
             enlace[f['traza_tipo']] += int(f['n'])

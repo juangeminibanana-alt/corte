@@ -478,9 +478,10 @@ export function completarFichaDemo(d: C.ProductoDetalleResponse, f: FuentesFicha
   }
 
   // Un pedido nunca cuenta en los dos bloques: el histórico se queda con los más antiguos (hasta hace 12 días) y el
-  // bloque actual con los que Corte observó después.
+  // bloque actual con los que Corte observó después. Uno de cada cuatro productos no tiene histórico (el caso más
+  // probable en la nube), para ver también la sección con solo el bloque actual.
   const totalOrigen = fila?.pedidos_validos ?? 0;
-  const enHistorico = Math.round(totalOrigen * 0.6);
+  const enHistorico = huella(`historico:${pid}`) % 4 === 0 ? 0 : Math.round(totalOrigen * 0.6);
   const hastaHistorico = f.ahora - 12 * DIA;
   const origen_ventas = fila ? origenDe(fila, enHistorico, hastaHistorico - 90 * DIA, hastaHistorico, r) : null;
   const origen_ventas_actual = fila ? origenActualDe(pid, totalOrigen - enHistorico, hastaHistorico + DIA, f.ahora - DIA, f.ahora) : null;

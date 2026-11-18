@@ -12,7 +12,7 @@
  *  - SeccionParecidos: parecidos del marketplace por palabras del título, por mejor comisión o más vendidos.
  * Solo componentes de @/componentes y @/bloques; textos en ./textos y cifras con `formato`.
  */
-import { useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
+import { useId, useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import type * as C from '@/contrato';
 import { navegar, type ClaseAncho } from '@/app';
 import {
@@ -23,7 +23,7 @@ import { formato } from '@/dominio';
 import { abrirExterno } from '@/plataforma';
 import {
   type CriterioParecidos, MAX_SKUS, estiloCumplimiento, estiloElegibilidad, estiloSku, extendidoDe, ordenarParecidos,
-  puedePedirOtra, puntosDe, resumenSkus, vistaComision, vistaOrigen, vistaPrecio,
+  puedePedirOtra, puntosDe, resumenSkus, slotsDeEnlace, vistaComision, vistaOrigen, vistaPrecio,
 } from './logicaFicha';
 import { nombreVisible } from './logica';
 import { T } from './textos';
@@ -349,29 +349,32 @@ export function BloqueMuestraExtendida(p: { d: C.ProductoDetalleResponse; antes?
 
 // ---------------------------------------------------------------------------------------------- origen
 
-function partesOrigen(cuentas: readonly C.CuentaOrigen[]): BarraApiladaProps['partes'] {
-  let slot = 0;
+/** Partes de una barra de origen. Sin `slotDe`, el color sigue el orden (gráfica única); con él, cada tipo tiene un color
+ *  fijo (las dos barras de enlace). «Sin enlace» / «Sin dato» siempre en neutro. */
+function partesOrigen(cuentas: readonly C.CuentaOrigen[], slotDe?: (tipo: string) => number): BarraApiladaProps['partes'] {
+  let orden = 0;
   return cuentas.map((c, i) => {
     const neutro = c.tipo === null;
-    if (!neutro) slot = Math.min(8, slot + 1);
+    if (!neutro) orden = Math.min(8, orden + 1);
+    const slot = c.tipo === null ? null : Math.min(8, slotDe ? slotDe(c.tipo) : orden);
     return {
       id: `${c.tipo ?? 'sin'}-${i}`,
       etiqueta: c.texto,
       valor: c.lineas,
       texto: formato.numero(c.lineas),
       estilo: neutro ? ('neutro' as const) : ('solido' as const),
-      ...(neutro ? {} : { slot: slot as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 }),
+      ...(slot === null ? {} : { slot: slot as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 }),
     };
   });
 }
 
-function BarraOrigen(p: { titulo: string; cuentas: readonly C.CuentaOrigen[]; total: number }): ReactElement | null {
+function BarraOrigen(p: { titulo: string; cuentas: readonly C.CuentaOrigen[]; total: number; slotDe?: (tipo: string) => number }): ReactElement | null {
   if (p.cuentas.length === 0) return null;
   return (
     <BarraApilada
       titulo={p.titulo}
       etiquetasDirectas
-      partes={partesOrigen(p.cuentas)}
+      partes={partesOrigen(p.cuentas, p.slotDe)}
       tablaGemela={{
         columnas: [T.colOrigen, T.colPedidos, T.colParte],
         filas: p.cuentas.map((c) => [c.texto, formato.numero(c.lineas), formato.porcentaje(p.total > 0 ? c.lineas / p.total : 0)]),
@@ -381,35 +384,42 @@ function BarraOrigen(p: { titulo: string; cuentas: readonly C.CuentaOrigen[]; to
 }
 
 /** Dos bloques que nunca se suman: los pedidos recientes con el enlace que reporta TikTok (rev. 7) y el histórico cerrado.
- *  Un hub anterior a la rev. 6 no manda el periodo del histórico: entonces la sección queda como antes, sin subtítulos. */
+ *  Cada bloque es un grupo nombrado por su periodo (el rótulo no es un encabezado: los títulos de las gráficas sí lo son)
+ *  y, con los dos a la vista, cada gráfica nombra su bloque. Un tipo de enlace tiene el mismo color en las dos barras.
+ *  Un hub anterior a la rev. 6 no manda el periodo del histórico: entonces la sección queda como antes, sin rótulos. */
 export function SeccionOrigen(p: { d: C.ProductoDetalleResponse }): ReactElement | null {
+  const idActual = useId();
+  const idHistorico = useId();
   const v = vistaOrigen(p.d);
   if (!v) return null;
   const { actual: a, historico: h } = v;
   const legado = !a && !!h && h.hasta_at === undefined;
+  const ambos = !!a && !!h;
+  const slotDe = slotsDeEnlace([a?.por_tipo_enlace ?? [], h?.por_tipo_enlace ?? []]);
   return (
     <Seccion titulo={T.origen} nota={legado && h ? T.origenPedidos(h.lineas) : T.origenNota} id="ficha-origen">
       <div className={cx(css.origenBloques)}>
         {a ? (
-          <div className={cx(css.subbloque)} data-origen="actual">
+          <div className={cx(css.subbloque)} data-origen="actual" role="group" aria-labelledby={idActual}>
             <div className={cx(css.subcabeza)}>
-              <h3 className={cx(css.subtitulo)}>{T.origenActual(formato.fechaCorta(a.desde_at), formato.fechaCorta(a.hasta_at))}</h3>
-              <span className={cx(css.subnota)}>{T.origenActualNota(a.lineas, a.lineas_sin_dato)}</span>
+              <p className={cx(css.subtitulo)} id={idActual}>{T.origenActual(formato.fechaCorta(a.desde_at), formato.fechaCorta(a.hasta_at))}</p>
+              <span className={cx(css.subnota)}>{T.origenPedidosActual(a.lineas)}</span>
             </div>
-            <BarraOrigen titulo={T.origenEnlace} cuentas={a.por_tipo_enlace} total={a.lineas} />
+            <BarraOrigen titulo={ambos ? T.origenEnlaceActual : T.origenEnlace} cuentas={a.por_tipo_enlace} total={a.lineas} slotDe={slotDe} />
+            {a.lineas_sin_dato > 0 ? <p className={cx(css.subnota)}>{T.origenSinDato(a.lineas_sin_dato)}</p> : null}
           </div>
         ) : null}
         {h ? (
-          <div className={cx(css.subbloque)} data-origen="historico">
+          <div className={cx(css.subbloque)} data-origen="historico" {...(legado ? {} : { role: 'group', 'aria-labelledby': idHistorico })}>
             {legado ? null : (
               <div className={cx(css.subcabeza)}>
-                <h3 className={cx(css.subtitulo)}>{T.origenHistorico(h.hasta_at !== undefined ? formato.fechaCorta(h.hasta_at) : null)}</h3>
+                <p className={cx(css.subtitulo)} id={idHistorico}>{T.origenHistorico(h.hasta_at !== undefined ? formato.fechaCorta(h.hasta_at) : null)}</p>
                 <span className={cx(css.subnota)}>{T.origenPedidos(h.lineas)}</span>
               </div>
             )}
             <div className={cx(css.origenBarras)}>
-              <BarraOrigen titulo={T.origenContenido} cuentas={h.por_tipo_contenido} total={h.lineas} />
-              <BarraOrigen titulo={T.origenEnlace} cuentas={h.por_tipo_enlace} total={h.lineas} />
+              <BarraOrigen titulo={ambos ? T.origenContenidoHistorico : T.origenContenido} cuentas={h.por_tipo_contenido} total={h.lineas} />
+              <BarraOrigen titulo={ambos ? T.origenEnlaceHistorico : T.origenEnlace} cuentas={h.por_tipo_enlace} total={h.lineas} slotDe={slotDe} />
             </div>
           </div>
         ) : null}

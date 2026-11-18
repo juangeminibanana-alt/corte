@@ -199,6 +199,15 @@ export function vistaOrigen(d: C.ProductoDetalleResponse): VistaOrigen | null {
   return actual || historico ? { actual, historico } : null;
 }
 
+const SLOT_ENLACE: Readonly<Record<string, number>> = { SPECIFIC: 1, GENERAL: 2 };
+
+/** Color fijo por tipo de enlace (no por posición), para que un tipo tenga el mismo color en las dos barras de la sección:
+ *  SPECIFIC 1, GENERAL 2 y cualquier otro valor desde 3 en orden alfabético (hasta 8). «Sin enlace» va en neutro aparte. */
+export function slotsDeEnlace(listas: ReadonlyArray<readonly C.CuentaOrigen[]>): (tipo: string) => number {
+  const otros = [...new Set(listas.flat().map((c) => c.tipo).filter((t): t is string => t !== null && !(t in SLOT_ENLACE)))].sort();
+  return (tipo) => Math.min(8, SLOT_ENLACE[tipo] ?? 3 + Math.max(0, otros.indexOf(tipo)));
+}
+
 // ---------------------------------------------------------------------------------------------- parecidos
 
 export type CriterioParecidos = 'comision' | 'vendidos';
