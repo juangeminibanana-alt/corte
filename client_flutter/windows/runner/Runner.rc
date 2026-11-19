@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "CUTGC" "\0"
+            VALUE "CompanyName", "Corte" "\0"
             VALUE "FileDescription", "CUTGC" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "CreatorHub" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 app. All rights reserved." "\0"
             VALUE "OriginalFilename", "CreatorHub.exe" "\0"
-            VALUE "ProductName", "CUTGC" "\0"
+            VALUE "ProductName", "Corte" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
