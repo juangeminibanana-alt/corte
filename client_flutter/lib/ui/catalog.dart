@@ -1036,10 +1036,12 @@ class VideoSalesDetail extends StatelessWidget {
     required this.data,
     required this.id,
     required this.onBack,
+    this.catalogVideo,
   });
   final Map<String, dynamic> data;
   final String id;
   final VoidCallback onBack;
+  final Map<String, dynamic>? catalogVideo;
   @override
   Widget build(BuildContext context) {
     final v = mapOf(data['video']);
@@ -1088,6 +1090,7 @@ class VideoSalesDetail extends StatelessWidget {
                     v['compartidos'] == null ? '—' : integer(v['compartidos']),
                   ),
                 ]),
+                VideoMetricsRefresh(id: id, video: catalogVideo ?? v),
                 const SizedBox(height: 20),
                 Align(
                   alignment: Alignment.centerLeft,

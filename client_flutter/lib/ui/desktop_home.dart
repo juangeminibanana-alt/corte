@@ -3,11 +3,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../app.dart';
+import '../domain/domain.dart';
 import 'format.dart';
 import 'theme.dart';
 import 'widgets.dart';
 import 'work.dart' show SampleTile, samplePending;
 import 'home_sales.dart';
+import 'home_tiktok.dart';
 
 /// Desktop uses the same scoped API data and actions as the phone home screen.
 /// Only the composition and information density differ.
@@ -37,6 +39,7 @@ class DesktopHomePage extends StatelessWidget {
                 label: const Text('Ver muestras'),
               ),
             ),
+            HomeTikTokProfile(profile: DashboardDto(data).perfilTikTok),
             HomeSalesOverview(actualidad: mapOf(data['actualidad'])),
             const SizedBox(height: 24),
             const SectionHeading('Últimos 30 días'),

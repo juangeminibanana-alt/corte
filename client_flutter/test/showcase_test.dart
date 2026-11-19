@@ -103,6 +103,74 @@ void main() {
     await fonts.load();
   });
 
+  testWidgets('LIVE conserva su ancla de paginación y es de solo lectura', (
+    tester,
+  ) async {
+    final reads = <Map<String, String>>[];
+    await _app(
+      tester,
+      capabilities: {
+        'vitrina_creator': true,
+        'vitrina_creator_escribir': true,
+        'enlaces_afiliado_creator': true,
+      },
+      showcase: (request) {
+        if (request.url.path != _path) return _json({}, 404);
+        expect(request.method, 'GET');
+        final query = request.url.queryParameters;
+        reads.add(query);
+        if (query['origin'] == 'LIVE') {
+          if (query['cursor'] == 'live-2') {
+            return _json({
+              'productos': [
+                {
+                  ..._product('202', 'Segunda página LIVE'),
+                  'estado_agregado': 'NOT_ADDED',
+                },
+              ],
+            });
+          }
+          return _json({
+            'productos': [
+              {
+                ..._product('201', 'Primer producto LIVE'),
+                'estado_agregado': 'ADDED',
+              },
+            ],
+            'cursor_siguiente': 'live-2',
+          });
+        }
+        return _json({
+          'productos': [_product('101', 'Producto de vitrina')],
+          'cursor_siguiente': 'vitrina-2',
+        });
+      },
+    );
+    await _tap(tester, find.text('Vitrina'));
+    expect(find.text('Producto de vitrina'), findsOneWidget);
+    await _tap(tester, find.text('Productos para LIVE'));
+    expect(find.text('Producto de vitrina'), findsNothing);
+    expect(find.text('Primer producto LIVE'), findsOneWidget);
+    expect(find.textContaining('Agregado según TikTok'), findsOneWidget);
+    expect(find.text('Agregar productos'), findsNothing);
+    expect(find.text('Fijar arriba'), findsNothing);
+    expect(find.text('Quitar'), findsNothing);
+    expect(find.text('Generar enlace'), findsNothing);
+    await _tap(tester, find.text('Cargar más'));
+    expect(find.text('Segunda página LIVE'), findsOneWidget);
+    expect(find.textContaining('Pendiente de agregar'), findsOneWidget);
+    await _tap(tester, find.widgetWithText(ChoiceChip, 'Vitrina'));
+    expect(find.text('Primer producto LIVE'), findsNothing);
+    expect(find.text('Producto de vitrina'), findsOneWidget);
+    expect(find.text('Agregar productos'), findsOneWidget);
+    expect(reads, [
+      {'limit': '20'},
+      {'limit': '20', 'origin': 'LIVE'},
+      {'limit': '20', 'origin': 'LIVE', 'cursor': 'live-2'},
+      {'limit': '20'},
+    ]);
+  }, variant: const TargetPlatformVariant({TargetPlatform.windows}));
+
   testWidgets('sin permiso de lectura no consulta la vitrina', (tester) async {
     final requests = <http.Request>[];
     final ui = await _app(

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react';
 import { Pantalla } from '@/app';
-import { Boton, CampoTexto, Casilla, EncabezadoPantalla, EstadoVacio, Modal } from '@/componentes';
+import { Boton, CampoTexto, Casilla, EncabezadoPantalla, EstadoVacio, Modal, Segmentado } from '@/componentes';
 import { ErrorHub, invalidar } from '@/datos';
 import { obtenerTransporte } from '../../datos/transporte';
 import css from './marketplace.module.css';
@@ -12,9 +12,11 @@ type Producto = {
   precio_min: string | null;
   precio_max: string | null;
   moneda: string | null;
+  estado_agregado?: 'ADDED' | 'NOT_ADDED' | 'REJECTED' | null;
 };
 type Pagina = { productos: Producto[]; cursor_siguiente: string | null; total: number | null };
 type Accion = 'agregar' | 'fijar' | 'quitar';
+type Origen = 'SHOWCASE' | 'LIVE';
 type Resultado = { product_id: string; ok: boolean; codigo: string | null; mensaje: string | null };
 type Enlace = { product_id: string; enlace: string | null; codigo: string | null; mensaje: string | null };
 
@@ -22,6 +24,10 @@ const etiquetas: Record<Accion, string> = { agregar: 'Agregar', fijar: 'Fijar ar
 const scopeValido = /^[a-f0-9]{64}$/;
 const idValido = /^[0-9]{1,25}$/;
 const destinosTikTok = new Set(['tiktok.com', 'www.tiktok.com', 'shop.tiktok.com', 'vt.tiktok.com', 'vm.tiktok.com']);
+const origenes: { valor: Origen; etiqueta: string }[] = [
+  { valor: 'SHOWCASE', etiqueta: 'Vitrina' }, { valor: 'LIVE', etiqueta: 'Productos para LIVE' },
+];
+const estadosLive = { ADDED: 'Agregado según TikTok', NOT_ADDED: 'Pendiente de agregar', REJECTED: 'Rechazado por TikTok' };
 
 function esEnlaceTikTok(valor: string | null | undefined): valor is string {
   if (!valor) return false;
@@ -45,15 +51,37 @@ function mensaje(err: unknown, alternativo: string): string {
   return err instanceof ErrorHub ? err.mensaje : alternativo;
 }
 
-export function Vitrina(p: {
+type PropsVitrina = {
   puedeLeer: boolean; puedeEditar: boolean; puedeGenerar: boolean;
   cargandoAcceso?: boolean; idInicial?: string; alVolver: () => void;
+};
+
+export function Vitrina(p: PropsVitrina): ReactElement {
+  const [origen, setOrigen] = useState<Origen>('SHOWCASE');
+  const [guardando, setGuardando] = useState(false);
+  return <Pantalla titulo="Vitrina de TikTok Shop" lista>
+    <section className={css.pantalla}>
+      <EncabezadoPantalla titulo="Vitrina de TikTok Shop"
+        acciones={<Boton variante="secundario" alPulsar={p.alVolver}>Volver a Productos</Boton>} />
+      {p.puedeLeer ? <div className={css.acciones}>
+        <Segmentado etiqueta="Origen de los productos" opciones={origenes} valor={origen}
+          alCambiar={valor => { if (!guardando) setOrigen(valor); }} />
+      </div> : null}
+      <ListaVitrina key={origen} {...p} origen={origen} guardando={guardando} alGuardar={setGuardando} />
+    </section>
+  </Pantalla>;
+}
+
+function ListaVitrina(p: PropsVitrina & {
+  origen: Origen; guardando: boolean; alGuardar: (valor: boolean) => void;
 }): ReactElement {
+  const live = p.origen === 'LIVE';
+  const puedeEditar = p.puedeEditar && !live;
+  const puedeGenerar = p.puedeGenerar && !live;
   const [productos, setProductos] = useState<Producto[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [scope, setScope] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
-  const [guardando, setGuardando] = useState(false);
   const [errorLectura, setErrorLectura] = useState('');
   const [errorAccion, setErrorAccion] = useState('');
   const [resultados, setResultados] = useState<Resultado[]>([]);
@@ -82,6 +110,7 @@ export function Vitrina(p: {
         return;
       }
       const params = new URLSearchParams({ limit: '20' });
+      if (live) params.set('origin', 'LIVE');
       if (siguiente) params.set('cursor', siguiente);
       const pagina = await transporte.obtener('/api/catalogo/vitrina?' + params.toString()) as Pagina | null;
       if (numero !== lectura.current) return;
@@ -94,20 +123,20 @@ export function Vitrina(p: {
     } catch (err) {
       if (numero === lectura.current) {
         setScope(null);
-        setErrorLectura(mensaje(err, 'No pudimos cargar tu vitrina.'));
+        setErrorLectura(mensaje(err, live ? 'No pudimos cargar los productos para LIVE.' : 'No pudimos cargar tu vitrina.'));
       }
     } finally {
       if (numero === lectura.current) setCargando(false);
     }
-  }, []);
+  }, [live]);
 
   useEffect(() => {
     if (p.puedeLeer) void cargar();
     return () => { lectura.current++; };
   }, [cargar, p.puedeLeer]);
 
-  const ocupado = cargando || guardando;
-  const habilitado = p.puedeEditar && !!scope && !ocupado;
+  const ocupado = cargando || p.guardando;
+  const habilitado = puedeEditar && !!scope && !ocupado;
 
   function preparar(accion: Accion, ids: string[]): void {
     if (!habilitado || !scope || ids.length === 0) return;
@@ -120,7 +149,7 @@ export function Vitrina(p: {
     const { accion, ids, scope: esperado } = confirmacion;
     escribiendo.current = true;
     confirmar(null);
-    setGuardando(true);
+    p.alGuardar(true);
     setResultados([]);
     try {
       const respuesta = await (await obtenerTransporte()).pedir(
@@ -141,7 +170,7 @@ export function Vitrina(p: {
       setSeleccion([]);
     } finally {
       escribiendo.current = false;
-      setGuardando(false);
+      p.alGuardar(false);
     }
   }
 
@@ -156,19 +185,19 @@ export function Vitrina(p: {
   }
 
   return (
-    <Pantalla titulo="Vitrina de TikTok Shop" lista>
-      <section className={css.pantalla}>
-        <EncabezadoPantalla titulo="Vitrina de TikTok Shop"
-          acciones={<Boton variante="secundario" alPulsar={p.alVolver}>Volver a Productos</Boton>} />
+    <>
         {!p.puedeLeer ? (
           p.cargandoAcceso ? <p role="status">Comprobando acceso…</p>
             : <EstadoVacio icono="Store" titulo="Vitrina no disponible" texto="Revisa la conexión a TikTok Shop y el permiso para ver la vitrina." />
         ) : (
           <>
+            {live ? <p className={css.aviso}>TikTok puede incluir productos de tu vitrina junto con los del LIVE.</p> : null}
             <div className={css.acciones}>
-              <Boton variante="secundario" deshabilitado={ocupado} alPulsar={() => { setSeleccion([]); void cargar(); }}>Actualizar vitrina</Boton>
+              <Boton variante="secundario" deshabilitado={ocupado} alPulsar={() => { setSeleccion([]); void cargar(); }}>
+                {live ? 'Actualizar productos para LIVE' : 'Actualizar vitrina'}
+              </Boton>
             </div>
-            {p.puedeEditar ? (
+            {puedeEditar ? (
               <form className={css.formulario} onSubmit={agregar}>
                 <CampoTexto etiqueta="IDs de producto" valor={entrada} alCambiar={setEntrada}
                   maximo={540} monoespaciado ayuda="Separa los IDs con comas o espacios. Máximo 20." />
@@ -186,8 +215,8 @@ export function Vitrina(p: {
             {resultados.length ? <ul aria-label="Resultado por producto" role="status">
               {resultados.map(x => <li key={x.product_id}>{x.product_id} · {x.ok ? 'Cambio aplicado' : x.mensaje ?? 'Cambio sin confirmar'}</li>)}
             </ul> : null}
-            {ocupado ? <p role="status" className={css.aviso}>{guardando ? 'Aplicando cambio en TikTok Shop…' : 'Consultando tu vitrina…'}</p> : null}
-            {productos.length ? <ul className={css.resultados} aria-label="Productos de tu vitrina">
+            {ocupado ? <p role="status" className={css.aviso}>{p.guardando ? 'Aplicando cambio en TikTok Shop…' : 'Consultando TikTok Shop…'}</p> : null}
+            {productos.length ? <ul className={css.resultados} aria-label={live ? 'Productos para LIVE' : 'Productos de tu vitrina'}>
               {productos.map(x => {
                 const nombre = x.titulo ?? `Producto ${x.product_id}`;
                 const marcada = seleccion.includes(x.product_id);
@@ -195,15 +224,17 @@ export function Vitrina(p: {
                   <div className={css.cuerpo}>
                     <h2>{nombre}</h2>
                     <p>{[x.tienda, precio(x), x.product_id].filter(Boolean).join(' · ')}</p>
-                    {p.puedeEditar ? <Casilla marcada={marcada} etiqueta={`Seleccionar ${nombre}`}
+                    {live && x.estado_agregado ? <p>{estadosLive[x.estado_agregado]}</p> : null}
+                    {puedeEditar ? <Casilla marcada={marcada} etiqueta={`Seleccionar ${nombre}`}
                       deshabilitado={!habilitado || (!marcada && seleccion.length === 20)}
                       alCambiar={marcar => setSeleccion(previos => marcar ? [...previos, x.product_id] : previos.filter(id => id !== x.product_id))} /> : null}
                   </div>
-                  {p.puedeGenerar && scope ? <Boton variante="secundario" deshabilitado={ocupado}
+                  {puedeGenerar && scope ? <Boton variante="secundario" deshabilitado={ocupado}
                     alPulsar={() => setGenerar({ producto: x, scope })}>Generar enlace</Boton> : null}
                 </li>;
               })}
-            </ul> : !cargando && !errorLectura ? <EstadoVacio icono="Store" titulo="Tu vitrina está vacía" /> : null}
+            </ul> : !cargando && !errorLectura ? <EstadoVacio icono="Store"
+              titulo={live ? 'TikTok no devolvió productos para LIVE' : 'Tu vitrina está vacía'} /> : null}
             {cursor ? <Boton variante="secundario" deshabilitado={ocupado} alPulsar={() => { void cargar(cursor, scope); }}>Cargar más productos</Boton> : null}
           </>
         )}
@@ -215,8 +246,7 @@ export function Vitrina(p: {
           <p>{confirmacion.ids.join(', ')}</p>
         </Modal> : null}
         {generar ? <DialogoEnlace producto={generar.producto} scope={generar.scope} alCerrar={() => setGenerar(null)} /> : null}
-      </section>
-    </Pantalla>
+    </>
   );
 }
 

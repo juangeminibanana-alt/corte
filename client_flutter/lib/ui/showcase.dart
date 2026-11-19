@@ -40,11 +40,14 @@ class _ShowcasePageState extends State<ShowcasePage> {
   final _products = <String, JsonMap>{};
   List<({String id, bool ok, String message})> _results = [];
   bool _reading = false, _writing = false, _requested = false;
+  bool _live = false;
   String? _cursor, _loadError, _writeError, _loadedScope, _generatedLink;
 
   bool get _busy => _reading || _writing;
   bool get _ready => _loadedScope != null && !_busy && _loadError == null;
-  bool get _canEdit => widget.canWrite && _ready;
+  bool get _showWrite => !_live && widget.canWrite;
+  bool get _showLinks => !_live && widget.canGenerateLinks;
+  bool get _canEdit => _showWrite && _ready;
 
   @override
   void didChangeDependencies() {
@@ -53,6 +56,24 @@ class _ShowcasePageState extends State<ShowcasePage> {
       _requested = true;
       unawaited(_load());
     }
+  }
+
+  void _resetProducts() {
+    _products.clear();
+    _cursor = null;
+    _loadedScope = null;
+    _writeError = null;
+    _results = [];
+    _generatedLink = null;
+  }
+
+  void _selectOrigin(bool live) {
+    if (_busy || _live == live) return;
+    setState(() {
+      _live = live;
+      _resetProducts();
+    });
+    unawaited(_load());
   }
 
   Future<void> _load({String? cursor}) async {
@@ -66,18 +87,16 @@ class _ShowcasePageState extends State<ShowcasePage> {
     setState(() {
       _reading = true;
       _loadError = null;
-      if (scope != _loadedScope) {
-        _products.clear();
-        _cursor = null;
-        _writeError = null;
-        _results = [];
-        _generatedLink = null;
-      }
+      if (scope != _loadedScope) _resetProducts();
     });
     try {
       final response = await repo.get(
         _route,
-        query: {'limit': _pageSize, if (cursor != null) 'cursor': cursor},
+        query: {
+          'limit': _pageSize,
+          if (_live) 'origin': 'LIVE',
+          if (cursor != null) 'cursor': cursor,
+        },
         force: true,
         permitirCacheSinRed: false,
       );
@@ -100,6 +119,8 @@ class _ShowcasePageState extends State<ShowcasePage> {
       setState(() {
         _loadError = error is ErrorApi
             ? error.mensaje
+            : _live
+            ? 'No pudimos cargar los productos para LIVE.'
             : 'No pudimos cargar la vitrina.';
       });
     } finally {
@@ -220,7 +241,7 @@ class _ShowcasePageState extends State<ShowcasePage> {
     if (!mounted ||
         options == null ||
         !_ready ||
-        !widget.canGenerateLinks ||
+        !_showLinks ||
         !_verifyScope(scope)) {
       return;
     }
@@ -305,7 +326,6 @@ class _ShowcasePageState extends State<ShowcasePage> {
       children: [
         PageTitle(
           'Vitrina',
-          subtitle: 'Productos de tu vitrina de TikTok Shop.',
           back: widget.onBack,
           action: Wrap(
             spacing: 8,
@@ -316,7 +336,7 @@ class _ShowcasePageState extends State<ShowcasePage> {
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('Actualizar'),
               ),
-              if (widget.canWrite)
+              if (_showWrite)
                 FilledButton.icon(
                   onPressed: _canEdit ? _add : null,
                   icon: const Icon(Icons.add_rounded),
@@ -325,11 +345,39 @@ class _ShowcasePageState extends State<ShowcasePage> {
             ],
           ),
         ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('Vitrina'),
+              selected: !_live,
+              onSelected: _busy ? null : (_) => _selectOrigin(false),
+            ),
+            ChoiceChip(
+              label: const Text('Productos para LIVE'),
+              selected: _live,
+              onSelected: _busy ? null : (_) => _selectOrigin(true),
+            ),
+          ],
+        ),
+        if (_live)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 12),
+            child: Text(
+              'TikTok puede incluir productos de tu vitrina. Este listado no confirma que haya una transmisión en curso.',
+              style: TextStyle(color: context.corte.muted),
+            ),
+          )
+        else
+          const SizedBox(height: 12),
         if (_busy)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 16),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
             child: LinearProgressIndicator(
-              semanticsLabel: 'Actualizando vitrina',
+              semanticsLabel: _live
+                  ? 'Actualizando productos para LIVE'
+                  : 'Actualizando vitrina',
             ),
           ),
         if (_loadError != null) InlineNotice(text: _loadError!, error: true),
@@ -358,7 +406,7 @@ class _ShowcasePageState extends State<ShowcasePage> {
         if (!_busy &&
             _loadedScope == null &&
             _loadError == null &&
-            (widget.canWrite || widget.canGenerateLinks))
+            (_showWrite || _showLinks))
           const InlineNotice(
             text:
                 'Vuelve a iniciar sesión para usar las acciones de la vitrina.',
@@ -375,18 +423,19 @@ class _ShowcasePageState extends State<ShowcasePage> {
             ),
         ],
         if (_products.isEmpty && !_busy && _loadError == null)
-          const EmptyState(
-            'Tu vitrina está vacía',
+          EmptyState(
+            _live ? 'No hay productos para LIVE' : 'Tu vitrina está vacía',
             icon: Icons.storefront_outlined,
           ),
         for (final product in _products.entries)
           _ShowcaseProduct(
             id: product.key,
             product: product.value,
-            canWrite: widget.canWrite,
-            canGenerateLinks: widget.canGenerateLinks,
+            live: _live,
+            canWrite: _showWrite,
+            canGenerateLinks: _showLinks,
             onAction: _canEdit ? _confirm : null,
-            onGenerateLink: _ready && widget.canGenerateLinks
+            onGenerateLink: _ready && _showLinks
                 ? () => _generateLink(product.key)
                 : null,
           ),
@@ -410,6 +459,7 @@ class _ShowcaseProduct extends StatelessWidget {
   const _ShowcaseProduct({
     required this.id,
     required this.product,
+    required this.live,
     required this.canWrite,
     required this.canGenerateLinks,
     required this.onAction,
@@ -418,7 +468,7 @@ class _ShowcaseProduct extends StatelessWidget {
 
   final String id;
   final JsonMap product;
-  final bool canWrite, canGenerateLinks;
+  final bool live, canWrite, canGenerateLinks;
   final void Function(String, String, String)? onAction;
   final VoidCallback? onGenerateLink;
 
@@ -441,6 +491,14 @@ class _ShowcaseProduct extends StatelessWidget {
       'REJECTED' => 'Rechazado',
       _ => null,
     };
+    final addState = live
+        ? switch (product['estado_agregado']) {
+            'ADDED' => 'Agregado según TikTok',
+            'NOT_ADDED' => 'Pendiente de agregar',
+            'REJECTED' => 'Rechazado según TikTok',
+            _ => null,
+          }
+        : null;
     return Container(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: context.corte.line)),
@@ -463,12 +521,13 @@ class _ShowcaseProduct extends StatelessWidget {
                   [if (store.isNotEmpty) store, 'ID: $id'].join(' · '),
                   style: TextStyle(color: context.corte.muted),
                 ),
-                if (prices.isNotEmpty || state != null)
+                if (prices.isNotEmpty || state != null || addState != null)
                   Text(
                     [
                       if (prices.isNotEmpty)
                         '${prices.join(' – ')} $currency'.trim(),
                       if (state != null) state,
+                      if (addState != null) addState,
                     ].join(' · '),
                   ),
                 if (canWrite || canGenerateLinks)

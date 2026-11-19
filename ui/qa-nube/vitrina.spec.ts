@@ -67,3 +67,25 @@ test('sin permiso de lectura no consulta ni ofrece modificar la vitrina', () => 
   expect(screen.queryByRole('button', { name: 'Agregar a vitrina' })).toBeNull();
   expect(obtener).not.toHaveBeenCalled();
 });
+
+test('Productos para LIVE usa otro origen y conserva la vitrina como vista editable', async () => {
+  const productoLive = { ...producto, product_id: '456', titulo: 'Vaso para LIVE', estado_agregado: 'ADDED' };
+  obtener.mockImplementation(async (ruta: string) => {
+    if (ruta === '/api/cloud/session') return { cache_scope: scope };
+    return ruta.includes('origin=LIVE')
+      ? { productos: [productoLive], cursor_siguiente: null, total: 1 }
+      : { productos: [producto], cursor_siguiente: 'token-vitrina', total: 5 };
+  });
+  render(createElement(Vitrina, props));
+  await screen.findByRole('heading', { name: 'Termo claro' });
+  fireEvent.click(screen.getByRole('radio', { name: 'Productos para LIVE' }));
+  expect(await screen.findByText('Agregado según TikTok')).toBeTruthy();
+  expect(obtener).toHaveBeenLastCalledWith('/api/catalogo/vitrina?limit=20&origin=LIVE');
+  expect(screen.queryByRole('heading', { name: 'Termo claro' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Cargar más productos' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Generar enlace' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Agregar a vitrina' })).toBeNull();
+  fireEvent.click(screen.getByRole('radio', { name: 'Vitrina' }));
+  expect(await screen.findByRole('button', { name: 'Agregar a vitrina' })).toBeTruthy();
+  expect(pedir).not.toHaveBeenCalled();
+});

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app.dart';
+import '../domain/domain.dart';
 import 'editors.dart';
 import 'format.dart';
 import 'theme.dart';
@@ -9,6 +10,7 @@ import 'product_evidence.dart';
 import 'desktop.dart';
 import 'desktop_home.dart';
 import 'home_sales.dart';
+import 'home_tiktok.dart';
 
 EdgeInsets pagePadding(BuildContext context) => useDesktopWorkspace(context)
     ? const EdgeInsets.fromLTRB(24, 20, 24, 32)
@@ -64,6 +66,7 @@ class _PhoneHomePage extends StatelessWidget {
                 label: const Text('Ver muestras'),
               ),
             ),
+            HomeTikTokProfile(profile: DashboardDto(data).perfilTikTok),
             HomeSalesOverview(actualidad: mapOf(data['actualidad'])),
             const SizedBox(height: 24),
             const SectionHeading('Últimos 30 días'),

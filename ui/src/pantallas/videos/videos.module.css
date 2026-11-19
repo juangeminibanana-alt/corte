@@ -604,6 +604,13 @@
   box-shadow: var(--focus-ring);
 }
 
+.actualizarMetricas {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
 /* ------------------------------------------------------------------ rev. 5 · métricas de TikTok (Display API) */
 /* Tarjeta: vistas, likes, comentarios y compartidos en text-3 (se parten en el punto medio, nunca a mitad de una cifra);
    la conversión con su cifra en text-1 y tabular. */

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:corte/app.dart';
 import 'package:corte/auth/auth_controller.dart';
+import 'package:corte/data/corte_repository.dart' show MemoryCorteDataStore;
 import 'package:corte/platform/corte_runtime.dart';
 import 'package:corte/ui/catalog.dart';
 import 'package:corte/ui/video_catalog.dart';
@@ -16,7 +17,10 @@ http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
 );
 
 http.Response _noEncontrado() => _json({
-  'error': {'codigo': 'no_encontrado', 'mensaje': 'No encontramos ese recurso.'},
+  'error': {
+    'codigo': 'no_encontrado',
+    'mensaje': 'No encontramos ese recurso.',
+  },
 }, 404);
 
 /// Instante en segundos de una fecha a una hora de México (UTC−6).
@@ -26,7 +30,10 @@ int _epoch(String fecha, [int hora = 12]) =>
     ).millisecondsSinceEpoch ~/
     1000;
 
-Map<String, dynamic> _video(String id, [Map<String, dynamic> extra = const {}]) => {
+Map<String, dynamic> _video(
+  String id, [
+  Map<String, dynamic> extra = const {},
+]) => {
   'content_id': id,
   'origen': 'display',
   'publicacion': 'publico',
@@ -70,16 +77,27 @@ Future<void> _pintar(
   Widget pagina,
   Map<String, Object> rutas, {
   List<String>? peticiones,
+  http.Response? Function(http.Request)? responder,
+  String? cacheScope,
 }) async {
   final auth = CorteAuthController(
-    runtime: CorteRuntime(platform: 'web', baseUri: Uri.parse(corteCloudOrigin)),
+    runtime: CorteRuntime(
+      platform: 'web',
+      baseUri: Uri.parse(corteCloudOrigin),
+    ),
     client: MockClient((request) async {
       peticiones?.add(request.url.path);
+      final response = responder?.call(request);
+      if (response != null) return response;
       final cuerpo = rutas[request.url.path];
       return cuerpo == null ? _noEncontrado() : _json(cuerpo);
     }),
   );
   final ui = CorteUiController(auth: auth);
+  if (cacheScope != null) {
+    ui.repo.attachStore(MemoryCorteDataStore());
+    ui.repo.setScopes(ownerScope: 'owner', cacheScope: cacheScope);
+  }
   addTearDown(() {
     ui.dispose();
     auth.dispose();
@@ -92,10 +110,86 @@ Future<void> _pintar(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(
+    const Duration(milliseconds: 100),
+    EnginePhase.sendSemanticsUpdate,
+    const Duration(seconds: 10),
+  );
 }
 
 void main() {
+  for (final conVentas in [false, true]) {
+    testWidgets('actualiza el detalle ${conVentas ? 'con' : 'sin'} ventas', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1100, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      const id = '7400000000000000101';
+      final cacheScope = 'b' * 64;
+      final detail = conVentas ? '/api/videos/$id' : '/api/catalogo/videos/$id';
+      var vistas = 1200;
+      var writes = 0;
+      await _pintar(
+        tester,
+        const VideoDetailPage(id: id),
+        {
+          '/api/session': {
+            'capacidades': {'display_video_actualizar': true},
+          },
+          '/api/catalogo/videos': {'items': <Object>[], 'total': 0},
+          '/api/notas': {'items': <Object>[]},
+        },
+        cacheScope: cacheScope,
+        responder: (request) {
+          if (request.url.path == '/api/catalogo/videos/$id/actualizar') {
+            expect(request.method, 'POST');
+            expect(request.headers['x-corte-cache-scope'], cacheScope);
+            expect(jsonDecode(request.body), isEmpty);
+            writes++;
+            vistas = 2600;
+            return _json({'actualizado': true});
+          }
+          if (request.url.path == detail) {
+            return _json({
+              'video': _video(id, {'vistas': vistas}),
+              if (!conVentas) 'ventas': null,
+            });
+          }
+          return null;
+        },
+      );
+      expect(find.text('1,200'), findsOneWidget);
+      final refresh = find.widgetWithText(
+        OutlinedButton,
+        'Actualizar métricas',
+      );
+      await tester.ensureVisible(refresh);
+      await tester.tap(refresh);
+      await tester.pumpAndSettle();
+      expect(writes, 1);
+      expect(find.text('2,600'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 500));
+    });
+  }
+
+  testWidgets('el detalle histórico no ofrece actualizar métricas', (
+    tester,
+  ) async {
+    const id = '7400000000000000101';
+    await _pintar(tester, const VideoDetailPage(id: id), {
+      '/api/session': {
+        'capacidades': {'display_video_actualizar': true},
+      },
+      '/api/catalogo/videos/$id': {
+        'video': _video(id, {'publicacion': 'no_publico'}),
+        'ventas': null,
+      },
+    }, cacheScope: 'b' * 64);
+    expect(find.text('Actualizar métricas'), findsNothing);
+  });
+
   group('orden del catálogo (igual que el hub)', () {
     final items = [
       _video('7400000000000000005'),

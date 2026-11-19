@@ -7,6 +7,7 @@ import 'package:corte/platform/corte_runtime.dart';
 import 'package:corte/ui/desktop.dart';
 import 'package:corte/ui/desktop_home.dart';
 import 'package:corte/ui/theme.dart';
+import 'package:corte/ui/work.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -68,6 +69,12 @@ class _HomeFixture {
       case '/api/dashboard':
         expect(request.url.queryParameters['periodo'], '30d');
         return _response({
+          if (!empty)
+            'perfil_tiktok': {
+              'username': 'creadora_demo',
+              'seguidores': 23501,
+              'seguidores_cambio_7d': -12,
+            },
           'kpis': empty
               ? <String, dynamic>{}
               : {
@@ -144,6 +151,7 @@ Future<void> _mount(
   _HomeFixture fixture, {
   double contentWidth = 1000,
   double textScale = 1,
+  bool mobile = false,
 }) async {
   // Home applies 28 px on both sides. Test the requested available content
   // width instead of accidentally testing a narrower viewport minus padding.
@@ -163,7 +171,9 @@ Future<void> _mount(
           ).copyWith(textScaler: TextScaler.linear(textScale)),
           child: child!,
         ),
-        home: const Scaffold(body: DesktopHomePage()),
+        home: Scaffold(
+          body: mobile ? const HomePage() : const DesktopHomePage(),
+        ),
       ),
     ),
   );
@@ -171,6 +181,15 @@ Future<void> _mount(
 }
 
 void main() {
+  testWidgets('móvil muestra seguidores y su cambio real de siete días', (
+    tester,
+  ) async {
+    await _mount(tester, _HomeFixture(), contentWidth: 334, mobile: true);
+    expect(find.text('@creadora_demo'), findsOneWidget);
+    expect(find.text('23,501 seguidores en TikTok'), findsOneWidget);
+    expect(find.text('−12 en 7 días'), findsOneWidget);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
   for (final contentWidth in [1000.0, 850.0, 640.0]) {
     for (final textScale in [1.0, 1.44, 2.0]) {
       testWidgets(
@@ -184,7 +203,11 @@ void main() {
             textScale: textScale,
           );
           expect(tester.takeException(), isNull);
-          expect(find.text(r'$12,345'), findsOneWidget);
+          expect(find.text('23,501 seguidores en TikTok'), findsOneWidget);
+          expect(find.text('−12 en 7 días'), findsOneWidget);
+          final commission = find.text(r'$12,345');
+          await tester.scrollUntilVisible(commission, 320, maxScrolls: 10);
+          expect(commission, findsOneWidget);
           expect(find.text(r'$98,765'), findsOneWidget);
           expect(
             MediaQuery.textScalerOf(
@@ -228,6 +251,7 @@ void main() {
       );
       expect(find.text(r'$0'), findsNothing);
       expect(find.text('0'), findsNothing);
+      expect(find.text('Seguidores de TikTok no disponibles'), findsOneWidget);
       await tester.scrollUntilVisible(
         find.text('Estás al día'),
         450,

@@ -20,6 +20,7 @@ import {
 import { formato, hoyLocal, nombreCorto } from '@/dominio';
 import { ListaNotas } from '@/bloques';
 import { RUTA_SEGMENTO } from './Cabecera';
+import { ActualizarMetricas } from './ActualizarMetricas';
 import { ContenidoCatalogo } from './DetalleCatalogo';
 import { CargaDetalle, ErrorVista } from './Estados';
 import { BotonAbrirVideo, PortadaVideo } from './MarcoVideo';
@@ -258,6 +259,9 @@ export function PantallaVideo(): ReactElement {
   // Si el video no tiene nombre de producto, el título ya es «Video 7680…4613»: el contexto pasa a ser la tienda.
   // En la ventana, si el título se acortó, el contexto lleva el nombre completo antes del ID corto.
   const idVideo = d?.video.content_id ?? sinVentasDetalle?.video.content_id ?? null;
+  const enDisplay = d ? typeof d.video.vistas === 'number'
+    : sinVentasDetalle?.video.publicacion === 'publico' && typeof sinVentasDetalle.video.vistas === 'number';
+  const puedeActualizar = idVideo !== null && enDisplay && sesion.datos?.capacidades.display_video_actualizar === true;
   const enlace = d?.video.enlace ?? sinVentasDetalle?.video.enlace ?? null;
   const idCorto = idVideo !== null ? T.nombreVideo(formato.idCorto(idVideo)) : null;
   const titulo = (compacta ? nombreCorto(nombre, TITULO_CELULAR) : nombreCorto(nombre, TITULO_VENTANA)) || nombre;
@@ -280,6 +284,8 @@ export function PantallaVideo(): ReactElement {
           {...(enlace && !android && !compacta ? { acciones: <BotonAbrirVideo enlace={enlace} variante="secundario" className={cx(css.soloVentanaAncha)} /> } : {})}
         />
         <div className={cx(css.trasEncabezado, refrescando && css.refrescando)}>
+          {puedeActualizar ? <ActualizarMetricas key={idVideo} id={idVideo}
+            refrescar={sinVentas ? catalogo.refrescar : consulta.refrescar} /> : null}
           {cargando ? <CargaDetalle /> : null}
           {error && !hayDatos ? (
             <ErrorVista error={error} titulo={T.errorDetalleTitulo} alReintentar={() => void (sinVentas ? catalogo.refrescar() : consulta.refrescar())} />

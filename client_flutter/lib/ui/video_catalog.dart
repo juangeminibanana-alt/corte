@@ -596,10 +596,15 @@ class CatalogVideoDetail extends StatelessWidget {
           )
         : null,
     builder: (context, data) {
-      if (data['ventas'] is Map) {
-        return VideoSalesDetail(data: mapOf(data['ventas']), id: id, onBack: onBack);
-      }
       final v = mapOf(data['video']);
+      if (data['ventas'] is Map) {
+        return VideoSalesDetail(
+          data: mapOf(data['ventas']),
+          id: id,
+          onBack: onBack,
+          catalogVideo: v,
+        );
+      }
       final estado = publicationLabel(v['publicacion']);
       return ListView(
         padding: pagePadding(context),
@@ -641,16 +646,24 @@ class CatalogVideoDetail extends StatelessWidget {
                   else
                     MetricStrip([
                       ('Vistas', integer(v['vistas'])),
-                      ('Me gusta', v['likes'] == null ? '—' : integer(v['likes'])),
+                      (
+                        'Me gusta',
+                        v['likes'] == null ? '—' : integer(v['likes']),
+                      ),
                       (
                         'Comentarios',
-                        v['comentarios'] == null ? '—' : integer(v['comentarios']),
+                        v['comentarios'] == null
+                            ? '—'
+                            : integer(v['comentarios']),
                       ),
                       (
                         'Compartidos',
-                        v['compartidos'] == null ? '—' : integer(v['compartidos']),
+                        v['compartidos'] == null
+                            ? '—'
+                            : integer(v['compartidos']),
                       ),
                     ]),
+                  VideoMetricsRefresh(id: id, video: v),
                   const SizedBox(height: 20),
                   Align(
                     alignment: Alignment.centerLeft,
@@ -706,4 +719,131 @@ class CatalogVideoDetail extends StatelessWidget {
       );
     },
   );
+}
+
+class VideoMetricsRefresh extends StatelessWidget {
+  const VideoMetricsRefresh({super.key, required this.id, required this.video});
+
+  final String id;
+  final JsonMap video;
+
+  @override
+  Widget build(BuildContext context) {
+    final ui = CorteScope.of(context);
+    final scope = ui.repo.cacheScope;
+    final metricsAt = video['metricas_at'];
+    // Sales-only and historical rows cannot be refreshed with Display API.
+    if (scope == null ||
+        ui.auth.state.offline ||
+        metricsAt is! num ||
+        !metricsAt.isFinite ||
+        metricsAt <= 0 ||
+        video['origen'] == 'ventas' ||
+        video['publicacion'] == 'no_publico' ||
+        video['publicacion'] == 'desconocido') {
+      return const SizedBox.shrink();
+    }
+    return _RefreshDisplayVideo(
+      key: ValueKey((ui.repo.ownerScope, scope, id)),
+      id: id,
+      scope: scope,
+    );
+  }
+}
+
+class _RefreshDisplayVideo extends StatefulWidget {
+  const _RefreshDisplayVideo({
+    super.key,
+    required this.id,
+    required this.scope,
+  });
+
+  final String id, scope;
+
+  @override
+  State<_RefreshDisplayVideo> createState() => _RefreshDisplayVideoState();
+}
+
+class _RefreshDisplayVideoState extends State<_RefreshDisplayVideo> {
+  int? _revision;
+  Future<bool>? _permission;
+  String? _error;
+  bool _loading = false;
+
+  Future<void> _refresh(CorteUiController ui) async {
+    if (_loading || ui.repo.cacheScope != widget.scope) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final response = await ui.repo.write(
+        'POST',
+        '/api/catalogo/videos/${Uri.encodeComponent(widget.id)}/actualizar',
+        headers: {'X-Corte-Cache-Scope': widget.scope},
+        body: const <String, Object?>{},
+      );
+      if (!mounted) return;
+      if (response['actualizado'] == true) {
+        ui.refresh();
+        toast(context, 'Métricas actualizadas.');
+      } else {
+        setState(() => _error = 'TikTok no confirmó la actualización.');
+      }
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error is ErrorApi
+            ? error.mensaje
+            : 'No pudimos actualizar las métricas de TikTok.';
+      });
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ui = CorteScope.of(context);
+    if (_revision != ui.revision) {
+      _revision = ui.revision;
+      _permission = ui.repo.sesion().then(
+        (session) => session.capacidades?['display_video_actualizar'] == true,
+      );
+    }
+    return FutureBuilder<bool>(
+      future: _permission,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done ||
+            snapshot.data != true) {
+          return const SizedBox.shrink();
+        }
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _loading ? null : () => _refresh(ui),
+                icon: _loading
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded),
+                label: Text(
+                  _loading ? 'Actualizando métricas…' : 'Actualizar métricas',
+                ),
+              ),
+              if (_error case final error?)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: InlineNotice(text: error, error: true),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
