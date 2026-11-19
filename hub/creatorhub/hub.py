@@ -368,10 +368,11 @@ class Hub:
         dv, lr, _ir = self.almacen.versiones()
         local = ctx.origen == 'ui'
         conexion = self.auth.conexion()
+        cuenta = self.auth.cuenta()
         vitrina, vitrina_escribir = (self.showcase.capacidades(conexion)
                                     if local and self.showcase is not None else (False, False))
         r: Json = {
-            'cuenta': self.auth.cuenta(), 'conexion': conexion, 'sync': estado,
+            'cuenta': cuenta, 'conexion': conexion, 'sync': estado,
             'datos': {'data_version': dv, 'local_rev': lr, 'ultima_sync_ok_at': estado.get('ultima_ok_at'),
                       'hay_datos': self._hay_datos()},
             'plataforma': 'windows' if local else ctx.plataforma,
@@ -380,6 +381,10 @@ class Hub:
                             'portapapeles': local and not self.op.nube,
                             'escribir': ctx.puede_escribir, 'sincronizar': ctx.puede_escribir,
                             'catalogo_videos': True,
+                            'display_video_actualizar': bool(
+                                self.op.nube and local and conexion.get('estado') == 'conectada'
+                                and self.display is not None
+                                and self.display.puede_actualizar_video((cuenta or {}).get('username') or '')),
                             'vitrina_creator': vitrina,
                             'vitrina_creator_escribir': vitrina_escribir,
                             'enlaces_afiliado_creator': (local and self.affiliate_links is not None

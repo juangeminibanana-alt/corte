@@ -35,16 +35,17 @@ import os
 import re
 import threading
 import urllib.parse
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 from .. import config
-from ..errores import ErrorDominio
+from ..errores import ErrorApi, ErrorDominio
 from ..interfaces import Almacen, Bus, Coordinador, Json, ModoHub, Reloj, Transporte
 from . import datos as D
 from . import pkce
 from .boveda import CAMPOS_TOKENS, BovedaDisplay
-from .cliente import SCOPES, ClienteDisplay
+from .cliente import SCOPES, ClienteDisplay, validar_ids_video
 from .errores import ErrorDisplay
 
 _log = logging.getLogger('creatorhub.tiktok_dev')
@@ -184,6 +185,84 @@ class ServicioDisplay:
             self.bus.publicar({'tipo': 'display.cambio', 'display': self.estado()})
         except Exception as e:  # noqa: BLE001
             _log.warning('No se pudo publicar display.cambio (%s)', type(e).__name__)
+
+    @staticmethod
+    def _cuenta_video_verificada(conexion: Mapping[str, Any], perfil: Mapping[str, Any] | None,
+                                  usuario_shop: str) -> bool:
+        usuario = D.usuario_normalizado(usuario_shop)
+        return bool(usuario and perfil and conexion.get('open_id')
+                    and perfil.get('open_id') == conexion['open_id']
+                    and D.usuario_normalizado(perfil.get('username')) == usuario)
+
+    def puede_actualizar_video(self, usuario_shop: str) -> bool:
+        conexion = self.boveda.leer()
+        if self._estado_conexion(conexion) != 'conectada' or 'video.list' not in (conexion.get('scopes') or ()):
+            return False
+        perfil, _ = self._leer_bd()
+        return self._cuenta_video_verificada(conexion, perfil, usuario_shop)
+
+    def actualizar_video(self, content_id: str, candado: AbstractContextManager[Any],
+                         identidad_shop: Callable[[], tuple[tuple[Any, ...], str]]) -> Json:
+        """Consulta un video propio fuera de los candados y aplica sus métricas solo si todo sigue vigente."""
+        try:
+            validar_ids_video([content_id])
+        except ValueError:
+            raise ErrorDominio('parametros_invalidos', 'El identificador del video no es válido.', http=422) from None
+
+        no_disponible = 'TikTok no devolvió métricas para este video de la cuenta conectada.'
+        cambio = 'La cuenta o las métricas cambiaron durante la consulta. Abre de nuevo la ficha del video.'
+        with candado, self.boveda.candado:
+            shop = identidad_shop()
+            conexion = self.boveda.leer()
+            if self._estado_conexion(conexion) != 'conectada':
+                raise ErrorDominio('display_no_conectada', 'Conecta TikTok en Ajustes para actualizar tus videos.', http=409)
+            if 'video.list' not in (conexion.get('scopes') or ()):
+                raise ErrorDominio('permiso_faltante', 'La cuenta de TikTok no autorizó la lectura de tus videos.', http=403)
+            epoca = self.almacen.epoca()
+            with self.almacen.lector() as db:
+                if not self._cuenta_video_verificada(conexion, D.leer_perfil(db), shop[1]):
+                    raise ErrorDominio('cuenta_distinta', 'Verifica la conexión de TikTok en Ajustes antes de actualizar.', http=409)
+                previo = D.leer_metricas_video(db, content_id)
+                if previo is None:
+                    raise ErrorDominio('video_no_disponible', no_disponible, http=404)
+
+        try:
+            videos = self.cliente.consultar_videos([content_id])
+        except ErrorDisplay as exc:
+            http = {
+                'permiso_faltante': 403, 'limite': 429, 'sin_conexion': 409, 'sin_credenciales': 409,
+                'reautorizar': 409, 'credenciales_rechazadas': 409, 'token_invalido': 409,
+            }.get(exc.codigo, 503 if exc.transitorio else 502)
+            raise ErrorDominio(exc.codigo, exc.mensaje, http=http) from None
+        video = D.normalizar_video(videos[0]) if videos else None
+        if video is None or video['video_id'] != content_id:
+            raise ErrorDominio('video_no_disponible', no_disponible, http=404)
+        if not D.tiene_metricas_video(video):
+            raise ErrorDominio('respuesta_invalida', 'TikTok no devolvió cifras válidas para este video.', http=502)
+
+        with candado, self.boveda.candado:
+            actual = self.boveda.leer()
+            revision = ('client_key', 'open_id', 'epoca_credenciales')
+            if (identidad_shop() != shop or any(actual.get(k) != conexion.get(k) for k in revision)
+                    or self._estado_conexion(actual) != 'conectada' or 'video.list' not in (actual.get('scopes') or ())):
+                raise ErrorDominio('credenciales_cambiaron', cambio, http=409)
+            try:
+                with self.almacen.escritor(epoca) as db:
+                    if (not self._cuenta_video_verificada(actual, D.leer_perfil(db), shop[1])
+                            or D.leer_metricas_video(db, content_id) != previo):
+                        raise ErrorDominio('credenciales_cambiaron', cambio, http=409)
+                    D.actualizar_metricas_video(db, video, previo, int(self.reloj.ahora()))
+                    self.almacen.marcar_data_version(db)
+            except ErrorApi as exc:
+                if exc.codigo != 'credenciales_cambiaron':
+                    raise
+                raise ErrorDominio('credenciales_cambiaron', cambio, http=409) from None
+            self.almacen.confirmar_data_version()
+            try:
+                self.bus.notificar_cambio(self.almacen.versiones(), ['videos'])
+            except Exception:  # noqa: BLE001 - los clientes también consultan la versión de la base
+                _log.warning('No se pudo publicar la actualización de métricas de video')
+        return {'actualizado': True}
 
     # ================================================================ errores de la sync
     def anotar_resultado(self, error: ErrorDisplay | None, revision: tuple[Any, Any] | None = None) -> None:

@@ -37,7 +37,7 @@ def cargar(conn: sqlite3.Connection) -> DatosDisplay | None:
     """None si nunca hubo datos de la Display API (o si la base aún no tiene sus tablas)."""
     try:
         filas = conn.execute('SELECT video_id, titulo, descripcion, duracion_s, creado_at, vistas, likes, comentarios, '
-                             'compartidos, visto_at FROM videos_tiktok').fetchall()
+                             'compartidos, visto_at, MAX(visto_at, actualizado_at) FROM videos_tiktok').fetchall()
         perfil = conn.execute('SELECT username, nombre, seguidores, siguiendo, likes_total, videos_total, actualizado_at '
                               'FROM perfil_tiktok WHERE id = 1').fetchone()
     except sqlite3.OperationalError:
@@ -45,7 +45,8 @@ def cargar(conn: sqlite3.Connection) -> DatosDisplay | None:
     if not filas and perfil is None:
         return None
     videos = {str(f[0]): {'titulo': f[1], 'descripcion': f[2], 'duracion_s': f[3], 'creado_at': f[4], 'vistas': f[5],
-                          'likes': f[6], 'comentarios': f[7], 'compartidos': f[8], 'visto_at': f[9]} for f in filas}
+                          'likes': f[6], 'comentarios': f[7], 'compartidos': f[8], 'visto_at': f[9],
+                          'metricas_at': f[10]} for f in filas}
     p = None
     if perfil is not None:
         p = dict(zip(('username', 'nombre', 'seguidores', 'siguiendo', 'likes_total', 'videos_total', 'actualizado_at'),
@@ -71,7 +72,7 @@ def campos_fila_video(d: DatosDisplay, cid: str, pedidos_validos: int, comision_
     vistas = v['vistas']
     return {'vistas': vistas, 'likes': v['likes'], 'comentarios': v['comentarios'], 'compartidos': v['compartidos'],
             'portada': portada, 'descripcion': v['titulo'] or v['descripcion'], 'duracion_s': v['duracion_s'],
-            'publicado_at': v['creado_at'], 'metricas_at': v['visto_at'],
+            'publicado_at': v['creado_at'], 'metricas_at': v['metricas_at'],
             'pedidos_por_mil_vistas': por_mil(pedidos_validos, vistas, 2),
             'comision_por_mil_vistas_centavos': por_mil(comision_centavos, vistas, None)}
 

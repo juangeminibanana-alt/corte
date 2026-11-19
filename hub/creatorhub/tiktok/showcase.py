@@ -1,4 +1,4 @@
-"""Catálogo y operaciones de la vitrina de la cuenta Creator conectada."""
+"""Catálogo de vitrina y LIVE, y operaciones de vitrina de la cuenta Creator."""
 from __future__ import annotations
 
 import re
@@ -61,7 +61,7 @@ def _precios(producto: Json) -> tuple[str | None, str | None, str | None]:
     return None, None, None
 
 
-def _producto(p: Json) -> Json:
+def _producto(p: Json, *, origen_live: bool = False) -> Json:
     precio_min, precio_max, moneda = _precios(p)
     status = _objeto(p.get('status'))
     revision = _texto(status.get('review_status'), 45)
@@ -70,10 +70,18 @@ def _producto(p: Json) -> Json:
         inventario if inventario == 'SOLD_OUT' else revision or inventario
     )
     galeria = urls_galeria(p.get('main_images'), _objeto(p.get('addition')).get('customized_main_images'))
-    return {'product_id': p['id'], 'titulo': _texto(p.get('title'), 255),
-            'tienda': _texto(_objeto(p.get('shop')).get('name'), 160),
-            'precio_min': precio_min, 'precio_max': precio_max, 'moneda': moneda,
-            'imagen_url': galeria[0] if galeria else None, 'estado': estado}
+    producto = {'product_id': p['id'], 'titulo': _texto(p.get('title'), 255),
+                'tienda': _texto(_objeto(p.get('shop')).get('name'), 160),
+                'precio_min': precio_min, 'precio_max': precio_max, 'moneda': moneda,
+                'imagen_url': galeria[0] if galeria else None, 'estado': estado}
+    if origen_live:
+        # El ejemplo oficial lo anida en status, aunque la tabla lo pone en la raíz.
+        estados = ('ADDED', 'NOT_ADDED', 'REJECTED')
+        agregado = status.get('added_status')
+        if agregado not in estados:
+            agregado = p.get('added_status')
+        producto['estado_agregado'] = agregado if agregado in estados else None
+    return producto
 
 
 def _resultados(ids: list[str], data: Json, agregar: bool) -> list[Json]:
@@ -159,13 +167,16 @@ class ShowcaseCreator:
         return dato
 
     def listar(self, filtros: Mapping[str, str]) -> Json:
-        if set(filtros) - {'limit', 'cursor'}:
+        if set(filtros) - {'limit', 'cursor', 'origin'}:
             raise _invalido('filtros')
+        origen = filtros.get('origin', 'SHOWCASE')
+        if origen not in ('SHOWCASE', 'LIVE'):
+            raise _invalido('origin')
         limite = filtros.get('limit', '20')
         if not re.fullmatch(r'[0-9]{1,2}', limite) or not 1 <= int(limite) <= 20:
             raise _invalido('limit')
         limite_num = int(limite)
-        query = {'page_size': str(limite_num), 'origin': 'SHOWCASE'}
+        query = {'page_size': str(limite_num), 'origin': origen}
         if 'cursor' in filtros:
             token = _cursor(filtros['cursor'])
             if token is None:
@@ -178,7 +189,7 @@ class ShowcaseCreator:
             for item in lista[:limite_num]:
                 p = _objeto(item)
                 if ref_valido('p', p.get('id')) and p['id'] not in productos:
-                    productos[p['id']] = _producto(p)
+                    productos[p['id']] = _producto(p, origen_live=origen == 'LIVE')
         elif dato.get('total_count') != 0:
             raise ErrorDominio('tiktok_no_disponible', 'TikTok no devolvió una lista válida de productos.', http=502)
         total = dato.get('total_count')

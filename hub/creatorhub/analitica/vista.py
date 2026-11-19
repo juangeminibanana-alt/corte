@@ -1433,7 +1433,7 @@ class Vista:
                 'likes': fuente['likes'] if fuente is not None else None,
                 'comentarios': fuente['comentarios'] if fuente is not None else None,
                 'compartidos': fuente['compartidos'] if fuente is not None else None,
-                'metricas_at': (v['visto_at'] if v is not None else h['actualizado_at'] if h is not None else None),
+                'metricas_at': (v['metricas_at'] if v is not None else h['actualizado_at'] if h is not None else None),
                 'ventas': venta,
                 'muestras_vinculadas': venta['muestras_vinculadas'] if venta is not None
                                        else sorted(vinculadas.get(cid, []))})

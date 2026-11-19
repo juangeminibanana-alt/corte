@@ -139,7 +139,6 @@ def guardar_videos(db: sqlite3.Connection, videos: Iterable[Mapping[str, Any]], 
     """Upsert de una página de videos ya normalizados + su foto del día. -> (nuevos, cambiados). Una firma nueva en
     la URL de la portada (caduca en ~6 h) se guarda pero no cuenta como cambio."""
     nuevos = cambiados = 0
-    hoy = fecha_mx(ahora)
     for v in videos:
         vid = v['video_id']
         previo = db.execute(f'SELECT {", ".join(_CAMPOS_VIDEO)}, portada_url FROM videos_tiktok WHERE video_id = ?',
@@ -160,16 +159,40 @@ def guardar_videos(db: sqlite3.Connection, videos: Iterable[Mapping[str, Any]], 
                            actualizado_at=CASE WHEN ? THEN ? ELSE actualizado_at END WHERE video_id=?""",
                        (*valores, v.get('portada_url') or previo['portada_url'], v.get('portada_url'), ahora, ahora,
                         int(distinto), ahora, vid))
-        cifras = tuple(v.get(k) for k in _CIFRAS_VIDEO)
-        ultimo = db.execute('SELECT fecha, vistas, likes, comentarios, compartidos FROM videos_tiktok_dias '
-                            'WHERE video_id = ? ORDER BY fecha DESC LIMIT 1', (vid,)).fetchone()
-        if ultimo is None or ultimo['fecha'] == hoy or tuple(ultimo)[1:] != cifras:
-            db.execute("""INSERT INTO videos_tiktok_dias(video_id, fecha, vistas, likes, comentarios, compartidos,
-                          actualizado_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(video_id, fecha) DO UPDATE SET
-                          vistas=excluded.vistas, likes=excluded.likes, comentarios=excluded.comentarios,
-                          compartidos=excluded.compartidos, actualizado_at=excluded.actualizado_at""",
-                       (vid, hoy, *cifras, ahora))
+        _guardar_video_dia(db, vid, tuple(v.get(k) for k in _CIFRAS_VIDEO), ahora)
     return nuevos, cambiados
+
+
+def _guardar_video_dia(db: sqlite3.Connection, vid: str, cifras: tuple[int | None, ...], ahora: int) -> None:
+    hoy = fecha_mx(ahora)
+    ultimo = db.execute('SELECT fecha, vistas, likes, comentarios, compartidos FROM videos_tiktok_dias '
+                        'WHERE video_id = ? ORDER BY fecha DESC LIMIT 1', (vid,)).fetchone()
+    if ultimo is None or ultimo['fecha'] == hoy or tuple(ultimo)[1:] != cifras:
+        db.execute("""INSERT INTO videos_tiktok_dias(video_id, fecha, vistas, likes, comentarios, compartidos,
+                      actualizado_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(video_id, fecha) DO UPDATE SET
+                      vistas=excluded.vistas, likes=excluded.likes, comentarios=excluded.comentarios,
+                      compartidos=excluded.compartidos, actualizado_at=excluded.actualizado_at""",
+                   (vid, hoy, *cifras, ahora))
+
+
+def leer_metricas_video(db: sqlite3.Connection, vid: str) -> sqlite3.Row | None:
+    return db.execute('SELECT vistas, likes, comentarios, compartidos, visto_at, actualizado_at '
+                      'FROM videos_tiktok WHERE video_id = ?', (vid,)).fetchone()
+
+
+def actualizar_metricas_video(db: sqlite3.Connection, video: Mapping[str, Any],
+                              previo: sqlite3.Row, ahora: int) -> None:
+    """Actualiza los contadores de un video ya conocido, conservando su portada y su última aparición en el listado."""
+    cifras = tuple(anterior if video[k] is None else video[k]
+                   for k, anterior in zip(_CIFRAS_VIDEO, previo))
+    vid = video['video_id']
+    db.execute('UPDATE videos_tiktok SET vistas=?, likes=?, comentarios=?, compartidos=?, actualizado_at=? '
+               'WHERE video_id=?', (*cifras, max(ahora, previo['actualizado_at']), vid))
+    _guardar_video_dia(db, vid, cifras, ahora)
+
+
+def tiene_metricas_video(video: Mapping[str, Any]) -> bool:
+    return any(video[k] is not None for k in _CIFRAS_VIDEO)
 
 
 def quitar_no_vistos(db: sqlite3.Connection, vistos: set[str]) -> int:

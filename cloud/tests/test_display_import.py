@@ -1,4 +1,5 @@
 """Real portable vault and provider-client behavior with synthetic credentials."""
+import json
 import os
 from pathlib import Path
 import sys
@@ -11,11 +12,16 @@ from urllib.parse import parse_qs, urlsplit
 from werkzeug.security import generate_password_hash
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'hub'))
-from cloud.app import Settings, create_app
+from cloud.app import Settings, create_app, opaque_client_scopes
 from creatorhub.errores import ErrorRed
 from creatorhub.hub import iniciar_hub
 from creatorhub.interfaces import OpcionesHub
+from creatorhub.tiktok_dev import datos as D
 from creatorhub.tiktok_dev.errores import ErrorDisplay
+
+
+VIDEO = '7000000000000000001'
+OTRO_VIDEO = '7000000000000000002'
 
 
 class DisplayImportTests(unittest.TestCase):
@@ -197,6 +203,123 @@ class DisplayImportTests(unittest.TestCase):
         service.cliente.canjear = Mock(side_effect=stale_failure)
         self.assertEqual(service.callback('state=' + state + '&code=synthetic')[0], 409)
         self.assertIsNone(service.boveda.leer()['ultimo_error'])
+
+    def preparar_actualizacion(self):
+        self.assertEqual(self.send().status_code, 200)
+        self.publicado_at = int(self.hub.reloj.ahora()) - 600
+        with self.hub.almacen.escritor() as db:
+            db.execute('INSERT INTO cuenta(id, creator_open_id, username, actualizado_at) VALUES (1, ?, ?, ?)',
+                       ('shop-namespace-id', 'creador_sintetico', self.publicado_at))
+            D.guardar_videos(db, [D.normalizar_video({'id': vid, 'view_count': 100, 'like_count': 7,
+                                                      'cover_image_url': 'https://img.example/portada'})
+                                 for vid in (VIDEO, OTRO_VIDEO)], self.publicado_at)
+            db.execute('INSERT INTO sync_cursores (clave, valor, actualizado_at) VALUES (?, ?, ?)',
+                       (D.CLAVE_ULTIMA_SYNC, json.dumps({'at': self.publicado_at, 'visto_tope': self.publicado_at}),
+                        self.publicado_at))
+        self.transport.manejar.reset_mock()
+
+    @staticmethod
+    def respuesta_video(*videos):
+        return 200, {'data': {'videos': list(videos)}, 'error': {'code': 'ok'}}
+
+    def actualizar_video(self, vid=VIDEO, **kwargs):
+        return self.client.post(f'/api/catalogo/videos/{vid}/actualizar',
+                                headers=self.headers, base_url=self.base, **kwargs)
+
+    def cifras_video(self, vid):
+        with self.hub.almacen.lector() as db:
+            return tuple(D.leer_metricas_video(db, vid))
+
+    def test_actualiza_contadores_y_foto_diaria_sin_cambiar_publicacion_ni_otra_ficha(self):
+        self.preparar_actualizacion()
+        self.assertTrue(self.client.get('/api/session', base_url=self.base).json['capacidades']['display_video_actualizar'])
+        otro_antes = self.cifras_video(OTRO_VIDEO)
+        data_version = self.hub.almacen.versiones()[0]
+        self.transport.manejar.return_value = self.respuesta_video(
+            {'id': VIDEO, 'view_count': 271, 'comment_count': 3},
+            {'id': OTRO_VIDEO, 'view_count': 999})
+
+        response = self.actualizar_video(json={})
+        self.assertEqual((response.status_code, response.json), (200, {'actualizado': True}))
+        method, url, _, body = self.transport.manejar.call_args.args
+        self.assertEqual((method, urlsplit(url).path), ('POST', '/v2/video/query/'))
+        self.assertEqual(json.loads(body), {'filters': {'video_ids': [VIDEO]}})
+        self.assertEqual(self.cifras_video(OTRO_VIDEO), otro_antes)
+        self.assertEqual(self.cifras_video(VIDEO)[:5], (271, 7, 3, None, self.publicado_at))
+        self.assertEqual(self.hub.almacen.versiones()[0], data_version + 1)
+        with self.hub.almacen.lector() as db:
+            fila = db.execute('SELECT portada_url FROM videos_tiktok WHERE video_id=?', (VIDEO,)).fetchone()
+            self.assertEqual(fila['portada_url'], 'https://img.example/portada')
+            dia = db.execute('SELECT vistas, likes FROM videos_tiktok_dias WHERE video_id=? ORDER BY fecha DESC LIMIT 1',
+                             (VIDEO,)).fetchone()
+            self.assertEqual(tuple(dia), (271, 7))
+        ficha = self.client.get(f'/api/catalogo/videos/{VIDEO}', base_url=self.base)
+        self.assertEqual(ficha.status_code, 200, ficha.json)
+        detalle = ficha.json
+        self.assertEqual(detalle['video']['publicacion'], 'publico')
+        self.assertEqual(detalle['video']['vistas'], 271)
+        self.assertGreater(detalle['video']['metricas_at'], self.publicado_at)
+
+    def test_video_omitido_o_respuesta_sin_cifras_no_borra_ni_refresca_metricas(self):
+        self.preparar_actualizacion()
+        antes = self.cifras_video(VIDEO)
+        self.transport.manejar.return_value = self.respuesta_video()
+        self.assertEqual(self.actualizar_video().status_code, 404)
+        self.transport.manejar.return_value = self.respuesta_video({'id': VIDEO})
+        self.assertEqual(self.actualizar_video().status_code, 502)
+        self.assertEqual(self.cifras_video(VIDEO), antes)
+
+    def test_revisa_permisos_cuenta_video_y_cuerpo_antes_de_llamar_a_tiktok(self):
+        self.preparar_actualizacion()
+        self.assertEqual(self.actualizar_video('012').status_code, 422)
+        self.assertEqual(self.actualizar_video('703').status_code, 404)
+        self.assertEqual(self.actualizar_video(json={'forzar': True}).status_code, 422)
+        self.hub.auth.cuenta.return_value = {'username': 'otro_creador'}
+        self.assertEqual(self.actualizar_video().status_code, 409)
+        self.hub.auth.cuenta.return_value = {'username': 'creador_sintetico'}
+        self.hub.display.boveda.mutar(lambda d: d.update(scopes=['user.info.profile']))
+        self.assertEqual(self.actualizar_video().status_code, 403)
+        self.assertFalse(self.client.get('/api/session', base_url=self.base).json['capacidades']['display_video_actualizar'])
+        self.transport.manejar.assert_not_called()
+
+    def test_cambio_de_identidad_durante_consulta_descarta_resultado(self):
+        self.preparar_actualizacion()
+        antes = self.cifras_video(VIDEO)
+
+        def respuesta_despues_de_cambiar(*_):
+            self.hub.display.boveda.mutar(lambda d: d.update(open_id='otra-cuenta-display'), True)
+            return self.respuesta_video({'id': VIDEO, 'view_count': 888})
+
+        self.transport.manejar.side_effect = respuesta_despues_de_cambiar
+        self.assertEqual(self.actualizar_video().status_code, 409)
+        self.assertEqual(self.cifras_video(VIDEO), antes)
+
+    def test_firebase_exige_scope_vigente_antes_y_despues_de_tiktok(self):
+        self.preparar_actualizacion()
+        firebase = Mock()
+        firebase.web_config = {'authDomain': 'corte-test.firebaseapp.com'}
+        claims = {'uid': 'owner-test'}
+        firebase.verify_session.return_value = claims
+        settings = Settings(self.base, 'synthetic-session-' * 4, '', self.folder.name, self.folder.name,
+                            auth_provider='firebase')
+        client = create_app(settings, self.hub, firebase).test_client()
+        client.set_cookie('__session', 'synthetic-session', domain='corte.example')
+        route = f'/api/catalogo/videos/{VIDEO}/actualizar'
+        self.assertEqual(client.post(route, headers=self.headers, base_url=self.base).status_code, 409)
+        self.transport.manejar.assert_not_called()
+        scope = opaque_client_scopes(claims, 'shop-namespace-id')['cache_scope']
+        self.transport.manejar.return_value = self.respuesta_video({'id': VIDEO, 'view_count': 555})
+        headers = {**self.headers, 'X-Corte-Cache-Scope': scope}
+        self.assertEqual(client.post(route, headers=headers, base_url=self.base).status_code, 200)
+        self.assertEqual(self.cifras_video(VIDEO)[0], 555)
+
+        def respuesta_despues_de_cambiar(*_):
+            self.hub.boveda.mutar(lambda d: d.update(open_id='otra-cuenta-shop'), True)
+            return self.respuesta_video({'id': VIDEO, 'view_count': 888})
+
+        self.transport.manejar.side_effect = respuesta_despues_de_cambiar
+        self.assertEqual(client.post(route, headers=headers, base_url=self.base).status_code, 409)
+        self.assertEqual(self.cifras_video(VIDEO)[0], 555)
 
 
 if __name__ == '__main__':

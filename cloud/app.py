@@ -665,6 +665,35 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
         except Exception:
             return error('almacenamiento_no_disponible', 'No pudimos guardar la imagen en Firebase.', 503)
 
+    @app.post('/api/catalogo/videos/<content_id>/actualizar')
+    def refresh_display_video(content_id: str) -> Any:
+        if request.args or (request.get_data().strip() and request.get_json(silent=True) != {}):
+            return error('parametros_invalidos', 'La actualización debe enviarse sin parámetros.', 422)
+        if hub.display is None:
+            return error('display_no_conectada', 'Conecta TikTok en Ajustes para actualizar tus videos.', 409)
+        expected_scope = request.headers.get('X-Corte-Cache-Scope')
+
+        def identidad_shop() -> tuple[tuple[Any, ...], str]:
+            stored = hub.boveda.leer()
+            creator = stored.get('open_id')
+            if settings.auth_provider == 'firebase':
+                current_scope = opaque_client_scopes(g.firebase_claims, creator).get('cache_scope')
+                if (not expected_scope or not re.fullmatch(r'[a-f0-9]{64}', expected_scope)
+                        or not current_scope or not hmac.compare_digest(expected_scope, current_scope)):
+                    raise ErrorDominio('cuenta_cambio_sin_aplicar', 'Actualiza la cuenta conectada antes de refrescar el video.',
+                                       http=409)
+            if not creator or hub.auth.conexion().get('estado') != 'conectada':
+                raise ErrorDominio('cuenta_requerida', 'Conecta tu cuenta de TikTok Shop para verificar el video.', http=409)
+            if hub.sincronizador.estado().get('en_curso'):
+                raise ErrorDominio('conflicto', 'Espera a que termine la sincronización para refrescar el video.', http=409)
+            cuenta = hub.auth.cuenta() or {}
+            return (stored.get('app_key'), creator, stored.get('epoca_credenciales', 0)), cuenta.get('username') or ''
+
+        try:
+            return jsonify(hub.display.actualizar_video(content_id, hub._candado_mutacion, identidad_shop))
+        except ErrorDominio as exc:
+            return error(exc.codigo, exc.mensaje, exc.http)
+
     @app.route('/api/<path:path>', methods=['GET', 'POST', 'PATCH', 'PUT', 'DELETE'])
     @app.get('/img/<path:path>')
     def api(path: str) -> Any:

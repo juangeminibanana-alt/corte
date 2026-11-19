@@ -72,6 +72,28 @@ class VitrinaTests(unittest.TestCase):
                                                  'page_token': 'previous+/='}, None))
         self.assertEqual(kwargs['ctx'].open_id, 'user-test')
 
+    def test_lee_live_con_el_permiso_de_lectura_y_conserva_el_cursor(self):
+        self.grant['granted_scopes'] = ['creator.showcase.read']
+        self.cliente.llamar.return_value = {
+            'products': [
+                {'id': '100', 'status': {'added_status': 'ADDED', 'inventory_status': 'IN_STOCK'}},
+                {'id': '99', 'added_status': 'NOT_ADDED'},
+                {'id': '98', 'status': {'added_status': 'UNKNOWN'}},
+            ],
+            'total_count': 26, 'next_page_token': 'live-next',
+        }
+        status, headers, r = self.request(query={'origin': 'LIVE', 'limit': 3, 'cursor': 'live-prev'})
+        self.assertEqual(status, 200)
+        self.assertEqual(headers['Cache-Control'], 'no-store')
+        self.assertEqual((r['total'], r['cursor_siguiente']), (26, 'live-next'))
+        self.assertEqual([(p['product_id'], p['estado_agregado']) for p in r['productos']],
+                         [('100', 'ADDED'), ('99', 'NOT_ADDED'), ('98', None)])
+        self.assertEqual(r['productos'][0]['estado'], 'IN_STOCK')
+        self.assertEqual(self.cliente.llamar.call_args.args,
+                         ('GET', P_VITRINA, {'origin': 'LIVE', 'page_size': '3', 'page_token': 'live-prev'}, None))
+        self.assertTrue(self.cliente.llamar.call_args.kwargs['reintentar'])
+        self.almacen.escritor.assert_not_called()
+
     def test_agregar_parcial_invalida_cache_aunque_el_codigo_exterior_sea_cero(self):
         self.cliente.llamar.return_value = {'errors': [
             {'code': 16001001, 'message': 'detalle sin confianza', 'detail': {'product_id': '9'}}]}
@@ -113,6 +135,7 @@ class VitrinaTests(unittest.TestCase):
         for ids in ([], ['1'] * 21, ['a'], [1], ['1', '1']):
             self.assertEqual(self.request('POST', '/agregar', {'product_ids': ids})[0], 400)
         self.assertEqual(self.request(query={'cursor': 'x x'})[0], 400)
+        self.assertEqual(self.request(query={'origin': 'CATALOG'})[0], 400)
         self.assertEqual(self.request(metodo='POST')[0], 405)
         self.assertEqual(self.request(ctx=Contexto(origen='lan'))[0], 403)
         self.grant['granted_scopes'] = ['creator.video.write']
@@ -121,6 +144,7 @@ class VitrinaTests(unittest.TestCase):
         self.grant['granted_scopes'] = [SCOPE_ESCRIBIR]
         self.assertEqual(self.vitrina.capacidades(self.conexion), (False, False))
         self.assertEqual(self.request()[0], 403)
+        self.assertEqual(self.request(query={'origin': 'LIVE'})[0], 403)
         self.cliente.llamar.assert_not_called()
 
     def test_descarta_resultado_de_cuenta_distinta_sin_invalidar_su_cache(self):
@@ -208,6 +232,17 @@ class VitrinaHttpTests(unittest.TestCase):
 
     def start(self):
         return self.fixture.start(self)
+
+    def test_get_live_reenvia_origen_y_cursor_en_web_y_app(self):
+        token = self.fixture.grant(self)['token']
+        ruta = '/api/catalogo/vitrina'
+        query = 'origin=LIVE&cursor=live-next'
+        for cliente, auth in ((self.owner, {}), (self.client, {'Authorization': 'Bearer ' + token})):
+            self.hub.despachador.despachar.reset_mock()
+            r = cliente.get(f'{ruta}?{query}', base_url=self.base, headers={**self.headers, **auth})
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(self.hub.despachador.despachar.call_args.args[:3], ('GET', ruta, query))
+            self.assertNotIn('Authorization', self.hub.despachador.despachar.call_args.args[3])
 
     def test_post_necesita_scope_vigente_para_web_y_app(self):
         scope = self.owner.get('/api/cloud/session', base_url=self.base).json['cache_scope']
