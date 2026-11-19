@@ -8,6 +8,7 @@ import 'package:corte/platform/corte_runtime.dart';
 import 'package:corte/platform/native_bridge.dart';
 import 'package:corte/ui/shell.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -34,6 +35,13 @@ void main() {
           ? 'Android opens Inicio when it restores an existing session'
           : 'Android opens Inicio on return from a successful Google sign-in',
       (tester) async {
+        const nativeChannel = MethodChannel('corte/native');
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        messenger.setMockMethodCallHandler(nativeChannel, (_) async => null);
+        addTearDown(
+          () => messenger.setMockMethodCallHandler(nativeChannel, null),
+        );
         tester.view.devicePixelRatio = 1;
         tester.view.physicalSize = const Size(390, 844);
         addTearDown(tester.view.resetDevicePixelRatio);
@@ -79,10 +87,10 @@ void main() {
             paths.add(path);
             if (path == '/api/dashboard') await dashboardReady.future;
             if (path == '/api/native/auth/google') {
-              expect(request.headers['authorization'], isNull);
-              expect(jsonDecode(request.body)['id_token'], googleProof);
+              expectSync(request.headers['authorization'], isNull);
+              expectSync(jsonDecode(request.body)['id_token'], googleProof);
             } else {
-              expect(request.headers['authorization'], 'Bearer $bearer');
+              expectSync(request.headers['authorization'], 'Bearer $bearer');
             }
             final payload = switch (path) {
               '/api/native/auth/google' => {
@@ -180,7 +188,8 @@ void main() {
             ui.pause();
             await tester.pump(const Duration(seconds: 7));
             expect(paths.where(backgroundPaths.contains), isEmpty);
-            await ui.resume();
+            unawaited(ui.resume());
+            await tester.pump();
           }
           dashboardReady.complete();
           await tester.pumpAndSettle();
