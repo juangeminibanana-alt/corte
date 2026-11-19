@@ -2,7 +2,7 @@
 
 La configuración fija Flutter **3.50.0**, commit oficial `ab2912035e160d9cad6306df307576da6128ebdb`, en `toolchain.lock.json`. `tool/bootstrap_flutter.py` descarga únicamente esa revisión del repositorio oficial y comprueba el commit; si encuentra otro SDK en la ruta, falla sin modificarlo. `pubspec.lock` debe estar guardado antes de ejecutar CI.
 
-El workflow `.github/workflows/corte-flutter-builds.yml` admite inicio manual para Windows, Android o web. Como GitHub exige que `workflow_dispatch` exista en la rama por defecto, la revisión inicial usa un disparador acotado: sólo la rama `codex/tiktok-shop-firebase-cloud`, sólo cambios de `client_flutter/**` o del propio workflow y sólo compilación Windows. No se mezcla con `main` para activar CI; nuevos pushes cancelan la compilación anterior de esa revisión. Android y web conservan inicio manual.
+El workflow `.github/workflows/corte-flutter-builds.yml` admite inicio manual para Windows, Android o web. Como GitHub exige que `workflow_dispatch` exista en la rama por defecto, la revisión inicial usa un disparador acotado: sólo las ramas `codex/tiktok-shop-firebase-cloud` y `claude/corte-nube-trabajo`, sólo cambios de `client_flutter/**` o del propio workflow y sólo compilación Windows. No se mezcla con `main` para activar CI; nuevos pushes cancelan la compilación anterior de esa revisión. Android y web conservan inicio manual.
 
 Usa las acciones oficiales de GitHub fijadas por commit, permisos de lectura, runners estándar y retención de artefactos de un día. No instala secretos, no publica en Hosting ni tiendas y no usa runners de pago. El repositorio fue verificado público; el workflow se omite si pasa a privado. Las cuotas de almacenamiento de Actions siguen correspondiendo a la cuenta.
 

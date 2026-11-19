@@ -1,9 +1,9 @@
 name: Corte Flutter - reviewed builds
 
 on:
-  # The new workflow is not yet on main. Build only Windows on this review branch.
+  # The new workflow is not yet on main. Build only Windows on these review branches.
   push:
-    branches: [codex/tiktok-shop-firebase-cloud]
+    branches: [codex/tiktok-shop-firebase-cloud, claude/corte-nube-trabajo]
     paths: ['client_flutter/**', '.github/workflows/corte-flutter-builds.yml']
   workflow_dispatch:
     inputs:
