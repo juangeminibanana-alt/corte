@@ -46,7 +46,7 @@ export interface Transporte {
   /** GET de una ruta que no es una consulta (/api/sync/estado, /api/local/exportar, /api/lan/emparejar/{id}…). */
   obtener(ruta: string): Promise<unknown>;
   /** Mutación que no es estado local (hub.*, restaurar plantilla). Android: solo sync y restaurar; el resto solo_en_pc. */
-  pedir(metodo: MetodoMutacion, ruta: string, cuerpo?: unknown): Promise<unknown>;
+  pedir(metodo: MetodoMutacion, ruta: string, cuerpo?: unknown, cacheScope?: string): Promise<unknown>;
   /** Estado local. 'individual' = la ruta REST de cada op (Windows); 'lote' = /api/local/ops. */
   aplicarOps(ops: C.OpLocal[], modo: 'individual' | 'lote'): Promise<ResultadoOpTransporte[]>;
   conectarEventos(sumidero: SumideroEventos): () => void;

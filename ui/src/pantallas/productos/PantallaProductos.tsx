@@ -18,6 +18,7 @@ import {
 import { columnasProductos, useControlMuestra } from '@/bloques';
 import { CargaRejilla, ErrorVista } from './Estados';
 import { Marketplace } from './Marketplace';
+import { Vitrina } from './Vitrina';
 import { useColumnasQueCaben } from './ajusteColumnas';
 import {
   REGLA_COLUMNAS, buscarFilas, diasPublicadoSinVentas, esSegmento, filaConNombre, filtrarTodos, muestrasSinVentas, nombreVisible, productosVendidos,
@@ -120,15 +121,27 @@ function TarjetaTodos(p: { item: ElementoProducto }): ReactElement {
 
 export function PantallaProductos(): ReactElement {
   const [segmento, setSegmento] = useParametro('segmento');
+  const [productoVitrina] = useParametro('producto_vitrina');
   const sesion = useSesion();
   const puedeBuscar = sesion.datos?.capacidades.marketplace_creator === true;
-  if (segmento === 'marketplace') {
-    return <Marketplace puedeBuscar={puedeBuscar} alVolver={() => setSegmento(null, { reemplazar: true })} />;
+  const puedeLeer = sesion.datos?.capacidades.vitrina_creator === true;
+  const puedeEditar = sesion.datos?.capacidades.vitrina_creator_escribir === true;
+  if (segmento === 'vitrina') {
+    const id = productoVitrina && /^[0-9]{1,25}$/.test(productoVitrina) ? productoVitrina : '';
+    return <Vitrina key={`${sesion.datos?.cuenta?.username ?? ''}:${id}`}
+      puedeLeer={puedeLeer} puedeEditar={puedeEditar} cargandoAcceso={sesion.cargando}
+      puedeGenerar={sesion.datos?.capacidades.enlaces_afiliado_creator === true}
+      idInicial={id} alVolver={() => navegar('/productos', { reemplazar: true })} />;
   }
-  return <ProductosPropios {...(puedeBuscar ? { alExplorar: () => setSegmento('marketplace') } : {})} />;
+  if (segmento === 'marketplace') {
+    return <Marketplace puedeBuscar={puedeBuscar} alVolver={() => setSegmento(null, { reemplazar: true })}
+      {...(puedeLeer && puedeEditar ? { alAbrirVitrina: (id: string) => navegar('/productos?segmento=vitrina&producto_vitrina=' + encodeURIComponent(id)) } : {})} />;
+  }
+  return <ProductosPropios {...(puedeBuscar ? { alExplorar: () => setSegmento('marketplace') } : {})}
+    {...(puedeLeer ? { alVitrina: () => setSegmento('vitrina') } : {})} />;
 }
 
-function ProductosPropios({ alExplorar }: { alExplorar?: () => void }): ReactElement {
+function ProductosPropios({ alExplorar, alVitrina }: { alExplorar?: () => void; alVitrina?: () => void }): ReactElement {
   const [segParam, setSegmento] = useParametro('segmento');
   const segmento: Segmento = esSegmento(segParam) ? segParam : 'vendidos';
   const [vista, setVistaEstado] = useState<Vista>(() => (leerLocal(CLAVE_VISTA) === 'tabla' ? 'tabla' : 'cuadricula'));
@@ -256,9 +269,10 @@ function ProductosPropios({ alExplorar }: { alExplorar?: () => void }): ReactEle
         <EncabezadoPantalla
           titulo={T.titulo}
           {...(contexto ? { contexto } : {})}
-          {...(alExplorar || (segmento === 'vendidos' && conTabla && !sinNada && filas) ? {
+          {...(alExplorar || alVitrina || (segmento === 'vendidos' && conTabla && !sinNada && filas) ? {
             acciones: (
               <div className={cx(css.accionesEncabezado)}>
+              {alVitrina ? <Boton variante="secundario" icono="Store" alPulsar={alVitrina}>Vitrina</Boton> : null}
               {alExplorar ? <Boton variante="secundario" icono="Search" alPulsar={alExplorar}>Explorar TikTok Shop</Boton> : null}
               {segmento === 'vendidos' && conTabla && !sinNada && filas ? (
               <Segmentado<Vista>

@@ -46,7 +46,7 @@ const ordenes = [
   ['product_sales_price:DESC', 'Precio de mayor a menor'],
 ] as const;
 
-export function Marketplace(p: { puedeBuscar: boolean; alVolver: () => void }): ReactElement {
+export function Marketplace(p: { puedeBuscar: boolean; alVolver: () => void; alAbrirVitrina?: (id: string) => void }): ReactElement {
   const [q, setQ] = useState('');
   const [filtros, setFiltros] = useState<Partial<Record<(typeof campos)[number][0], string>>>({});
   const [categoria, setCategoria] = useState<{ id: string; nombre: string } | null>(null);
@@ -150,7 +150,11 @@ export function Marketplace(p: { puedeBuscar: boolean; alVolver: () => void }): 
                         ))}
                       </div> : null}
                     </div>
-                    {x.enlace ? <a href={x.enlace} target="_blank" rel="noopener noreferrer">Ver en TikTok</a> : null}
+                    <div className={css.acciones}>
+                      {p.alAbrirVitrina ? <Boton variante="secundario" tamano="sm"
+                        alPulsar={() => p.alAbrirVitrina?.(x.product_id)}>Abrir en vitrina</Boton> : null}
+                      {x.enlace ? <a href={x.enlace} target="_blank" rel="noopener noreferrer">Ver en TikTok</a> : null}
+                    </div>
                   </li>
                 ))}
               </ul>

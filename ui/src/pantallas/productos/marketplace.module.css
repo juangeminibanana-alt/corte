@@ -56,3 +56,4 @@
 
 .fila h2 { font-size: 1rem; font-weight: 650; }
 .fila h2, .fila p, .aviso { margin: 0; }
+.enlaceLargo { overflow-wrap: anywhere; }

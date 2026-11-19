@@ -103,7 +103,7 @@ jobs:
 
   web:
     needs: checks
-    if: github.event.repository.private == false && (inputs.target == 'web' || inputs.target == 'all')
+    if: github.event.repository.private == false && (inputs.target == 'web' || inputs.target == 'all' || (github.event_name == 'push' && github.ref_name == 'codex/corte-nube-revision'))
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:

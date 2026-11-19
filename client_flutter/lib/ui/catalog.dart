@@ -12,6 +12,7 @@ import 'product_evidence.dart';
 import 'sales_origin.dart';
 import 'video_catalog.dart';
 import 'marketplace.dart';
+import 'showcase.dart';
 
 Future<void> openPublicLink(BuildContext context, String? value) async {
   final url = Uri.tryParse(value ?? '');
@@ -179,7 +180,7 @@ class _ProductsPageState extends State<ProductsPage> {
   String _search = '', _order = 'comision';
   bool _samples = false;
   (String?, String?, int)? _sessionKey;
-  Future<bool>? _marketplaceAccess;
+  Future<JsonMap>? _capabilities;
 
   @override
   Widget build(BuildContext context) {
@@ -188,39 +189,65 @@ class _ProductsPageState extends State<ProductsPage> {
     final sessionKey = (identity.$1, identity.$2, ui.revision);
     if (_sessionKey != sessionKey) {
       _sessionKey = sessionKey;
-      _marketplaceAccess = ui.repo.sesion().then(
-        (session) => session.capacidades?['marketplace_creator'] == true,
+      _capabilities = ui.repo.sesion().then(
+        (session) => session.capacidades ?? const {},
       );
     }
-    final exploring =
-        Uri.tryParse(ui.location)?.queryParameters['segmento'] == 'marketplace';
-    return FutureBuilder<bool>(
+    final segment = Uri.tryParse(ui.location)?.queryParameters['segmento'];
+    void back() {
+      if (!ui.back()) ui.replace('/productos');
+    }
+
+    return FutureBuilder<JsonMap>(
       key: ValueKey(identity),
-      future: _marketplaceAccess,
+      future: _capabilities,
       builder: (context, session) {
-        final available = session.data == true && !session.hasError;
-        if (exploring) {
+        final canExplore = session.data?['marketplace_creator'] == true;
+        final canSeeShowcase = session.data?['vitrina_creator'] == true;
+        final canEditShowcase =
+            session.data?['vitrina_creator_escribir'] == true;
+        final canGenerateLinks =
+            session.data?['enlaces_afiliado_creator'] == true;
+        final checking = session.connectionState == ConnectionState.waiting;
+        void retry() => setState(() => _sessionKey = null);
+        if (segment == 'marketplace') {
           return MarketplacePage(
-            key: ValueKey(available),
-            available: available,
-            checkingAccess: session.connectionState == ConnectionState.waiting,
+            key: ValueKey(canExplore),
+            available: canExplore,
+            checkingAccess: checking,
             error: session.error,
-            onRetryAccess: () => setState(() => _sessionKey = null),
-            onBack: () {
-              if (!ui.back()) ui.replace('/productos');
-            },
+            onRetryAccess: retry,
+            onBack: back,
+          );
+        }
+        if (segment == 'vitrina') {
+          return ShowcasePage(
+            key: ValueKey((canSeeShowcase, canEditShowcase, canGenerateLinks)),
+            available: canSeeShowcase,
+            canWrite: canEditShowcase,
+            canGenerateLinks: canGenerateLinks,
+            checkingAccess: checking,
+            accessError: session.error,
+            onRetryAccess: retry,
+            onBack: back,
           );
         }
         return _buildProducts(
-          onExplore: available
+          onExplore: canExplore
               ? () => ui.go('/productos?segmento=marketplace')
+              : null,
+          onShowcase: canSeeShowcase
+              ? () => ui.go('/productos?segmento=vitrina')
               : null,
         );
       },
     );
   }
 
-  Widget _buildProducts({VoidCallback? onExplore}) => ApiData(
+  Widget _buildProducts({
+    VoidCallback? onExplore,
+    VoidCallback? onShowcase,
+  }) => ApiData(
     path: '/api/analitica/productos',
     query: const {'limite': 1000},
     builder: (context, data) {
@@ -260,12 +287,25 @@ class _ProductsPageState extends State<ProductsPage> {
                 'Productos',
                 subtitle:
                     '${data['total'] ?? rowsOf(data['items']).length} productos de tus ventas',
-                action: onExplore == null
+                action: onExplore == null && onShowcase == null
                     ? null
-                    : OutlinedButton.icon(
-                        onPressed: onExplore,
-                        icon: const Icon(Icons.search_rounded),
-                        label: const Text('Explorar TikTok Shop'),
+                    : Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (onShowcase != null)
+                            OutlinedButton.icon(
+                              onPressed: onShowcase,
+                              icon: const Icon(Icons.storefront_outlined),
+                              label: const Text('Vitrina'),
+                            ),
+                          if (onExplore != null)
+                            OutlinedButton.icon(
+                              onPressed: onExplore,
+                              icon: const Icon(Icons.search_rounded),
+                              label: const Text('Explorar TikTok Shop'),
+                            ),
+                        ],
                       ),
               ),
               const SalesNavigation(selected: 'productos'),

@@ -172,8 +172,9 @@ export function crearTransporteWindows(): Transporte {
     return cuerpo;
   }
 
-  async function mutar(metodo: MetodoMutacion, ruta: string, cuerpo?: unknown): Promise<unknown> {
+  async function mutar(metodo: MetodoMutacion, ruta: string, cuerpo?: unknown, cacheScope?: string): Promise<unknown> {
     const headers: Record<string, string> = { Accept: 'application/json', 'X-CH-Hub': '1' };
+    if (cacheScope) headers['X-Corte-Cache-Scope'] = cacheScope;
     const init: RequestInit = { method: metodo, credentials: 'same-origin', cache: 'no-store', headers };
     if (cuerpo !== undefined) {
       headers['Content-Type'] = 'application/json';
@@ -233,8 +234,8 @@ export function crearTransporteWindows(): Transporte {
       return getJson(ruta);
     },
 
-    pedir(metodo: MetodoMutacion, ruta: string, cuerpo?: unknown): Promise<unknown> {
-      return mutar(metodo, ruta, cuerpo);
+    pedir(metodo: MetodoMutacion, ruta: string, cuerpo?: unknown, cacheScope?: string): Promise<unknown> {
+      return mutar(metodo, ruta, cuerpo, cacheScope);
     },
 
     async aplicarOps(ops: C.OpLocal[], modo: 'individual' | 'lote'): Promise<ResultadoOpTransporte[]> {

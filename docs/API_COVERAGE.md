@@ -69,17 +69,17 @@ Las portadas de video provienen de la autorización separada [TikTok Display API
 
 El cliente Display también implementa [Query Videos](https://developers.tiktok.com/docs/en/tiktok-api-v2-video-query) (`POST /v2/video/query/`, scope `video.list`, el mismo de `video/list`): de 1 a 20 videos propios por ID, siempre en texto, en una sola llamada. Todavía no lo usa ninguna ruta, pantalla ni paso de sincronización. TikTok no documenta qué ocurre con un ID ajeno, privado o borrado: se espera que no aparezca en la respuesta, y esa ausencia no prueba que el video se haya borrado o vuelto privado. Falta comprobarlo con la autorización real.
 
-## Las otras 15 operaciones del catálogo Creator
+## Otras operaciones del catálogo Creator
 
 Estas completan las 26 operaciones públicas verificadas. Ninguna es una consulta general de detalle comercial con fotos por SKU ni una API de reseñas de compradores.
 
 | Método y ruta | Función y situación en Corte |
 |---|---|
-| [POST `/affiliate_creator/202405/showcases/products/add`](https://partner.tiktokshop.com/docv2/page/add-showcase-products-202405) | Agregar a vitrina; no implementado. Es una mutación. |
-| [DELETE `/affiliate_creator/202409/showcases/products`](https://partner.tiktokshop.com/docv2/page/remove-showcase-products-202409) | Quitar de vitrina; no implementado. Es una mutación. |
-| [POST `/affiliate_creator/202409/showcases/products/top`](https://partner.tiktokshop.com/docv2/page/move-showcase-products-to-the-top-202409) | Fijar productos; no implementado. Es una mutación. |
-| [POST `/affiliate_creator/202505/affiliate_sharing_links/general_publishers/generate_batch`](https://partner.tiktokshop.com/docv2/page/generate-general-sharing-links-202505) | Generar enlaces de afiliación; no implementado. |
-| [POST `/affiliate_creator/202504/affiliate_sharing_links/publisher/{publisher_id}/generate_batch`](https://partner.tiktokshop.com/docv2/page/generate-publisher-sharing-links-in-batch-202504) | Generar enlaces para un publisher; no implementado. |
+| [POST `/affiliate_creator/202405/showcases/products/add`](https://partner.tiktokshop.com/docv2/page/add-showcase-products-202405) | Agregar a vitrina por ID desde **Productos → Vitrina**, con acceso de escritura. |
+| [DELETE `/affiliate_creator/202409/showcases/products`](https://partner.tiktokshop.com/docv2/page/remove-showcase-products-202409) | Quitar productos elegidos desde **Vitrina**, con resultado por producto. |
+| [POST `/affiliate_creator/202409/showcases/products/top`](https://partner.tiktokshop.com/docv2/page/move-showcase-products-to-the-top-202409) | Fijar al inicio productos elegidos desde **Vitrina**. |
+| [POST `/affiliate_creator/202505/affiliate_sharing_links/general_publishers/generate_batch`](https://partner.tiktokshop.com/docv2/page/generate-general-sharing-links-202505) | Generar enlace web de afiliado desde **Vitrina**, con el permiso de enlaces. |
+| [POST `/affiliate_creator/202504/affiliate_sharing_links/publisher/{publisher_id}/generate_batch`](https://partner.tiktokshop.com/docv2/page/generate-publisher-sharing-links-in-batch-202504) | Generar enlace para un publisher desde **Vitrina** mediante su identificador externo. |
 | [POST `/affiliate_creator/202505/videos/video_files`](https://partner.tiktokshop.com/docv2/page/upload-shoppable-video-file-202505) | Subir video comprable; no implementado. Requiere `creator.video.write`. |
 | [GET `/affiliate_creator/202509/shop_products`](https://partner.tiktokshop.com/docv2/page/get-shop-products-202509) | Productos de la **tienda vinculada al creador**, que debe existir. Requiere `creator.video.write`; no integrado. Entrega imágenes, título, precio, marca y ventas; no SKU ni reseñas. No es una consulta de cualquier producto afiliado. |
 | [GET `/affiliate_creator/202509/videos/{video_id}/status`](https://partner.tiktokshop.com/docv2/page/get-shoppable-video-status-202509) | Estado de publicación; no implementado. |

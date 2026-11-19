@@ -172,6 +172,9 @@ export interface Capacidades {
   sincronizar: boolean;    // puede disparar /api/sync
   catalogo_videos?: boolean; // rev. 6: el hub tiene GET /api/catalogo/videos (ausente en hubs anteriores)
   marketplace_creator?: boolean; // el hub admite búsquedas de colaboración abierta con la conexión actual
+  vitrina_creator?: boolean;
+  vitrina_creator_escribir?: boolean;
+  enlaces_afiliado_creator?: boolean;
 }
 
 /** GET /api/session */
