@@ -24,6 +24,9 @@ class CorteNativeBridge implements CorteCredentialStore {
   Future<String?> signInWithGoogle() =>
       _google.invokeMethod<String>('signInWithGoogle');
 
+  Future<String?> filesDirectory() =>
+      _channel.invokeMethod<String>('filesDirectory');
+
   Future<CorteAndroidExit?> lastAndroidExit() async {
     final payload = await _channel.invokeMapMethod<String, Object?>(
       'lastAndroidExit',

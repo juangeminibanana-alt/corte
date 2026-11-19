@@ -1,7 +1,7 @@
 name: corte
 description: CUTGC para Android, Windows y web, conectado a Google Cloud.
 publish_to: none
-version: 2.4.11+20411
+version: 2.4.12+20412
 
 environment:
   sdk: '>=3.10.0 <4.0.0'

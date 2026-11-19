@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'android_startup.dart';
 import 'data_store.dart';
+import 'native_bridge.dart';
 
 CorteDataStore createStore() => _NativeStore();
 
@@ -21,10 +24,26 @@ class _NativeStore implements CorteDataStore {
   }
 
   Future<Directory> _root() => _directory ??= () async {
-    final parent = await getApplicationSupportDirectory();
-    return Directory(
-      '${parent.path}${Platform.pathSeparator}corte_flutter_data',
+    // Keep the same Android filesDir as path_provider while avoiding its
+    // Dart-to-JNI calls on the first read of the authenticated journal.
+    final String parent;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      CorteAndroidStartup.mark('local_directory_open');
+      final path = await const CorteNativeBridge().filesDirectory();
+      if (path == null || path.isEmpty) {
+        throw const CorteStoreException(
+          'Android no devolvió la carpeta de CUTGC.',
+        );
+      }
+      parent = path;
+    } else {
+      parent = (await getApplicationSupportDirectory()).path;
+    }
+    final root = await Directory(
+      '$parent${Platform.pathSeparator}corte_flutter_data',
     ).create(recursive: true);
+    CorteAndroidStartup.mark('local_directory_ready');
+    return root;
   }();
   Future<File> _file(String key) async =>
       File('${(await _root()).path}${Platform.pathSeparator}$key.json');

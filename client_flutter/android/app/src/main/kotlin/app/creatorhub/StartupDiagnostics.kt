@@ -29,6 +29,8 @@ internal object StartupDiagnostics {
     private val phases = mapOf(
         "dart_ready" to "Inicio de Flutter",
         "dart_recovery_ready" to "Flutter recibió Inicio ligero",
+        "local_directory_open" to "Abriendo la carpeta local de CUTGC",
+        "local_directory_ready" to "Carpeta local de CUTGC lista",
         "auth_restoring" to "Restaurando sesión",
         "auth_ready" to "Sesión lista",
         "home_open" to "Abriendo Inicio",
@@ -140,6 +142,11 @@ internal object StartupDiagnostics {
                 exits.isEmpty() -> appendLine("Android no muestra una salida reciente de CUTGC.")
                 else -> exits.forEach { exit ->
                     appendLine("${date.format(Date(exit.time))} · ${exit.reason} (motivo ${exit.code}, estado ${exit.status}, proceso ${exit.pid})")
+                    for (frame in exit.nativeFrames) {
+                        append("  ${frame.library} + 0x${frame.relativePc.toString(16)}")
+                        if (frame.buildId != null) append(" · ELF ${frame.buildId}")
+                        appendLine()
+                    }
                 }
             }
         }
@@ -173,8 +180,19 @@ internal object StartupDiagnostics {
             .filter { it.processName == packageName }
             .sortedByDescending { it.timestamp }
             .take(2)
-            .map { Exit(it.timestamp, it.pid, it.reason, it.status, exitReason(it.reason)) }
+            .map {
+                Exit(it.timestamp, it.pid, it.reason, it.status, exitReason(it.reason), nativeFrames(it))
+            }
             .toList()
+    }
+
+    private fun nativeFrames(exit: ApplicationExitInfo): List<NativeExitTrace.Frame> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            exit.reason != ApplicationExitInfo.REASON_CRASH_NATIVE
+        ) return emptyList()
+        return runCatching {
+            exit.traceInputStream?.use { NativeExitTrace.read(it, exit.pid) }
+        }.getOrNull().orEmpty()
     }
 
     private fun exitReason(reason: Int): String = when (reason) {
@@ -215,6 +233,13 @@ internal object StartupDiagnostics {
         fun encode() = "$time\t$pid\t$name\t$flags"
     }
 
-    private data class Exit(val time: Long, val pid: Int, val code: Int, val status: Int, val reason: String)
+    private data class Exit(
+        val time: Long,
+        val pid: Int,
+        val code: Int,
+        val status: Int,
+        val reason: String,
+        val nativeFrames: List<NativeExitTrace.Frame>,
+    )
     private data class AppDetails(val version: String, val updatedAt: Long)
 }

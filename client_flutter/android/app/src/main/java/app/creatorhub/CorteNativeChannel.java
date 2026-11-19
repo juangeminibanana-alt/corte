@@ -70,6 +70,7 @@ public final class CorteNativeChannel {
                         case "secureDelete": secure.borrar(key(call.argument("key"))); value = null; break;
                         case "legacyInfo": value = info(); break;
                         case "dataRoot": value = dataRoot().getAbsolutePath(); break;
+                        case "filesDirectory": value = context.getFilesDir().getAbsolutePath(); break;
                         case "legacyRead": value = readLegacy(call.argument("name")); break;
                         case "lastAndroidExit": value = lastAndroidExit(); break;
                         case "notificationPermission": value = Recordatorios.permiso(this.context); break;
