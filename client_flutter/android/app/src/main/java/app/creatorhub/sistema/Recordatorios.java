@@ -191,7 +191,13 @@ public final class Recordatorios {
             final PendingResult pendiente = goAsync();
             final Context app = ctx.getApplicationContext();
             new Thread(() -> {
-                try { mostrar(app, intent); } finally { pendiente.finish(); }
+                try {
+                    mostrar(app, intent);
+                } catch (RuntimeException failure) {
+                    android.util.Log.w("CUTGC", "Recordatorio no entregado: " + failure.getClass().getSimpleName());
+                } finally {
+                    pendiente.finish();
+                }
             }, "corte-recordatorio").start();
         }
     }

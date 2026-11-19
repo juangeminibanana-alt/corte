@@ -29,9 +29,15 @@ class _Credentials implements CorteCredentialStore {
 }
 
 void main() {
-  for (final restore in [false, true]) {
+  for (final (restore, recovery) in [
+    (false, false),
+    (true, false),
+    (true, true),
+  ]) {
     testWidgets(
-      restore
+      recovery
+          ? 'Android recovery opens Inicio without loading account data automatically'
+          : restore
           ? 'Android opens Inicio when it restores an existing session'
           : 'Android opens Inicio on return from a successful Google sign-in',
       (tester) async {
@@ -139,6 +145,7 @@ void main() {
         final ui = CorteUiController(
           auth: auth,
           openStore: () async => MemoryCorteDataStore(),
+          androidRecovery: recovery,
         );
         final router = CorteRouter(ui);
         try {
@@ -164,6 +171,13 @@ void main() {
 
           expect(find.byType(CorteShell), findsOneWidget);
           expect(find.byType(CorteAccess), findsNothing);
+          if (recovery) {
+            expect(find.text('Inicio ligero'), findsOneWidget);
+            await tester.pump(const Duration(seconds: 30));
+            expect(paths, ['/api/native/session']);
+            await tester.tap(find.text('Cargar resultados'));
+            await tester.pumpAndSettle();
+          }
           expect(find.text('Tu negocio, en orden'), findsOneWidget);
           expect(find.text('Ventas generadas'), findsOneWidget);
           expect(find.text('Cargando resultados…'), findsWidgets);
@@ -184,7 +198,7 @@ void main() {
           await tester.pump(const Duration(seconds: 2));
           expect(paths.where(backgroundPaths.contains), isEmpty);
 
-          if (restore) {
+          if (restore && !recovery) {
             ui.pause();
             await tester.pump(const Duration(seconds: 7));
             expect(paths.where(backgroundPaths.contains), isEmpty);
@@ -199,7 +213,7 @@ void main() {
           await tester.pumpAndSettle();
           expect(
             paths.where(backgroundPaths.contains),
-            unorderedEquals(backgroundPaths),
+            unorderedEquals(recovery ? const <String>[] : backgroundPaths),
           );
           expect(paths.where((path) => path.startsWith('/api/native/auth/')), [
             if (!restore) '/api/native/auth/google',

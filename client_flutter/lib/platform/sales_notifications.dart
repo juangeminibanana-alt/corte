@@ -59,6 +59,7 @@ class CorteSalesNotifications extends ChangeNotifier {
     }
   }
 
+  // Clear the previous scope immediately even when automatic refresh is paused.
   void bind(
     CorteRepository repo, {
     required bool authenticated,

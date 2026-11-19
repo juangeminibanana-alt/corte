@@ -142,7 +142,9 @@ class _CorteShellState extends State<CorteShell> {
     final screen = TweenAnimationBuilder<double>(
       key: ValueKey(ui.location),
       tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: reducedMotion ? 120 : 200),
+      duration: Duration(
+        milliseconds: ui.androidRecovery ? 0 : (reducedMotion ? 120 : 200),
+      ),
       curve: _enterCurve,
       builder: (context, progress, child) => Opacity(
         opacity: progress,

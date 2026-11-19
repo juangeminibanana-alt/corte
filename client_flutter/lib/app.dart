@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'auth/auth_controller.dart';
 import 'data/corte_repository.dart';
+import 'platform/android_startup.dart';
 import 'platform/data_store.dart';
 import 'platform/notifications.dart';
 import 'platform/sales_notifications.dart';
@@ -15,7 +16,8 @@ import 'ui/widgets.dart';
 import 'ui/desktop.dart';
 
 class CorteApplication extends StatefulWidget {
-  const CorteApplication({super.key});
+  const CorteApplication({super.key, this.androidRecovery = false});
+  final bool androidRecovery;
   @override
   State<CorteApplication> createState() => _CorteApplicationState();
 }
@@ -30,8 +32,12 @@ class _CorteApplicationState extends State<CorteApplication>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _auth = CorteAuthController();
-    _ui = CorteUiController(auth: _auth);
+    _ui = CorteUiController(
+      auth: _auth,
+      androidRecovery: widget.androidRecovery,
+    );
     _router = CorteRouter(_ui);
+    CorteAndroidStartup.mark('auth_restoring');
     unawaited(_auth.initialize());
   }
 
@@ -93,7 +99,9 @@ class CorteUiController extends ChangeNotifier {
   CorteUiController({
     required this.auth,
     Future<CorteDataStore> Function() openStore = createCorteDataStore,
-  }) : salesNotifications = CorteSalesNotifications(runtime: auth.runtime) {
+    bool androidRecovery = false,
+  }) : androidRecovery = androidRecovery && auth.runtime.platform == 'android',
+       salesNotifications = CorteSalesNotifications(runtime: auth.runtime) {
     repo = CorteRepository(adapter: auth.transport);
     appearance = CorteThemePreferences(repo)..addListener(notifyListeners);
     textSize = CorteTextSizePreference(
@@ -107,7 +115,9 @@ class CorteUiController extends ChangeNotifier {
               repo.attachStore(store);
               unawaited(textSize.load(store));
               repo.invalidar();
-              unawaited(appearance.load(force: true));
+              if (!this.androidRecovery) {
+                unawaited(appearance.load(force: true));
+              }
               revision++;
               notifyListeners();
               unawaited(_maintain());
@@ -119,19 +129,16 @@ class CorteUiController extends ChangeNotifier {
             notifyListeners();
           }),
     );
-    unawaited(
-      notifications.initialize(
-        onOpen: (value) {
-          _openNotification(value);
-        },
-      ),
-    );
-    unawaited(salesNotifications.initialize(onOpen: _openNotification));
-    _revisionTimer = Timer.periodic(const Duration(seconds: 25), (_) {
-      unawaited(_maintain());
-    });
+    if (!this.androidRecovery) {
+      unawaited(notifications.initialize(onOpen: _openNotification));
+      unawaited(salesNotifications.initialize(onOpen: _openNotification));
+      _revisionTimer = Timer.periodic(const Duration(seconds: 25), (_) {
+        unawaited(_maintain());
+      });
+    }
   }
   final CorteAuthController auth;
+  final bool androidRecovery;
   final notifications = CorteNotifications();
   final CorteSalesNotifications salesNotifications;
   static const _androidStartupDelay = Duration(seconds: 6);
@@ -160,6 +167,7 @@ class CorteUiController extends ChangeNotifier {
         ? '${auth.state.ownerScope}:${auth.state.cacheScope}'
         : null;
     if (_scope != value) {
+      if (value != null) CorteAndroidStartup.mark('auth_ready');
       _scope = value;
       _scopeEpoch++;
       _startupTimer?.cancel();
@@ -171,7 +179,7 @@ class CorteUiController extends ChangeNotifier {
         cacheScope: auth.state.authenticated ? auth.state.cacheScope : null,
       );
       appearance.resetForScope();
-      unawaited(appearance.load());
+      if (!androidRecovery) unawaited(appearance.load());
       revision++;
       _remoteRevision = null;
       _warmedRevision = null;
@@ -184,7 +192,7 @@ class CorteUiController extends ChangeNotifier {
   void _bindSalesNotifications() => salesNotifications.bind(
     repo,
     authenticated: auth.state.authenticated,
-    refreshAutomatically: !_androidStartupPending,
+    refreshAutomatically: !androidRecovery && !_androidStartupPending,
   );
 
   void go(String value) {
@@ -234,6 +242,7 @@ class CorteUiController extends ChangeNotifier {
   Future<void> resume() async {
     _foreground = true;
     _dataDirty = true;
+    if (androidRecovery) return;
     final route = await notifications.readLaunchRoute();
     if (route != null && !_closed) _openNotification(route);
     unawaited(salesNotifications.refresh());
@@ -262,7 +271,12 @@ class CorteUiController extends ChangeNotifier {
   }
 
   Future<void> _maintain() async {
-    if (_closed || !_foreground || !auth.state.authenticated) return;
+    if (_closed ||
+        androidRecovery ||
+        !_foreground ||
+        !auth.state.authenticated) {
+      return;
+    }
     if (_androidStartupPending) {
       // Keep the first authenticated frames free of full snapshot, outbox,
       // thumbnail and notification work. A pause restarts the window on resume.
@@ -418,7 +432,12 @@ class CorteRouter extends RouterDelegate<String>
   }
 
   @override
-  Future<bool> popRoute() async => ui.back();
+  Future<bool> popRoute() async {
+    final handled = ui.back();
+    if (!handled) CorteAndroidStartup.mark('root_back');
+    return handled;
+  }
+
   @override
   Widget build(BuildContext context) => CorteScope(
     controller: ui,

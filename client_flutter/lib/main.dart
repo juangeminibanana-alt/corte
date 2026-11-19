@@ -2,8 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'app.dart';
+import 'platform/android_startup.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Keep keyboard, screen reader and browser accessibility navigation available.
   if (kIsWeb) WidgetsBinding.instance.ensureSemantics();
@@ -29,5 +30,8 @@ void main() {
     );
     yield LicenseEntryWithLineBreaks(['Lucide'], iconsLicense);
   });
-  runApp(const CorteApplication());
+  CorteAndroidStartup.trackErrors();
+  final recovery = await CorteAndroidStartup.recoveryMode();
+  CorteAndroidStartup.mark(recovery ? 'dart_recovery_ready' : 'dart_ready');
+  runApp(CorteApplication(androidRecovery: recovery));
 }

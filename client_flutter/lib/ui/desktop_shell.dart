@@ -44,8 +44,9 @@ class _DesktopShellState extends State<DesktopShell> {
     if (_scope == scope && _revision == ui.revision) return;
     _scope = scope;
     _revision = ui.revision;
-    _dashboard = scope.$2 == null ? null : ui.repo.dashboard();
-    _session = scope.$2 == null ? null : ui.repo.sesion();
+    final load = scope.$2 != null && !ui.androidRecovery;
+    _dashboard = load ? ui.repo.dashboard() : null;
+    _session = load ? ui.repo.sesion() : null;
   }
 
   @override

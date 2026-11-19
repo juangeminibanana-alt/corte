@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../app.dart';
 import '../domain/domain.dart';
+import '../platform/android_startup.dart';
 import 'corte_icons.dart';
 import 'format.dart';
 import 'home_sales.dart';
@@ -51,6 +52,9 @@ class _HomeState extends State<DesktopHomePage> {
   late Future<DashboardDto> _dashboard;
   late Future<MuestrasDto> _samples;
   bool _updating = false;
+  bool _opened = false;
+  bool _recoveryLoaded = false;
+  bool _readyMarked = false;
   String? _notice;
 
   _HomeScope _scopeFor(CorteUiController ui) =>
@@ -65,6 +69,21 @@ class _HomeState extends State<DesktopHomePage> {
         : const {},
   );
 
+  Future<T> _trace<T>(Future<T> load, String resource, _HomeScope scope) async {
+    try {
+      final data = await load;
+      if (mounted && _scope == scope) {
+        CorteAndroidStartup.mark('home_${resource}_loaded');
+      }
+      return data;
+    } catch (_) {
+      if (mounted && _scope == scope) {
+        CorteAndroidStartup.mark('home_${resource}_error');
+      }
+      rethrow;
+    }
+  }
+
   void _load(CorteUiController ui) {
     final scope = _scopeFor(ui);
     if (_scope != scope) {
@@ -74,10 +93,18 @@ class _HomeState extends State<DesktopHomePage> {
       _notice = null;
     }
     if (_revision == ui.revision) return;
+    final firstLoad = _revision == null;
     _revision = ui.revision;
     _session = ui.repo.sesion();
     _dashboard = ui.repo.dashboard();
     _samples = _readSamples(ui);
+    if (firstLoad) {
+      _readyMarked = false;
+      CorteAndroidStartup.mark('home_loading');
+      _session = _trace(_session, 'session', scope);
+      _dashboard = _trace(_dashboard, 'dashboard', scope);
+      _samples = _trace(_samples, 'samples', scope);
+    }
   }
 
   Future<void> _update(CorteUiController ui, SesionDto? session) async {
@@ -120,6 +147,32 @@ class _HomeState extends State<DesktopHomePage> {
   @override
   Widget build(BuildContext context) {
     final ui = CorteScope.of(context);
+    if (!_opened) {
+      _opened = true;
+      CorteAndroidStartup.mark(
+        ui.androidRecovery ? 'recovery_home' : 'home_open',
+      );
+    }
+    if (ui.androidRecovery && !_recoveryLoaded) {
+      return ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const PageTitle(
+            'Inicio ligero',
+            subtitle:
+                'Abre Muestras o Ventas desde el menú, o carga el resumen cuando lo necesites.',
+          ),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton(
+              onPressed: () => setState(() => _recoveryLoaded = true),
+              child: const Text('Cargar resultados'),
+            ),
+          ),
+        ],
+      );
+    }
     _load(ui);
     // The session request is not cached. An offline failure here must not
     // prevent cached sample work or results from rendering.
@@ -144,6 +197,13 @@ class _HomeState extends State<DesktopHomePage> {
     AsyncSnapshot<DashboardDto> dashboard,
     AsyncSnapshot<MuestrasDto> samples,
   ) {
+    if (!_readyMarked && dashboard.hasData && samples.hasData) {
+      _readyMarked = true;
+      final scope = _scope;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _scope == scope) CorteAndroidStartup.mark('home_ready');
+      });
+    }
     final viewport = MediaQuery.sizeOf(context).width;
     final compact = viewport < 600;
     final gap = compact ? 24.0 : 28.0;
