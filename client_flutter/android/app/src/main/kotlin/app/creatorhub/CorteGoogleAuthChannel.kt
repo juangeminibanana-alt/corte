@@ -1,6 +1,5 @@
 package app.creatorhub
 
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.MutableContextWrapper
 import android.os.CancellationSignal
@@ -43,13 +42,6 @@ internal class CorteGoogleAuthChannel(activity: Activity, messenger: BinaryMesse
         }
     }
 
-    // The Google Services plugin generates this resource only for provisioned builds.
-    @SuppressLint("DiscouragedApi")
-    private fun webClientId(): String? {
-        val id = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
-        return if (id == 0) null else context.getString(id).takeIf { it.isNotBlank() }
-    }
-
     private fun signIn(result: MethodChannel.Result) {
         if (request != null || exchangingFirebaseToken) {
             result.error("google_sign_in_busy", "Ya hay un inicio de sesión en curso.", null)
@@ -70,8 +62,8 @@ internal class CorteGoogleAuthChannel(activity: Activity, messenger: BinaryMesse
                 fail("google_services_unavailable", "El acceso con Google no está disponible en este dispositivo.")
                 return
             }
-            val clientId = webClientId()
-            if (clientId == null) {
+            val clientId = activity.getString(R.string.default_web_client_id)
+            if (clientId.isBlank()) {
                 fail("google_unavailable", "Acceder con Google no está disponible en esta instalación.")
                 return
             }
