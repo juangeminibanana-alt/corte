@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../app.dart';
 import '../data/corte_repository.dart';
+import '../platform/native_bridge.dart';
 import 'editors.dart';
 import 'format.dart';
 import 'theme.dart';
@@ -20,6 +21,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final _tikTokHeading = GlobalKey();
+  late final _lastAndroidExit = const CorteNativeBridge().lastAndroidExit();
 
   @override
   void initState() {
@@ -49,6 +51,33 @@ class _SettingsPageState extends State<SettingsPage> {
                 'Ajustes',
                 subtitle: 'Tu cuenta y tu forma de trabajar.',
               ),
+              if (ui.auth.runtime.platform == 'android')
+                FutureBuilder<CorteAndroidExit?>(
+                  future: _lastAndroidExit,
+                  builder: (context, snapshot) {
+                    final exit = snapshot.data;
+                    if (exit == null) return const SizedBox.shrink();
+                    final reason = switch (exit.reason) {
+                      'crash' => 'Error interno',
+                      'native_crash' => 'Error de procesamiento en Android',
+                      'unresponsive' => 'La aplicación dejó de responder',
+                      'low_memory' => 'Memoria insuficiente',
+                      'startup_failure' => 'Fallo al iniciar',
+                      'resource_limit' => 'Límite de recursos de Android',
+                      _ => null,
+                    };
+                    if (reason == null) return const SizedBox.shrink();
+                    final status = exit.status == 0
+                        ? ''
+                        : ' · código ${exit.status}';
+                    return _SettingLine(
+                      label: 'Último cierre',
+                      value:
+                          '$reason · ${date(exit.time, time: true)}\n'
+                          'Android API ${exit.sdk}$status',
+                    );
+                  },
+                ),
               const SectionHeading('Apariencia'),
               const _AppearanceSettings(),
               if (ui.textSize.available)

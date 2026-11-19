@@ -56,6 +56,15 @@ class _HomeState extends State<DesktopHomePage> {
   _HomeScope _scopeFor(CorteUiController ui) =>
       (ui, ui.repo.ownerScope, ui.repo.cacheScope);
 
+  Future<MuestrasDto> _readSamples(CorteUiController ui) => ui.repo.muestras(
+    query: ui.auth.runtime.platform == 'android'
+        ? const {
+            'grupo': ['vencida', 'por_vencer', 'pausada'],
+            'orden': 'prioridad',
+          }
+        : const {},
+  );
+
   void _load(CorteUiController ui) {
     final scope = _scopeFor(ui);
     if (_scope != scope) {
@@ -68,7 +77,7 @@ class _HomeState extends State<DesktopHomePage> {
     _revision = ui.revision;
     _session = ui.repo.sesion();
     _dashboard = ui.repo.dashboard();
-    _samples = ui.repo.muestras();
+    _samples = _readSamples(ui);
   }
 
   Future<void> _update(CorteUiController ui, SesionDto? session) async {
@@ -197,7 +206,7 @@ class _HomeState extends State<DesktopHomePage> {
               final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
               final priorities = _HomePriorities(
                 samples: samples,
-                retry: () => setState(() => _samples = ui.repo.muestras()),
+                retry: () => setState(() => _samples = _readSamples(ui)),
               );
               const shortcuts = _HomeShortcuts();
               final compactPanels = viewport <= 1100;
@@ -672,6 +681,10 @@ class _HomePriorities extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final data = samples.data?.items ?? const <MuestraDto>[];
+    final groupCounts = mapOf(samples.data?.raw['por_grupo']);
+    final hasSamples =
+        data.isNotEmpty ||
+        groupCounts.values.any((count) => count is num && count > 0);
     final priorities = data.where((m) => samplePending(m.raw)).toList()
       ..sort(_priorityOrder);
     void openSamples() => CorteScope.of(context).go('/muestras');
@@ -712,15 +725,15 @@ class _HomePriorities extends StatelessWidget {
             )
           : priorities.isEmpty
           ? _PrioritiesMessage(
-              title: data.isEmpty
-                  ? 'Todo empieza con tus muestras'
-                  : 'Tus muestras están al día',
-              text: data.isEmpty
-                  ? 'Aquí verás qué productos necesitas grabar y cuándo publicarlos.'
-                  : 'No tienes muestras pendientes de publicar. Puedes revisar todas en Muestras.',
-              icon: data.isEmpty
-                  ? CorteIconName.package
-                  : CorteIconName.circleCheckBig,
+              title: hasSamples
+                  ? 'Tus muestras están al día'
+                  : 'Todo empieza con tus muestras',
+              text: hasSamples
+                  ? 'No tienes muestras pendientes de publicar. Puedes revisar todas en Muestras.'
+                  : 'Aquí verás qué productos necesitas grabar y cuándo publicarlos.',
+              icon: hasSamples
+                  ? CorteIconName.circleCheckBig
+                  : CorteIconName.package,
               action: OutlinedButton(
                 onPressed: openSamples,
                 child: const Text('Ir a muestras'),

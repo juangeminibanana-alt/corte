@@ -2,6 +2,8 @@ package app.creatorhub;
 
 import android.content.Context;
 import android.app.Activity;
+import android.app.ActivityManager;
+import android.app.ApplicationExitInfo;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -22,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /** Native-only storage. No WebView/JavaScript bridge and no credential logging. */
 public final class CorteNativeChannel {
@@ -68,6 +71,7 @@ public final class CorteNativeChannel {
                         case "legacyInfo": value = info(); break;
                         case "dataRoot": value = dataRoot().getAbsolutePath(); break;
                         case "legacyRead": value = readLegacy(call.argument("name")); break;
+                        case "lastAndroidExit": value = lastAndroidExit(); break;
                         case "notificationPermission": value = Recordatorios.permiso(this.context); break;
                         case "scheduleNotifications": {
                             Object raw = call.argument("notifications");
@@ -114,6 +118,34 @@ public final class CorteNativeChannel {
     }
 
     public void notificationOpened() { channel.invokeMethod("notificationOpened", null); }
+
+    private Map<String, Object> lastAndroidExit() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null;
+        ActivityManager manager = context.getSystemService(ActivityManager.class);
+        if (manager == null) return null;
+        String ownProcess = context.getPackageName();
+        long recent = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7);
+        for (ApplicationExitInfo exit : manager.getHistoricalProcessExitReasons(ownProcess, 0, 10)) {
+            if (!ownProcess.equals(exit.getProcessName()) || exit.getTimestamp() < recent) continue;
+            String reason;
+            switch (exit.getReason()) {
+                case ApplicationExitInfo.REASON_CRASH: reason = "crash"; break;
+                case ApplicationExitInfo.REASON_CRASH_NATIVE: reason = "native_crash"; break;
+                case ApplicationExitInfo.REASON_ANR: reason = "unresponsive"; break;
+                case ApplicationExitInfo.REASON_LOW_MEMORY: reason = "low_memory"; break;
+                case ApplicationExitInfo.REASON_INITIALIZATION_FAILURE: reason = "startup_failure"; break;
+                case ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE: reason = "resource_limit"; break;
+                default: continue;
+            }
+            Map<String, Object> report = new HashMap<>();
+            report.put("reason", reason);
+            report.put("status", exit.getStatus());
+            report.put("sdk", Build.VERSION.SDK_INT);
+            report.put("time", exit.getTimestamp() / 1000);
+            return report;
+        }
+        return null;
+    }
 
     private static String key(Object key) {
         if (!(key instanceof String) || !KEYS.contains(key)) throw new IllegalArgumentException();

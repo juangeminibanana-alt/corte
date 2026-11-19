@@ -90,7 +90,10 @@ class _CorteApplicationState extends State<CorteApplication>
 }
 
 class CorteUiController extends ChangeNotifier {
-  CorteUiController({required this.auth}) {
+  CorteUiController({
+    required this.auth,
+    Future<CorteDataStore> Function() openStore = createCorteDataStore,
+  }) : salesNotifications = CorteSalesNotifications(runtime: auth.runtime) {
     repo = CorteRepository(adapter: auth.transport);
     appearance = CorteThemePreferences(repo)..addListener(notifyListeners);
     textSize = CorteTextSizePreference(
@@ -98,7 +101,7 @@ class CorteUiController extends ChangeNotifier {
     );
     auth.addListener(_authChanged);
     unawaited(
-      createCorteDataStore()
+      openStore()
           .then((store) {
             if (!_closed) {
               repo.attachStore(store);
@@ -130,8 +133,10 @@ class CorteUiController extends ChangeNotifier {
   }
   final CorteAuthController auth;
   final notifications = CorteNotifications();
-  final salesNotifications = CorteSalesNotifications();
-  Timer? _revisionTimer, _refreshTimer;
+  final CorteSalesNotifications salesNotifications;
+  static const _androidStartupDelay = Duration(seconds: 6);
+  Timer? _revisionTimer, _refreshTimer, _startupTimer;
+  bool _androidStartupPending = false;
   bool _maintaining = false;
   bool _foreground = true, _warmingImages = false;
   bool _dataDirty = true;
@@ -149,12 +154,18 @@ class CorteUiController extends ChangeNotifier {
   bool storageAvailable = true;
   bool _closed = false;
   String? _scope;
+  int _scopeEpoch = 0;
   void _authChanged() {
     final value = auth.state.authenticated
         ? '${auth.state.ownerScope}:${auth.state.cacheScope}'
         : null;
     if (_scope != value) {
       _scope = value;
+      _scopeEpoch++;
+      _startupTimer?.cancel();
+      _startupTimer = null;
+      _androidStartupPending =
+          auth.runtime.platform == 'android' && value != null;
       repo.setScopes(
         ownerScope: auth.state.authenticated ? auth.state.ownerScope : null,
         cacheScope: auth.state.authenticated ? auth.state.cacheScope : null,
@@ -165,10 +176,16 @@ class CorteUiController extends ChangeNotifier {
       _remoteRevision = null;
       _warmedRevision = null;
     }
-    salesNotifications.bind(repo, authenticated: auth.state.authenticated);
+    _bindSalesNotifications();
     notifyListeners();
     unawaited(_maintain());
   }
+
+  void _bindSalesNotifications() => salesNotifications.bind(
+    repo,
+    authenticated: auth.state.authenticated,
+    refreshAutomatically: !_androidStartupPending,
+  );
 
   void go(String value) {
     if (!value.startsWith('/') || value.startsWith('//')) return;
@@ -225,6 +242,8 @@ class CorteUiController extends ChangeNotifier {
 
   void pause() {
     _foreground = false;
+    _startupTimer?.cancel();
+    _startupTimer = null;
   }
 
   void _openNotification(String value) {
@@ -243,8 +262,22 @@ class CorteUiController extends ChangeNotifier {
   }
 
   Future<void> _maintain() async {
-    if (_closed || !_foreground || _maintaining || !auth.state.authenticated)
+    if (_closed || !_foreground || !auth.state.authenticated) return;
+    if (_androidStartupPending) {
+      // Keep the first authenticated frames free of full snapshot, outbox,
+      // thumbnail and notification work. A pause restarts the window on resume.
+      _startupTimer ??= Timer(_androidStartupDelay, () {
+        _startupTimer = null;
+        if (_closed || !_foreground || !auth.state.authenticated) return;
+        _androidStartupPending = false;
+        _bindSalesNotifications();
+        unawaited(_maintain());
+      });
       return;
+    }
+    if (_maintaining) return;
+    final epoch = _scopeEpoch;
+    bool current() => !_closed && _scopeEpoch == epoch;
     _maintaining = true;
     try {
       final remote = await repo.get(
@@ -252,7 +285,7 @@ class CorteUiController extends ChangeNotifier {
         force: true,
         permitirCacheSinRed: false,
       );
-      if (_closed) return;
+      if (!current()) return;
       if (remote['cache_scope'] != auth.state.cacheScope) {
         await auth.resume();
         return;
@@ -267,7 +300,7 @@ class CorteUiController extends ChangeNotifier {
         notifyListeners();
       }
       final result = await repo.flushOps();
-      if (_closed) return;
+      if (!current()) return;
       if (result.resultados.isNotEmpty) {
         repo.invalidar();
         revision++;
@@ -281,12 +314,14 @@ class CorteUiController extends ChangeNotifier {
           result.resultados.isNotEmpty ||
           _snapshotDay != today;
       if (refreshData) await appearance.load(force: true);
+      if (!current()) return;
+      SnapshotDto? snapshot;
       if (repo.copiaPersistenteDisponible && refreshData) {
-        final snapshot = await repo.snapshot(
+        snapshot = await repo.snapshot(
           force: changed || result.resultados.isNotEmpty,
         );
-        if (!_closed &&
-            !_warmingImages &&
+        if (!current()) return;
+        if (!_warmingImages &&
             (_warmedRevision != value ||
                 _lastImageWarm == null ||
                 DateTime.now().difference(_lastImageWarm!) >
@@ -304,8 +339,9 @@ class CorteUiController extends ChangeNotifier {
           );
         }
       }
-      if (!_closed && refreshData) {
-        await notifications.refresh(repo);
+      if (refreshData) {
+        await notifications.refresh(repo, snapshot: snapshot);
+        if (!current()) return;
         _dataDirty = false;
         _snapshotDay = today;
       }
@@ -313,6 +349,7 @@ class CorteUiController extends ChangeNotifier {
       // Interrupted maintenance preserves the scoped snapshot, outbox and alarms.
     } finally {
       _maintaining = false;
+      if (!current()) unawaited(_maintain());
     }
   }
 
@@ -326,6 +363,7 @@ class CorteUiController extends ChangeNotifier {
     _closed = true;
     _revisionTimer?.cancel();
     _refreshTimer?.cancel();
+    _startupTimer?.cancel();
     notifications.dispose();
     salesNotifications.dispose();
     appearance.removeListener(notifyListeners);

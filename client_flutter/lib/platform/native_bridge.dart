@@ -10,7 +10,10 @@ abstract interface class CorteCredentialStore {
   Future<void> delete(String key);
 }
 
-/// Sólo lo utiliza auth nativo. No exporta credenciales al estado de los widgets.
+typedef CorteAndroidExit = ({String reason, int status, int sdk, int time});
+
+/// Puente del dispositivo para almacenamiento, acceso y diagnóstico local.
+/// No exporta credenciales al estado de los widgets.
 class CorteNativeBridge implements CorteCredentialStore {
   const CorteNativeBridge({
     MethodChannel channel = const MethodChannel('corte/native'),
@@ -20,6 +23,21 @@ class CorteNativeBridge implements CorteCredentialStore {
 
   Future<String?> signInWithGoogle() =>
       _google.invokeMethod<String>('signInWithGoogle');
+
+  Future<CorteAndroidExit?> lastAndroidExit() async {
+    final payload = await _channel.invokeMapMethod<String, Object?>(
+      'lastAndroidExit',
+    );
+    if (payload case {
+      'reason': final String reason,
+      'status': final int status,
+      'sdk': final int sdk,
+      'time': final int time,
+    }) {
+      return (reason: reason, status: status, sdk: sdk, time: time);
+    }
+    return null;
+  }
 
   static const _keys = {
     deviceSessionKey,

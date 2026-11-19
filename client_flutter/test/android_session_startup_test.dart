@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:corte/app.dart';
 import 'package:corte/auth/auth_controller.dart';
+import 'package:corte/data/corte_store.dart';
 import 'package:corte/platform/corte_runtime.dart';
 import 'package:corte/platform/native_bridge.dart';
 import 'package:corte/ui/shell.dart';
@@ -58,6 +59,7 @@ void main() {
           },
         });
         final googleCallback = Completer<String?>();
+        final dashboardReady = Completer<void>();
         const googleProof = 'synthetic-firebase-owner-proof';
         var googleRequests = 0;
         final paths = <String>[];
@@ -75,6 +77,7 @@ void main() {
           client: MockClient((request) async {
             final path = request.url.path;
             paths.add(path);
+            if (path == '/api/dashboard') await dashboardReady.future;
             if (path == '/api/native/auth/google') {
               expect(request.headers['authorization'], isNull);
               expect(jsonDecode(request.body)['id_token'], googleProof);
@@ -125,7 +128,10 @@ void main() {
             );
           }),
         );
-        final ui = CorteUiController(auth: auth);
+        final ui = CorteUiController(
+          auth: auth,
+          openStore: () async => MemoryCorteDataStore(),
+        );
         final router = CorteRouter(ui);
         try {
           await tester.pumpWidget(
@@ -152,7 +158,40 @@ void main() {
           expect(find.byType(CorteAccess), findsNothing);
           expect(find.text('Tu negocio, en orden'), findsOneWidget);
           expect(find.text('Ventas generadas'), findsOneWidget);
-          expect(paths, containsAll(['/api/native/session', '/api/dashboard']));
+          expect(find.text('Cargando resultados…'), findsWidgets);
+          expect(
+            paths,
+            containsAll([
+              '/api/native/session',
+              '/api/session',
+              '/api/dashboard',
+              '/api/muestras',
+            ]),
+          );
+          const backgroundPaths = [
+            '/api/cloud/revision',
+            '/api/snapshot',
+            '/api/push/status',
+          ];
+          await tester.pump(const Duration(seconds: 2));
+          expect(paths.where(backgroundPaths.contains), isEmpty);
+
+          if (restore) {
+            ui.pause();
+            await tester.pump(const Duration(seconds: 7));
+            expect(paths.where(backgroundPaths.contains), isEmpty);
+            await ui.resume();
+          }
+          dashboardReady.complete();
+          await tester.pumpAndSettle();
+          expect(find.text('Cargando resultados…'), findsNothing);
+          expect(paths.where(backgroundPaths.contains), isEmpty);
+          await tester.pump(const Duration(seconds: 6));
+          await tester.pumpAndSettle();
+          expect(
+            paths.where(backgroundPaths.contains),
+            unorderedEquals(backgroundPaths),
+          );
           expect(paths.where((path) => path.startsWith('/api/native/auth/')), [
             if (!restore) '/api/native/auth/google',
           ]);
@@ -163,12 +202,14 @@ void main() {
           );
           expect(tester.takeException(), isNull);
         } finally {
+          if (!dashboardReady.isCompleted) dashboardReady.complete();
           await tester.pumpWidget(const SizedBox.shrink());
           router.dispose();
           ui.dispose();
           auth.dispose();
         }
       },
+      variant: TargetPlatformVariant.only(TargetPlatform.android),
     );
   }
 }
