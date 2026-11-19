@@ -171,6 +171,7 @@ export interface Capacidades {
   escribir: boolean;       // puede crear notas/plan/recordatorios (Android: según permisos del dispositivo)
   sincronizar: boolean;    // puede disparar /api/sync
   catalogo_videos?: boolean; // rev. 6: el hub tiene GET /api/catalogo/videos (ausente en hubs anteriores)
+  marketplace_creator?: boolean; // el hub admite búsquedas de colaboración abierta con la conexión actual
 }
 
 /** GET /api/session */

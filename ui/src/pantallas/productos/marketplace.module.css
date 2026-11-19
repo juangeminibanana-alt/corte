@@ -1,0 +1,58 @@
+.pantalla {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+}
+
+.formulario, .cuerpo {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.formulario { gap: 12px; }
+
+.filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 148px), 1fr));
+  gap: 12px;
+}
+
+.campoOrden {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.campoOrden select {
+  min-height: var(--control-h-md, 44px);
+  padding: 0 10px;
+  border: 1px solid var(--border-control);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: inherit;
+  font: inherit;
+}
+
+.acciones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.resultados { list-style: none; margin: 0; padding: 0; }
+
+.fila {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--border-subtle);
+  padding: 12px 0;
+  overflow-wrap: anywhere;
+}
+
+.fila h2 { font-size: 1rem; font-weight: 650; }
+.fila h2, .fila p, .aviso { margin: 0; }

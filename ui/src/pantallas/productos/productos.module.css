@@ -950,3 +950,9 @@ a.tienda:focus-visible {
 .videoPorMil {
   color: var(--text-3);
 }
+.accionesEncabezado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}

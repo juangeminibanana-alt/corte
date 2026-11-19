@@ -7,7 +7,7 @@
  */
 import { useMemo, useState, type ReactElement } from 'react';
 import type * as C from '@/contrato';
-import { useConsulta, useSync } from '@/datos';
+import { useConsulta, useSesion, useSync } from '@/datos';
 import { Pantalla, navegar, useClaseAncho, useParametro, usePlataforma } from '@/app';
 import {
   Boton, CampoTexto, Chip, ChipEtapa, ChipFiltro, EncabezadoPantalla, EstadoVacio, Segmentado, Tabla, TarjetaProducto,
@@ -17,6 +17,7 @@ import {
 } from '@/dominio';
 import { columnasProductos, useControlMuestra } from '@/bloques';
 import { CargaRejilla, ErrorVista } from './Estados';
+import { Marketplace } from './Marketplace';
 import { useColumnasQueCaben } from './ajusteColumnas';
 import {
   REGLA_COLUMNAS, buscarFilas, diasPublicadoSinVentas, esSegmento, filaConNombre, filtrarTodos, muestrasSinVentas, nombreVisible, productosVendidos,
@@ -118,6 +119,16 @@ function TarjetaTodos(p: { item: ElementoProducto }): ReactElement {
 }
 
 export function PantallaProductos(): ReactElement {
+  const [segmento, setSegmento] = useParametro('segmento');
+  const sesion = useSesion();
+  const puedeBuscar = sesion.datos?.capacidades.marketplace_creator === true;
+  if (segmento === 'marketplace') {
+    return <Marketplace puedeBuscar={puedeBuscar} alVolver={() => setSegmento(null, { reemplazar: true })} />;
+  }
+  return <ProductosPropios {...(puedeBuscar ? { alExplorar: () => setSegmento('marketplace') } : {})} />;
+}
+
+function ProductosPropios({ alExplorar }: { alExplorar?: () => void }): ReactElement {
   const [segParam, setSegmento] = useParametro('segmento');
   const segmento: Segmento = esSegmento(segParam) ? segParam : 'vendidos';
   const [vista, setVistaEstado] = useState<Vista>(() => (leerLocal(CLAVE_VISTA) === 'tabla' ? 'tabla' : 'cuadricula'));
@@ -245,8 +256,11 @@ export function PantallaProductos(): ReactElement {
         <EncabezadoPantalla
           titulo={T.titulo}
           {...(contexto ? { contexto } : {})}
-          {...(segmento === 'vendidos' && conTabla && !sinNada && filas ? {
+          {...(alExplorar || (segmento === 'vendidos' && conTabla && !sinNada && filas) ? {
             acciones: (
+              <div className={cx(css.accionesEncabezado)}>
+              {alExplorar ? <Boton variante="secundario" icono="Search" alPulsar={alExplorar}>Explorar TikTok Shop</Boton> : null}
+              {segmento === 'vendidos' && conTabla && !sinNada && filas ? (
               <Segmentado<Vista>
                 etiqueta={T.vista}
                 valor={vista}
@@ -257,6 +271,8 @@ export function PantallaProductos(): ReactElement {
                 ]}
                 className={cx(css.segmentoVista)}
               />
+              ) : null}
+              </div>
             ),
           } : {})}
         />
