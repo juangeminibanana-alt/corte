@@ -96,10 +96,11 @@ void main() {
     );
     expect(find.text('Enlace general'), findsOneWidget);
     expect(find.text('15 líneas'), findsOneWidget);
-    // «Sin dato» es una nota aparte, no una fila que parezca otro tipo de enlace.
-    expect(find.text('3 líneas más todavía sin este dato'), findsOneWidget);
+    // «Sin dato» es una nota aparte, no una fila que parezca otro tipo de enlace, y dice su propio alcance (desde el
+    // inicio del grupo, sin límite superior) en vez de heredar el periodo del grupo.
+    final nota = find.text('Además, 3 líneas desde el 13 sep todavía sin este dato');
+    expect(nota, findsOneWidget);
     expect(find.text('Sin dato todavía'), findsNothing);
-    final nota = find.text('3 líneas más todavía sin este dato');
     expect(
       tester.getTopLeft(nota).dy > tester.getTopLeft(find.text('Enlace general')).dy &&
           tester.getTopLeft(nota).dy < tester.getTopLeft(historico).dy,

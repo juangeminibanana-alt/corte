@@ -219,9 +219,11 @@ class TrazasEnSyncTests(unittest.TestCase):
         self.assertGreaterEqual(r['tipo_no_textual'], 1)
         self.assertGreaterEqual(r['id_sin_tipo'], 1)
         self.assertEqual(r['clave_trace_antigua'], 0)
-        # Separa «TikTok no manda el campo» de «lo manda vacío»: casi todas las líneas sintéticas no traen la clave.
-        self.assertGreater(r['clave_trace_info'], 0)
-        self.assertLess(r['clave_trace_info'], r['lineas_observadas'])
+        # Separa «TikTok no manda el campo» de «lo manda vacío». Los sintéticos traen GENERAL/SPECIFIC o ninguna clave, así
+        # que la clave aparece exactamente en las líneas con traza, la de tipo no textual y las de null, {}, tipo vacío o
+        # solo id: si el contador dejara fuera null o {}, la cuenta no cuadraría.
+        vacias = sum(len(self.pedido[k]['skus']) for k in ('NULL', 'VACIO', 'TIPO_VACIO', 'ID_SIN_TIPO'))
+        self.assertEqual(r['clave_trace_info'], r['con_traza'] + r['tipo_no_textual'] + vacias)
         for tipo in ('GENERAL', 'SPECIFIC', 'RARO', 'SIN_TRAZA'):
             self.assertIn(tipo, r['por_tipo'])
         calidad = self.resumen_completa['ordenes_calidad']
@@ -297,10 +299,12 @@ class TrazasEnSyncTests(unittest.TestCase):
                 return Vista(db, self.ahora).origen_ventas_actual(pid)
         base = actual()
         desde, hasta = base['desde_at'], base['hasta_at']
-        # Sin fila de traza: uno que TikTok ya no devuelve y uno anterior al bloque (no cuentan); uno dentro del periodo y
-        # uno más reciente que el último observado (cuentan: se observarán en una próxima ventana completa).
+        # Sin fila de traza: uno que TikTok ya no devuelve, uno anterior al bloque y uno que está en el histórico cerrado (no
+        # cuentan); uno dentro del periodo, uno reembolsado (todos los estados que TikTok todavía devuelve) y uno más
+        # reciente que el último observado (cuentan: se observarán en una próxima ventana completa).
         falsos = {'SINDATO-NODEV': ('NO_DEVUELTA', desde), 'SINDATO-VIEJO': ('SETTLED', desde - 30 * 86400),
-                  'SINDATO-DENTRO': ('SETTLED', desde), 'SINDATO-NUEVO': ('To-SETTLE', hasta + 3600)}
+                  'SINDATO-HISTORICO': ('SETTLED', desde), 'SINDATO-DENTRO': ('SETTLED', desde),
+                  'SINDATO-REEMBOLSO': ('REFUNDED', desde), 'SINDATO-NUEVO': ('To-SETTLE', hasta + 3600)}
         try:
             with self.hub.almacen.escritor() as db:
                 for oid, (estado, creada) in falsos.items():
@@ -308,11 +312,14 @@ class TrazasEnSyncTests(unittest.TestCase):
                                (oid, creada, estado, 'h', creada))
                     db.execute('INSERT INTO orden_lineas(order_id, linea_n, product_id, cantidad) VALUES (?,?,?,?)',
                                (oid, 0, pid, 1))
+                db.execute('INSERT INTO orden_trazas(order_id, linea_n, product_id, traza_tipo, creada_at, actualizado_at) '
+                           'VALUES (?,?,?,?,?,?)', ('SINDATO-HISTORICO', 0, pid, 'GENERAL', desde, desde))
             despues = actual()
-            self.assertEqual(despues['lineas_sin_dato'], base['lineas_sin_dato'] + 2)
+            self.assertEqual(despues['lineas_sin_dato'], base['lineas_sin_dato'] + 3)
             self.assertEqual((despues['lineas'], despues['desde_at'], despues['hasta_at']), (base['lineas'], desde, hasta))
         finally:
             with self.hub.almacen.escritor() as db:
+                db.execute("DELETE FROM orden_trazas WHERE order_id='SINDATO-HISTORICO'")   # sin FK: se borra aparte
                 db.executemany('DELETE FROM ordenes WHERE order_id=?', [(o,) for o in falsos])
 
     def test_relleno_una_sola_vez_y_ventana_incompleta_sin_trazas(self) -> None:

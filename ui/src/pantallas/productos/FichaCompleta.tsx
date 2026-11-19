@@ -406,7 +406,7 @@ export function SeccionOrigen(p: { d: C.ProductoDetalleResponse }): ReactElement
               <span className={cx(css.subnota)}>{T.origenPedidosActual(a.lineas)}</span>
             </div>
             <BarraOrigen titulo={ambos ? T.origenEnlaceActual : T.origenEnlace} cuentas={a.por_tipo_enlace} total={a.lineas} slotDe={slotDe} />
-            {a.lineas_sin_dato > 0 ? <p className={cx(css.subnota)}>{T.origenSinDato(a.lineas_sin_dato)}</p> : null}
+            {a.lineas_sin_dato > 0 ? <p className={cx(css.subnota)}>{T.origenSinDato(a.lineas_sin_dato, formato.fechaCorta(a.desde_at))}</p> : null}
           </div>
         ) : null}
         {h ? (

@@ -200,7 +200,8 @@ export const T = {
   origenPedidos: (lineas: number): string => `${plural(lineas, 'pedido', 'pedidos')} con su origen registrado`,
   origenActual: (desde: string, hasta: string): string => (desde === hasta ? `Pedidos del ${desde}` : `Pedidos del ${desde} al ${hasta}`),
   origenPedidosActual: (lineas: number): string => plural(lineas, 'pedido', 'pedidos'),
-  origenSinDato: (lineas: number): string => `${plural(lineas, 'pedido', 'pedidos')} más todavía sin este dato`,
+  // Alcance real del conteo (contrato: pedidos creados desde desde_at, sin límite superior): no hereda el periodo del bloque.
+  origenSinDato: (lineas: number, desde: string): string => `Además, ${plural(lineas, 'pedido', 'pedidos')} desde el ${desde} todavía sin este dato`,
   origenHistorico: (hasta: string | null): string => (hasta ? `Histórico hasta el ${hasta}` : 'Histórico'),
   origenContenido: 'Tipo de contenido',
   origenEnlace: 'Tipo de enlace',

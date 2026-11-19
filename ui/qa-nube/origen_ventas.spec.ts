@@ -84,7 +84,10 @@ test('un hub anterior a la rev. 6 (sin periodo ni bloque actual) deja la secció
   render(createElement(SeccionOrigen, { d: detalle(viejo) }));
   expect(screen.getByText('40 pedidos con su origen registrado')).toBeTruthy();
   expect(screen.queryByText(/^Histórico/)).toBeNull();
-  expect(screen.queryByRole('group')).toBeNull();
+  // El bloque no se vuelve grupo con nombre (la barra real sí trae su propio role="group": no se busca en toda la pantalla).
+  const hb = bloque('historico') as HTMLElement;
+  expect(hb.getAttribute('role')).toBeNull();
+  expect(hb.hasAttribute('aria-labelledby')).toBe(false);
   expect(screen.queryByText(/no dice de dónde vino la venta/)).toBeNull();
   expect(screen.getAllByRole('figure').map((f) => f.getAttribute('aria-label'))).toEqual(['Tipo de contenido', 'Tipo de enlace']);
 });
@@ -99,7 +102,9 @@ test('con enlaces reportados: el bloque reciente va primero, aparte y con nombre
   expect(nombres).toEqual(['Tipo de enlace en estos pedidos', 'Tipo de contenido en el histórico', 'Tipo de enlace en el histórico']);
   const va = within(a);
   expect(va.getByText('20 pedidos')).toBeTruthy();
-  expect(va.getByText('3 pedidos más todavía sin este dato')).toBeTruthy();
+  // El conteo dice su propio alcance (desde el inicio del bloque, sin límite superior) y va debajo de la gráfica.
+  const nota = va.getByText(/^Además, 3 pedidos desde el 13 sep.* todavía sin este dato$/);
+  expect(va.getByRole('figure').compareDocumentPosition(nota) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(va.getByText('Sin enlace reportado: 15').getAttribute('data-estilo')).toBe('neutro');
   expect(va.getByText('RARO: 1')).toBeTruthy();                         // un valor nuevo se muestra tal cual
   // Porcentajes sobre las líneas de cada bloque, nunca sobre la suma de los dos.

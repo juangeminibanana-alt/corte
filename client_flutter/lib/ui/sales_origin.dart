@@ -37,6 +37,16 @@ String periodoActual(Map<String, dynamic> a, {DateTime? ahora}) {
 String lineasTexto(Object? n) =>
     '${integer(n)} ${intOf(n) == 1 ? 'línea' : 'líneas'}';
 
+/// 'Además, 3 líneas desde el 13 sep todavía sin este dato': líneas de pedidos creados desde `desde_at` que Corte aún no
+/// observa (contrato rev. 7, sin límite superior).
+String notaSinDato(Map<String, dynamic> a, {DateTime? ahora}) {
+  final desde = a['desde_at'];
+  final cuantas = lineasTexto(a['lineas_sin_dato']);
+  return desde is num
+      ? 'Además, $cuantas desde el ${fechaDeInstante(desde, ahora: ahora)} todavía sin este dato'
+      : 'Además, $cuantas todavía sin este dato';
+}
+
 class SalesOriginTile extends StatelessWidget {
   const SalesOriginTile({super.key, required this.extended, this.ahora});
   final Map<String, dynamic> extended;
@@ -64,10 +74,11 @@ class SalesOriginTile extends StatelessWidget {
           _Grupo(periodoActual(actual, ahora: ahora)),
           for (final o in rowsOf(actual['por_tipo_enlace']))
             DefinitionRow(textOf(o['texto']), lineasTexto(o['lineas'])),
-          // Nota aparte, no una fila más: no es un tipo de enlace y puede incluir pedidos posteriores al periodo.
+          // Nota aparte, no una fila más: no es un tipo de enlace. Dice su propio alcance (pedidos desde el inicio del
+          // grupo, sin límite superior) en vez de heredar el periodo del grupo.
           if (intOf(actual['lineas_sin_dato']) > 0)
             Text(
-              '${lineasTexto(actual['lineas_sin_dato'])} más todavía sin este dato',
+              notaSinDato(actual, ahora: ahora),
               style: TextStyle(color: context.corte.muted),
             ),
         ],
