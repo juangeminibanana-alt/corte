@@ -65,6 +65,7 @@ from .productos_evidencia import ServicioEvidencia
 from .reloj import crear_reloj
 from .sincronizador import crear_sincronizador
 from .tiktok.cliente import crear_cliente
+from .tiktok.marketplace import MarketplaceCreator
 from .tiktok.transporte import crear_transporte_real
 from .tiktok_dev.boveda import crear_boveda_display
 from .tiktok_dev.servicio import crear_servicio_display, crear_transporte_display
@@ -194,6 +195,8 @@ class Hub:
         self.analitica = analitica
         # se enlazan después (orden de §6.3.1)
         self.auth: Any = None
+        self.marketplace = (MarketplaceCreator(cliente, boveda, lambda: self.auth.conexion())
+                            if op.nube and op.modo == 'real' and cliente is not None else None)
         self.sincronizador: Any = None
         self.planificador: Any = None
         self.lan: Any = None
@@ -358,8 +361,9 @@ class Hub:
         estado = self.sincronizador.estado()
         dv, lr, _ir = self.almacen.versiones()
         local = ctx.origen == 'ui'
+        conexion = self.auth.conexion()
         r: Json = {
-            'cuenta': self.auth.cuenta(), 'conexion': self.auth.conexion(), 'sync': estado,
+            'cuenta': self.auth.cuenta(), 'conexion': conexion, 'sync': estado,
             'datos': {'data_version': dv, 'local_rev': lr, 'ultima_sync_ok_at': estado.get('ultima_ok_at'),
                       'hay_datos': self._hay_datos()},
             'plataforma': 'windows' if local else ctx.plataforma,
@@ -367,7 +371,9 @@ class Hub:
             'capacidades': {'auth': local, 'lan_admin': local and not self.op.nube,
                             'portapapeles': local and not self.op.nube,
                             'escribir': ctx.puede_escribir, 'sincronizar': ctx.puede_escribir,
-                            'catalogo_videos': True},   # rev. 6: GET /api/catalogo/videos existe en este hub
+                            'catalogo_videos': True,
+                            'marketplace_creator': (local and self.marketplace is not None
+                                                    and self.marketplace.disponible(conexion))},
         }
         if local:
             r['lan'] = self.lan.resumen() if self.lan is not None else {

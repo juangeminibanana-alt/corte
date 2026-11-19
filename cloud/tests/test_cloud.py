@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'hub'))
 
 from cloud.app import Settings, create_app
+from creatorhub.comun import epoch_de_fecha_local
 from creatorhub.nube import BovedaNube, BovedaDisplayNube
 from creatorhub.interfaces import OpcionesHub
 
@@ -77,6 +78,7 @@ class WebSecurityTests(unittest.TestCase):
         Path(self.folder.name, 'index.html').write_text('<html lang="es"><title>Corte</title></html>')
         self.hub = Mock()
         self.hub.salud.return_value = {'db_ok': True}
+        self.hub.reloj.ahora.return_value = epoch_de_fecha_local('2026-11-18')
         self.settings = Settings('https://corte.example', 'test-session-secret-' * 4, self.password_hash,
                                  self.folder.name, self.folder.name)
         self.app = create_app(self.settings, self.hub)
@@ -202,6 +204,26 @@ class WebSecurityTests(unittest.TestCase):
         progress = self.client.get('/api/cloud/revision', base_url=self.base)
         self.assertEqual(active.json['revision'], progress.json['revision'])
         self.assertEqual(progress.json['sync']['progreso'], 0.5)
+
+    def test_revision_refreshes_open_dashboard_at_mexico_midnight(self) -> None:
+        self.assertEqual(self.login().status_code, 200)
+        self.hub.almacen.versiones.return_value = (1, 2, 3)
+        self.hub.auth.conexion.return_value = {'estado': 'conectada'}
+        self.hub.display.estado.return_value = {'estado': 'sin_conectar'}
+        self.hub.sincronizador.estado.return_value = {'en_curso': False, 'pasos': []}
+        midnight = epoch_de_fecha_local('2026-11-18', hora=0)
+
+        def revision_at(now: int) -> str:
+            self.hub.reloj.ahora.return_value = now
+            response = self.client.get('/api/cloud/revision', base_url=self.base)
+            self.assertEqual(response.status_code, 200)
+            return response.json['revision']
+
+        previous_day = revision_at(midnight - 7 * 3600)
+        self.assertEqual(previous_day, revision_at(midnight - 1))
+        current_day = revision_at(midnight)
+        self.assertNotEqual(previous_day, current_day)
+        self.assertEqual(current_day, revision_at(midnight + 3600))
 
 
 class RealHubTests(unittest.TestCase):

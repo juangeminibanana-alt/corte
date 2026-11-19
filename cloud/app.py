@@ -35,6 +35,7 @@ from creatorhub.api.estaticos import Estaticos
 from creatorhub.api.rutas_display import crear_despachador_display, es_ruta_display
 from creatorhub.api.seguridad import CSP_WINDOWS
 from creatorhub.api.sse import formatear
+from creatorhub.comun import fecha_local
 from creatorhub.errores import ErrorDominio
 from creatorhub.interfaces import CTX_UI, OpcionesHub
 from creatorhub.tiktok_dev.servicio import pagina_html
@@ -391,9 +392,10 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
     @app.get('/api/cloud/revision')
     def cloud_revision() -> Any:
         sync = hub.sincronizador.estado()
-        # No current-time field or random value: unchanged persisted data and
-        # connection/sync state always yield the same revision across requests.
+        # Sales and the calendar depend on the Mexican day. Within that day,
+        # use only stable state so polling does not force constant refreshes.
         state = {
+            'fecha_mx': fecha_local(hub.reloj.ahora()),
             'versiones': list(hub.almacen.versiones()),
             'conexion': hub.auth.conexion(),
             'display': hub.display.estado() if hub.display is not None else None,

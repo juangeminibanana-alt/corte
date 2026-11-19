@@ -59,6 +59,7 @@ from . import clasificador as cl
 from . import planificador as plan
 from .comun import fecha_local, huella, norm_estado, norm_tienda, parse_monto, parse_rango
 from .errores import ErrorApi, ErrorAuthTransitorio, ErrorDominio, ErrorRed
+from .imagenes.claves import url_permitida
 from .interfaces import ContextoSync, Dependencias, Json, PedidoImagen, Sincronizador
 from .sincronizador_ficha import MAX_GALERIA, ORDEN_FASES, TEXTOS_FASES, FasesFicha
 from .sincronizador_videos import PasoVideosTikTok
@@ -130,7 +131,7 @@ BARRIDO_COMPLETO_CADA_S = 7 * DIA_S
 REANUDAR_DENTRO_DE_S = 3600
 INTERVALO_PROGRESO_S = 0.3
 MAX_EJECUCIONES = 200
-LOTE_PRODUCTOS = 20
+LOTE_PRODUCTOS = 50                    # máximo de product_ids por petición en /202509/open_collaborations/products
 SIN_REGION: frozenset[int] = frozenset({16015006, 16015007, 16504002, 18001405})
 CODIGOS_OMITIR_PASO: frozenset[Any] = frozenset({105005, 16501011})
 # Códigos que significan «parámetro inválido» (p. ej. un application_status que la API no acepta). La doc no los
@@ -146,7 +147,7 @@ MONEDA_ESPERADA = 'MXN'
 # Importes {amount, currency} de una línea que Corte guarda: si sus monedas no coinciden se cuenta (no se convierte).
 IMPORTES_LINEA: tuple[str, ...] = ('price', 'estimated_commission', 'actual_commission', 'estimated_commission_base',
                                    'actual_commission_base', 'isr', 'iva', 'shared_with_partner')
-REV_VITRINA = '4'                       # sync_cursores 'vitrina.rev': con otro valor la vitrina se vuelve a leer
+REV_VITRINA = '5'                       # sync_cursores 'vitrina.rev': incorporar las imágenes personalizadas
 
 _SQL_PORTADAS = f"""
 WITH lv AS (
@@ -218,16 +219,17 @@ def huella_url(url: str | None) -> str | None:
     return hashlib.sha1(((u.hostname or '') + u.path).encode('utf-8')).hexdigest()
 
 
-def urls_galeria(main_images: Any) -> list[str]:
-    """URLs de showcases/products main_images[] (≈ 9 por producto), en su orden, máx. MAX_GALERIA."""
-    out: list[str] = []
-    for i in main_images if isinstance(main_images, list) else []:
-        u = i.get('url') if isinstance(i, dict) else None
-        if isinstance(u, str) and u:
-            out.append(u)
-        if len(out) >= MAX_GALERIA:
-            break
-    return out
+def urls_galeria(main_images: Any, customized_main_images: Any = None) -> list[str]:
+    """Fotos principales seguidas de personalizadas, sin repetir una imagen que cambió de firma."""
+    por_huella: dict[str | None, str] = {}
+    for imagenes in (main_images, customized_main_images):
+        for imagen in imagenes if isinstance(imagenes, list) else []:
+            url = imagen.get('url') if isinstance(imagen, dict) else None
+            if isinstance(url, str) and url_permitida(url):
+                por_huella.setdefault(huella_url(url), url)
+                if len(por_huella) == MAX_GALERIA:
+                    return list(por_huella.values())
+    return list(por_huella.values())
 
 
 def huella_galeria(galeria_json: str | None) -> list[str | None]:
@@ -1583,9 +1585,10 @@ class _Sincronizador(FasesFicha, PasoVideosTikTok):
                     st = p.get('status') or {}
                     colab = p.get('collaboration') or {}
                     nombre = (p.get('shop') or {}).get('name')
-                    imgs = p.get('main_images') or []
-                    url = (imgs[0] or {}).get('url') if imgs else None
-                    galeria = urls_galeria(imgs)
+                    adicion = p.get('addition')
+                    personalizadas = adicion.get('customized_main_images') if isinstance(adicion, dict) else None
+                    galeria = urls_galeria(p.get('main_images'), personalizadas)
+                    url = galeria[0] if galeria else None
                     galeria_json = json.dumps(galeria, ensure_ascii=False) if galeria else None
                     fila = (p.get('title'), nombre, norm_tienda(nombre), url,
                             parse_monto(op.get('minimum_amount')), parse_monto(op.get('maximum_amount')),

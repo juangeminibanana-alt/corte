@@ -344,10 +344,9 @@ class DespachadorHub:
 
     def _lectura_compuesta(self, r: Ruta, p: Peticion, gz: bool) -> RespuestaHttp:
         antes = self._versiones_etag(r)
-        if antes is not None:
-            etiqueta = self._etiqueta(antes, p, r.etag)
-            if coincide_etag(p.cabecera('if-none-match'), etiqueta):
-                return RespuestaHttp(304, [('ETag', etiqueta), ('Cache-Control', 'private, no-cache')])
+        etiqueta = self._etiqueta(antes, p, r.etag) if antes is not None else None
+        if etiqueta is not None and coincide_etag(p.cabecera('if-none-match'), etiqueta):
+            return RespuestaHttp(304, [('ETag', etiqueta), ('Cache-Control', 'private, no-cache')])
         datos = r.fn(p)
         extra: list[tuple[str, str]] = []
         if r.etag == 'snapshot' and isinstance(datos, dict) and all(
@@ -356,9 +355,10 @@ class DespachadorHub:
             momento = datos.get('generado_at')
             extra = [('ETag', self._etiqueta(propia, p, 'snapshot', momento if isinstance(momento, int) else None)),
                      ('Cache-Control', 'private, no-cache')]
-        elif antes is not None and self._versiones_etag(r) == antes:
-            # nada cambió entre el antes y el después: la respuesta corresponde exactamente a esas versiones
-            extra = [('ETag', self._etiqueta(antes, p, r.etag)), ('Cache-Control', 'private, no-cache')]
+        elif (antes is not None and etiqueta is not None and self._versiones_etag(r) == antes
+              and self._etiqueta(antes, p, r.etag) == etiqueta):
+            # La etiqueta solo vale si ni las versiones ni el día cambiaron durante la lectura.
+            extra = [('ETag', etiqueta), ('Cache-Control', 'private, no-cache')]
         return self._json(r.status, datos, gz, extra)
 
     # ================================================================== tabla de rutas (BUILD §5)
@@ -406,6 +406,7 @@ class DespachadorHub:
             R('GET', 'api/catalogo/videos', lambda p: a().catalogo_videos(p.query), L, 'lectura'),
             R('GET', 'api/catalogo/videos/{content_id}', lambda p: a().video_catalogo(p.params['content_id']),
               L, 'lectura'),
+            R('GET', 'api/catalogo/marketplace', self._marketplace_creator, X),
             R('GET', 'api/productos/{product_id}', lambda p: a().producto_detalle(p.params['product_id']),
               L, 'lectura'),
             R('GET', 'api/productos/{product_id}/evidencia',
@@ -558,6 +559,12 @@ class DespachadorHub:
         if de_mas:
             raise ErrorDominio('parametros_invalidos', MSG_CAMPOS, http=400, detalle={'parametro': de_mas[0]})
         return self.hub.analitica.dashboard(p.query.get('periodo') or '30d')
+
+    def _marketplace_creator(self, p: Peticion) -> Json:
+        marketplace = getattr(self.hub, 'marketplace', None)
+        if marketplace is None:
+            raise ErrorDominio('no_encontrado', MSG_NO_ENCONTRADO, http=404)
+        return marketplace.buscar(p.query)
 
     def _snapshot(self, p: Peticion) -> Json:
         h = self.hub

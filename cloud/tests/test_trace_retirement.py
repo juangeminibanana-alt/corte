@@ -16,7 +16,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'hub'))
@@ -29,6 +29,7 @@ from creatorhub.demo.transporte import TransporteApiFalsa
 from creatorhub.hub import iniciar_hub
 from creatorhub.imagenes.claves import ErrorImagen
 from creatorhub.interfaces import CTX_UI, OpcionesHub
+from creatorhub.sincronizador import P_PRODUCTOS, REV_VITRINA, urls_galeria
 
 RUTA_RETIRADA = '/affiliate_creator/202505/orders/trace/search'
 P_HISTORICO = '1729000000000000001'          # producto que solo existe en el histórico de trazas
@@ -97,11 +98,25 @@ class RetiroTrazasEnSyncTests(unittest.TestCase):
                 db.execute("INSERT INTO sync_cursores(clave, valor, actualizado_at) VALUES ('trazas.estado', "
                            "'sin_permiso', ?)", (cls.ahora - 4 * dia,))
 
-            falso = TransporteApiFalsa(sinteticos.generar(cls.ahora), cls.hub.reloj)
+            datos = sinteticos.generar(cls.ahora)
+            vitrina = datos.vitrina[0]
+            cls.producto_vitrina = vitrina['id']
+            cls.galeria_original = [foto['url'] for foto in vitrina['main_images']]
+            cls.personalizada = sinteticos.url_imagen('g', cls.producto_vitrina + '-personalizada')
+            vitrina['addition'] = {'customized_main_images': [
+                {'url': cls.galeria_original[0] + '?x-signature=prueba'},
+                {'url': 'https://example.test/no-descargar.png'},
+                {'url': cls.personalizada},
+            ]}
+            falso = TransporteApiFalsa(datos, cls.hub.reloj)
             cls.rutas: list[str] = []
+            cls.tamanos_lote: list[int] = []
 
             def manejar(metodo, url, cabeceras, cuerpo):
-                cls.rutas.append(urlsplit(url).path)
+                partes = urlsplit(url)
+                cls.rutas.append(partes.path)
+                if partes.path == P_PRODUCTOS:
+                    cls.tamanos_lote.append(len(parse_qs(partes.query)['product_ids'][0].split(',')))
                 return falso.manejar(metodo, url, cabeceras, cuerpo)
             cls.hub.cliente.transporte = type('Registro', (), {'manejar': staticmethod(manejar)})()
             cls.hub.cliente.cubeta.tomar = lambda cancelar=None: False   # sin esperas del límite de peticiones
@@ -150,6 +165,21 @@ class RetiroTrazasEnSyncTests(unittest.TestCase):
             filas = db.execute('SELECT order_id, linea_n, sku_id, product_id, tipo_contenido, traza_tipo, creada_at, '
                                'actualizado_at FROM orden_trazas ORDER BY order_id, linea_n').fetchall()
         self.assertEqual([tuple(f) for f in filas], self.historico)
+
+    def test_sync_usa_lotes_ampliados_y_conserva_fotos_personalizadas(self) -> None:
+        self.assertGreater(max(self.tamanos_lote), 20)
+        self.assertLessEqual(max(self.tamanos_lote), 50)
+        with self.hub.almacen.lector() as db:
+            galeria, portada = db.execute('SELECT galeria_json, imagen_url FROM vitrina WHERE product_id=?',
+                                          (self.producto_vitrina,)).fetchone()
+            revision = db.execute("SELECT valor FROM sync_cursores WHERE clave='vitrina.rev'").fetchone()[0]
+        self.assertEqual(portada, self.galeria_original[0])
+        self.assertEqual(json.loads(galeria), [*self.galeria_original, self.personalizada])
+        self.assertEqual(revision, REV_VITRINA)
+
+    def test_galeria_limita_las_fotos_y_usa_personalizadas_si_faltan_las_principales(self) -> None:
+        personalizadas = [{'url': sinteticos.url_imagen('g', f'123-{i}')} for i in range(13)]
+        self.assertEqual(urls_galeria(None, personalizadas), [foto['url'] for foto in personalizadas[:12]])
 
     def test_el_origen_historico_lleva_procedencia_y_no_afirma_ausencia_de_enlace(self) -> None:
         with self.hub.almacen.lector() as db:

@@ -4,7 +4,7 @@
   datos sintéticos, que son lo único que viaja dentro del exe). Reproduce el contrato que el sincronizador necesita:
   `application_statuses`/`fulfillment_statuses` obligatorios, filtros comodín que devuelven todo, paginación con
   `page_token` que «da la vuelta», `expiration_time` = hora de la consulta en cumplimientos cerrados, `single_query` que
-  falla si `application_type` no corresponde, máx. 20 `product_ids`, pedidos paginados por LÍNEA (un pedido puede
+  falla si `application_type` no corresponde, máx. 50 `product_ids`, pedidos paginados por LÍNEA (un pedido puede
   partirse entre páginas) con `total_count` = líneas y montos como texto «$1,234.50», y renovación de la conexión.
   No verifica firmas: en demo las credenciales son ficticias.
   Rev. 4 (ficha completa de producto), con el MISMO formato que la API real: samples/labels (`label` con
@@ -211,8 +211,8 @@ class TransporteApiFalsa:
 
     def _productos(self, q: Mapping[str, str]) -> tuple[int, Json]:
         ids = [x for x in (q.get('product_ids') or '').split(',') if x]
-        if not ids or len(ids) > 20:
-            return _err(-10004, 'product_ids debe traer 1..20 ids (demo)')
+        if not ids or len(ids) > 50:
+            return _err(-10004, 'product_ids debe traer 1..50 ids (demo)')
         return _ok({'products': [dict(self.datos.productos[i]) for i in ids if i in self.datos.productos]})
 
     def _ordenes(self, q: Mapping[str, str], body: Json) -> tuple[int, Json]:

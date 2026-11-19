@@ -202,6 +202,31 @@ class DashboardActualidadTests(unittest.TestCase):
                                         {'If-None-Match': dict(second.cabeceras)['ETag']}, b'', CTX_UI)
         self.assertEqual(matching.status, 304)
 
+    def test_dashboard_read_crossing_mexico_midnight_cannot_validate_yesterdays_body(self):
+        midnight = epoch_de_fecha_local('2026-11-18', hora=0)
+        self.instant[0] = midnight - 1
+        self.order('paid')
+        dashboard = self.analytics.dashboard
+
+        def dashboard_crossing_midnight(periodo):
+            result = dashboard(periodo)
+            self.instant[0] = midnight
+            return result
+
+        self.analytics.dashboard = dashboard_crossing_midnight
+        dispatcher = crear_despachador(SimpleNamespace(analitica=self.analytics, reloj=self.clock))
+        first = dispatcher.despachar('GET', '/api/dashboard', '', {}, b'', CTX_UI)
+        self.assertEqual(first.status, 200)
+        self.assertEqual(json.loads(first.cuerpo)['actualidad']['hoy']['fecha'], '2026-11-17')
+        first_tag = dict(first.cabeceras).get('ETag')
+
+        self.analytics.dashboard = dashboard
+        headers = {'If-None-Match': first_tag} if first_tag else {}
+        second = dispatcher.despachar('GET', '/api/dashboard', '', headers, b'', CTX_UI)
+        self.assertEqual(second.status, 200)
+        self.assertEqual(json.loads(second.cuerpo)['actualidad']['hoy']['fecha'], '2026-11-18')
+        self.assertIsNotNone(dict(second.cabeceras).get('ETag'))
+
 
 if __name__ == '__main__':
     unittest.main()

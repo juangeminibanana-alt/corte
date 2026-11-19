@@ -66,7 +66,7 @@ CTX_UI = Contexto(origen='ui')
 @dataclass
 class ContextoSync:
     """Viaja con cada llamada de una sincronización (contadores y cancelación cooperativa)."""
-    sync_id: int
+    sync_id: int | None  # None para una consulta directa fuera de la sincronización.
     open_id: str | None
     epoca_credenciales: int
     epoca_datos: int
