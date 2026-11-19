@@ -16,6 +16,8 @@ import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
 import androidx.credentials.exceptions.GetCredentialUnsupportedException
 import androidx.credentials.exceptions.NoCredentialException
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailabilityLight
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
@@ -32,6 +34,7 @@ internal class CorteGoogleAuthChannel(activity: Activity, messenger: BinaryMesse
     private val callbacks = Executor { main.post(it) }
     private var request: MethodChannel.Result? = null
     private var selection: CancellationSignal? = null
+    private var deadline: Runnable? = null
 
     init {
         channel.setMethodCallHandler { call, result ->
@@ -53,15 +56,33 @@ internal class CorteGoogleAuthChannel(activity: Activity, messenger: BinaryMesse
             return
         }
         val activity = context.baseContext as? Activity
-        val clientId = webClientId()
-        if (activity == null || activity.isFinishing || activity.isDestroyed || clientId == null) {
+        if (activity == null || activity.isFinishing || activity.isDestroyed) {
             result.error("google_unavailable", "Acceder con Google no está disponible en esta instalación.", null)
             return
         }
-        val signal = CancellationSignal()
-        selection = signal
         request = result
         try {
+            val availability = GoogleApiAvailabilityLight.getInstance().isGooglePlayServicesAvailable(
+                activity.applicationContext,
+                MIN_GOOGLE_SIGN_IN_SERVICES_VERSION,
+            )
+            if (availability != ConnectionResult.SUCCESS) {
+                fail("google_services_unavailable", "El acceso con Google no está disponible en este dispositivo.")
+                return
+            }
+            val clientId = webClientId()
+            if (clientId == null) {
+                fail("google_unavailable", "Acceder con Google no está disponible en esta instalación.")
+                return
+            }
+            val signal = CancellationSignal()
+            selection = signal
+            val timeout = Runnable {
+                if (request !== result) return@Runnable
+                fail("google_sign_in_timeout", "Google tardó en responder. Vuelve a intentarlo.")
+            }
+            deadline = timeout
+            main.postDelayed(timeout, SIGN_IN_TIMEOUT_MS)
             val option = GetSignInWithGoogleOption.Builder(clientId).build()
             val credentialRequest = GetCredentialRequest.Builder().addCredentialOption(option).build()
             CredentialManager.create(activity.applicationContext).getCredentialAsync(
@@ -81,14 +102,13 @@ internal class CorteGoogleAuthChannel(activity: Activity, messenger: BinaryMesse
                             is NoCredentialException ->
                                 fail("google_no_account", "No hay una cuenta de Google disponible en este dispositivo.")
                             is GetCredentialUnsupportedException, is GetCredentialProviderConfigurationException ->
-                                fail("google_unavailable", "Actualiza los Servicios de Google Play para entrar a Corte.")
+                                fail("google_unavailable", "Acceder con Google no está disponible en esta instalación.")
                             else -> fail()
                         }
                     }
                 },
             )
         } catch (_: RuntimeException) {
-            selection = null
             fail()
         }
     }
@@ -115,11 +135,15 @@ internal class CorteGoogleAuthChannel(activity: Activity, messenger: BinaryMesse
         }
         exchangingFirebaseToken = true
         try {
-            auth.signOut()
             auth.signInWithCredential(GoogleAuthProvider.getCredential(googleIdToken, null))
                 .addOnCompleteListener(callbacks) { login ->
-                    val user = if (login.isSuccessful && request != null) login.result?.user else null
-                    if (user == null) {
+                    if (!login.isSuccessful) {
+                        exchangingFirebaseToken = false
+                        fail()
+                        return@addOnCompleteListener
+                    }
+                    val user = login.result?.user
+                    if (request == null || user == null) {
                         finishExchange(auth, null)
                     } else {
                         try {
@@ -132,7 +156,8 @@ internal class CorteGoogleAuthChannel(activity: Activity, messenger: BinaryMesse
                     }
                 }
         } catch (_: RuntimeException) {
-            finishExchange(auth, null)
+            exchangingFirebaseToken = false
+            fail()
         }
     }
 
@@ -149,7 +174,16 @@ internal class CorteGoogleAuthChannel(activity: Activity, messenger: BinaryMesse
         if (token.isNullOrBlank()) fail() else complete(token)
     }
 
-    private fun takeRequest(): MethodChannel.Result? = request.also { request = null }
+    private fun takeRequest(): MethodChannel.Result? {
+        val result = request
+        request = null
+        deadline?.let(main::removeCallbacks)
+        deadline = null
+        val signal = selection
+        selection = null
+        signal?.cancel()
+        return result
+    }
 
     private fun complete(idToken: String? = null) {
         takeRequest()?.success(idToken)
@@ -164,14 +198,15 @@ internal class CorteGoogleAuthChannel(activity: Activity, messenger: BinaryMesse
 
     fun dispose() {
         channel.setMethodCallHandler(null)
-        val signal = selection
-        selection = null
-        signal?.cancel()
         context.baseContext = context.applicationContext
         complete()
     }
 
     private companion object {
+        // Minimum checked by the AndroidX Play Services provider in credentials 1.6.0.
+        const val MIN_GOOGLE_SIGN_IN_SERVICES_VERSION = 230815045
+        const val SIGN_IN_TIMEOUT_MS = 90_000L
+
         // All callbacks and Activity transitions run on the main thread.
         var exchangingFirebaseToken = false
     }

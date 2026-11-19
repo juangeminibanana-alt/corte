@@ -552,11 +552,15 @@ class CorteAuthController extends ChangeNotifier {
       }
     } on PlatformException catch (e) {
       error = switch (e.code) {
+        'google_services_unavailable' =>
+          'El acceso con Google no está disponible en este dispositivo. Puedes volver a intentarlo desde Corte.',
         'google_unavailable' =>
-          'Actualiza Servicios de Google Play e inténtalo de nuevo.',
+          'El acceso con Google no está disponible en esta instalación de Corte.',
         'google_no_account' =>
-          'Agrega tu cuenta de Google en los ajustes de Android.',
+          'Corte no encontró una cuenta de Google disponible en este dispositivo.',
         'google_sign_in_busy' => 'Google ya está confirmando el acceso.',
+        'google_sign_in_timeout' =>
+          'Google tardó en responder. Puedes volver a intentarlo desde Corte.',
         _ => 'No pudimos conectar con Google. Vuelve a intentarlo.',
       };
     } on MissingPluginException {

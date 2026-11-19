@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -494,6 +495,47 @@ void main() {
       expect(controller.state.errorMessage, isNull);
       expect(requests, 0);
       expect(links.opened, isEmpty);
+    },
+  );
+
+  test(
+    'Android stays open and preserves its stored account if Google is unavailable',
+    () async {
+      final store = TestStore()
+        ..values[sessionOwnerKey] = 'synthetic-owner'
+        ..values[deviceSessionKey] = jsonEncode({
+          ...device(),
+          'expires_at': now - 1,
+        });
+      final storedValues = Map.of(store.values);
+      final links = TestLinks();
+      var nativeRequests = 0;
+      final controller = auth(
+        store,
+        MockClient((request) async {
+          fail('Unavailable Google must not issue a network request.');
+        }),
+        links: links,
+        androidSignIn: () async {
+          nativeRequests++;
+          throw PlatformException(code: 'google_services_unavailable');
+        },
+      );
+      addTearDown(controller.dispose);
+
+      await controller.initialize();
+      expect(nativeRequests, 0);
+      for (var attempt = 1; attempt <= 2; attempt++) {
+        await controller.signIn();
+        expect(nativeRequests, attempt);
+        expect(controller.state.phase, CorteAuthPhase.signedOut);
+        expect(
+          controller.state.errorMessage,
+          'El acceso con Google no está disponible en este dispositivo. Puedes volver a intentarlo desde Corte.',
+        );
+        expect(store.values, storedValues);
+        expect(links.opened, isEmpty);
+      }
     },
   );
 
