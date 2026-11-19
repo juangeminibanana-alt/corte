@@ -2,7 +2,7 @@
 
 Revisado el **18 de noviembre de 2026** sobre el código publicado en la nube (`f3f963c`, imagen `corte@sha256:71e0ad75…`). Este documento identifica a cada consumidor del origen de ventas y fija cómo conservar su histórico. Por sí mismo no cambia el comportamiento: la migración corresponde al siguiente incremento.
 
-**Estado (18/11/2026):** la etapa 1 está completa. El backend quedó en `df5ff36`: Corte ya no llama la ruta, `origen_ventas_aviso` siempre va en null y `orden_trazas` queda como histórico cerrado. La web y Flutter ya no tienen la nota del permiso (ni la demo `?trazas=sin_permiso`) y rotulan el bloque como «Histórico hasta {fecha}» cuando llega `origen_ventas.hasta_at`. **La etapa 2 está implementada** (contrato rev. 7, migración 007): ver su sección. Las secciones «Qué hace hoy el backend publicado» y «Consumidores», con sus números de línea, describen `f3f963c`, el código anterior a la etapa 1.
+**Estado (18/11/2026):** la etapa 1 está completa. El backend quedó en `df5ff36`: Corte ya no llama la ruta, `origen_ventas_aviso` siempre va en null y `orden_trazas` queda como histórico cerrado. La web y Flutter ya no tienen la nota del permiso (ni la demo `?trazas=sin_permiso`) y rotulan el bloque como «Histórico hasta {fecha}» cuando llega `origen_ventas.hasta_at`. **La etapa 2 está implementada y desplegada** (contrato rev. 7, migración 007; imagen de `487ec30`, 19/11/2026 00:28 UTC, con snapshot manual previo del disco): ver su sección. Primera sincronización con la rev. 7 (incremental, 9 ventanas semanales): en las 29 fichas revisadas, 867 líneas observadas y **ninguna** con un enlace reportado, así que la ficha no muestra el bloque reciente; tampoco hay histórico en `orden_trazas` para esos productos. Las secciones «Qué hace hoy el backend publicado» y «Consumidores», con sus números de línea, describen `f3f963c`, el código anterior a la etapa 1.
 
 ## Estado oficial
 
@@ -94,6 +94,6 @@ El resultado dice qué fila de la tabla anterior aplica y si existe histórico q
 
 ## Pendiente de verificar
 
-- La respuesta actual de la ruta retirada en la nube y el contenido de `orden_trazas` (etapa 0).
+- La respuesta actual de la ruta retirada en la nube y el contenido de `orden_trazas` (etapa 0). Visto desde la API el 19/11/2026: ninguna de las 29 fichas con más ventas tiene histórico.
 - Si las respuestas reales de 202410 traen `trace_info`, `trace` o ninguno, y con qué tipos: lo dirán `clave_trace_info`, `clave_trace_antigua` y `por_tipo` en `resumen_json.trazas_202410` de la primera sincronización con la rev. 7, sin guardar las respuestas. Si aparece `id_sin_tipo > 0`, decidir el tratamiento con esa forma real y borrar esas filas NULL para que el relleno las vuelva a leer.
 - Clientes Windows: los paquetes publicados 1.1.x (`CreatorHub.exe` en modo `cliente_nube` desde `a066bd7`) y 2.0.0 (Flutter) son clientes de la nube: no ejecutan la sincronización local ni llaman a la API de TikTok Shop, así que basta con desplegar la etapa 1 en la nube. Solo una instalación 1.0.3 sin actualizar, con conexión propia de TikTok Shop y sincronización automática, seguiría llamando la ruta; eso se resuelve instalando una versión ya publicada. Falta confirmar si queda alguna activa.
