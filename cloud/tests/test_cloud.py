@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 import sys
 import subprocess
@@ -125,6 +126,45 @@ class WebSecurityTests(unittest.TestCase):
                                     base_url=self.base)
         self.assertEqual(response.status_code, 403)
         self.hub.despachador.despachar.assert_not_called()
+
+    def test_additional_web_origin_keeps_host_and_mutation_checks(self) -> None:
+        alias = 'https://app.cutgc.com.mx'
+        client = create_app(replace(self.settings, additional_web_origin=alias), self.hub).test_client()
+        headers = {'Origin': alias, 'X-CH-Hub': '1'}
+        response = client.post('/api/cloud/login', json={'password': 'synthetic-password-for-tests'},
+                               headers=headers, base_url=self.base)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(client.get('/api/cloud/session', base_url=alias).status_code, 400)
+
+        self.hub.local.importar.return_value = {'ok': True}
+        for rejected in [{}, {'Origin': alias}, {'Origin': alias + '.example', 'X-CH-Hub': '1'}]:
+            response = client.post('/api/cloud/import', json={}, headers=rejected, base_url=self.base)
+            self.assertEqual(response.status_code, 403)
+            self.assertEqual(response.json['error']['codigo'], 'origen_invalido')
+        self.hub.local.importar.assert_not_called()
+
+        payload = {'version': 1, 'plan': []}
+        response = client.post('/api/cloud/import', json=payload, headers=headers, base_url=self.base)
+        self.assertEqual(response.status_code, 200)
+        self.hub.local.importar.assert_called_once_with(payload)
+
+    def test_additional_web_origin_environment_requires_exact_https(self) -> None:
+        alias = 'https://app.cutgc.com.mx'
+        env = {
+            'CORTE_PUBLIC_URL': self.base,
+            'CORTE_SESSION_SECRET': self.settings.session_secret,
+            'CORTE_ENCRYPTION_KEY': 'synthetic-encryption-key-' * 3,
+            'CORTE_AUTH_PROVIDER': 'password',
+            'CORTE_PASSWORD_HASH': self.password_hash,
+        }
+        with patch.dict(os.environ, {**env, 'CORTE_ADDITIONAL_WEB_ORIGIN': alias}, clear=True):
+            self.assertEqual(Settings.from_env().additional_web_origin, alias)
+        for invalid in ('http://app.cutgc.com.mx', 'https://*.cutgc.com.mx', f'{alias}/path', f'{alias}?query',
+                        'https://user@app.cutgc.com.mx', f'{alias},https://other.example'):
+            with self.subTest(invalid=invalid):
+                with patch.dict(os.environ, {**env, 'CORTE_ADDITIONAL_WEB_ORIGIN': invalid}, clear=True):
+                    with self.assertRaisesRegex(ValueError, 'CORTE_ADDITIONAL_WEB_ORIGIN'):
+                        Settings.from_env()
 
     def test_host_and_https_are_enforced(self) -> None:
         self.assertEqual(self.client.get('/api/cloud/session', base_url='https://evil.example').status_code, 400)

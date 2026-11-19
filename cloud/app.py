@@ -54,6 +54,7 @@ class Settings:
     trust_proxy: bool = False
     auth_provider: str = 'password'
     proxy_hops: int = 1
+    additional_web_origin: str | None = None
 
     @classmethod
     def from_env(cls) -> 'Settings':
@@ -64,6 +65,13 @@ class Settings:
         if (not public.hostname or public.username or public.password or public.path or public.query or public.fragment
                 or (public.scheme != 'https' and not (allow_http and local and public.scheme == 'http'))):
             raise ValueError('Configura CORTE_PUBLIC_URL con el origen HTTPS de tu servicio.')
+        additional_web_origin = os.environ.get('CORTE_ADDITIONAL_WEB_ORIGIN') or None
+        if additional_web_origin is not None:
+            alias = urlsplit(additional_web_origin)
+            if (alias.scheme != 'https' or not alias.hostname or alias.username is not None
+                    or alias.password is not None or additional_web_origin != f'https://{alias.netloc}'
+                    or '*' in alias.netloc or any(char.isspace() for char in alias.netloc)):
+                raise ValueError('Configura CORTE_ADDITIONAL_WEB_ORIGIN con un origen HTTPS exacto.')
         session_secret = os.environ.get('CORTE_SESSION_SECRET', '')
         password_hash = os.environ.get('CORTE_PASSWORD_HASH', '')
         provider = os.environ.get('CORTE_AUTH_PROVIDER', 'firebase')
@@ -81,7 +89,8 @@ class Settings:
         return cls(public_url, session_secret, password_hash,
                    os.environ.get('CORTE_DATA_DIR', '/var/lib/corte'),
                    os.environ.get('CORTE_UI_DIR', str(ROOT / 'ui' / 'dist')),
-                   allow_http, os.environ.get('CORTE_TRUST_PROXY') == '1', provider, proxy_hops)
+                   allow_http, os.environ.get('CORTE_TRUST_PROXY') == '1', provider, proxy_hops,
+                   additional_web_origin)
 
 
 class LoginLimiter:
@@ -248,7 +257,8 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
                 return error('solo_navegador', 'Administra las autorizaciones desde tu navegador.', 403)
             g.native_actor, g.firebase_claims = actor, actor['claims']
         if request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
-            if request.headers.get('Origin') != settings.public_url or request.headers.get('X-CH-Hub') != '1':
+            if (request.headers.get('Origin', '') not in (settings.public_url, settings.additional_web_origin)
+                    or request.headers.get('X-CH-Hub') != '1'):
                 return error('origen_invalido', 'La solicitud debe venir de Corte.', 403)
             if request.data and request.mimetype != 'application/json':
                 return error('formato_invalido', 'Envía los datos en formato JSON.', 415)

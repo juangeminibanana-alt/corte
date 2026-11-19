@@ -31,6 +31,16 @@ variable "hosting_site_id" {
   }
 }
 
+variable "additional_web_origin" {
+  description = "Optional exact HTTPS origin for a custom domain attached to the dedicated Hosting site."
+  type        = string
+  default     = ""
+  validation {
+    condition     = var.additional_web_origin == "" || can(regex("^https://[^/[:space:]@#?*]+$", var.additional_web_origin))
+    error_message = "Use an HTTPS origin without a path or wildcard."
+  }
+}
+
 variable "owner_email" {
   type = string
   validation {

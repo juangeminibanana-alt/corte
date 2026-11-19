@@ -21,6 +21,7 @@ ALLOWED_PUBLIC = frozenset({
     'CORTE_OWNER_EMAIL', 'CORTE_OWNER_UID', 'CORTE_TRUST_PROXY', 'CORTE_PROXY_HOPS',
     'CORTE_DATA_DIR', 'GOOGLE_CLOUD_PROJECT',
 })
+OPTIONAL_PUBLIC = frozenset({'CORTE_ADDITIONAL_WEB_ORIGIN'})
 SECRET_KEYS = frozenset({'CORTE_SESSION_SECRET', 'CORTE_ENCRYPTION_KEY'})
 
 
@@ -41,7 +42,7 @@ def environment() -> dict[str, str]:
     metadata_headers = {'Metadata-Flavor': 'Google'}
     config = json.loads(read_url(METADATA + 'instance/attributes/corte-config', metadata_headers))
     secret_versions = config.pop('_secret_versions', {})
-    if set(config) != ALLOWED_PUBLIC or set(secret_versions) != SECRET_KEYS:
+    if set(config) - OPTIONAL_PUBLIC != ALLOWED_PUBLIC or set(secret_versions) != SECRET_KEYS:
         raise ValueError('Unexpected Corte runtime configuration.')
     project = config['GOOGLE_CLOUD_PROJECT']
     if not re.fullmatch(r'[a-z][a-z0-9-]{4,28}[a-z0-9]', project):

@@ -51,6 +51,13 @@ class GoogleBootstrapTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 bootstrap.environment()
 
+    def test_additional_web_origin_is_optional(self):
+        for extra in [{}, {'CORTE_ADDITIONAL_WEB_ORIGIN': 'https://app.cutgc.com.mx'}]:
+            with self.subTest(extra=extra):
+                with patch.object(bootstrap, 'read_url', side_effect=self.responses({**self.config(), **extra})):
+                    self.assertEqual(bootstrap.environment().get('CORTE_ADDITIONAL_WEB_ORIGIN'),
+                                     extra.get('CORTE_ADDITIONAL_WEB_ORIGIN'))
+
     def test_secret_checksum_and_newline_injection_are_rejected(self):
         with patch.object(bootstrap, 'read_url', side_effect=self.responses(self.config(), bad_crc=True)):
             with self.assertRaises(ValueError):

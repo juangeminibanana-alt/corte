@@ -6,7 +6,7 @@ locals {
     "storage.googleapis.com", "identitytoolkit.googleapis.com", "serviceusage.googleapis.com", "run.googleapis.com",
     "fcm.googleapis.com", "fcmregistrations.googleapis.com"
   ])
-  runtime_config = {
+  runtime_config = merge({
     CORTE_PUBLIC_URL          = "https://${var.hosting_site_id}.web.app"
     CORTE_AUTH_PROVIDER       = "firebase"
     CORTE_FIREBASE_WEB_CONFIG = jsonencode(merge(var.firebase_web_config, { storageBucket = var.storage_bucket_name }))
@@ -21,7 +21,9 @@ locals {
       CORTE_SESSION_SECRET = "projects/${var.project_id}/secrets/${google_secret_manager_secret.session.secret_id}/versions/1"
       CORTE_ENCRYPTION_KEY = "projects/${var.project_id}/secrets/${google_secret_manager_secret.encryption.secret_id}/versions/1"
     }
-  }
+  }, var.additional_web_origin == "" ? {} : {
+    CORTE_ADDITIONAL_WEB_ORIGIN = var.additional_web_origin
+  })
 }
 
 resource "google_project_service" "api" {
