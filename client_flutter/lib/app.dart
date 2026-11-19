@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'auth/auth_controller.dart';
 import 'data/corte_repository.dart';
@@ -463,7 +464,21 @@ class CorteAccess extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
+                  // El enlace siempre a la vista: si el navegador no se abre, se copia y se abre en cualquier lado.
+                  SelectableText(
+                    pending.verificationUri.toString(),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: context.corte.muted, fontSize: 13),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => Clipboard.setData(
+                      ClipboardData(text: pending.verificationUri.toString()),
+                    ),
+                    icon: const Icon(Icons.copy_rounded, size: 18),
+                    label: const Text('Copiar enlace'),
+                  ),
+                  const SizedBox(height: 8),
                   FilledButton.icon(
                     onPressed: ui.auth.openVerificationPage,
                     icon: const Icon(Icons.open_in_new_rounded, size: 19),

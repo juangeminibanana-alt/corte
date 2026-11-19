@@ -526,13 +526,25 @@ class CorteAuthController extends ChangeNotifier {
   }
 
   Future<void> openVerificationPage() async {
-    if (!_validPending || !_pendingIsValid(_pending!)) return;
-    if (!await _links.open(
-      Uri.parse(_pending!['verification_uri'] as String),
-    )) {
+    if (_pending == null) return;
+    if (!_validPending) {
+      await _finishPending('El código venció. Vuelve a conectar tu cuenta.');
+      return;
+    }
+    if (!_pendingIsValid(_pending!)) return;
+    // Nunca falla en silencio: si el sistema no abre el navegador (o lanza un error), se dice y el enlace queda a la vista.
+    var opened = false;
+    try {
+      opened = await _links.open(
+        Uri.parse(_pending!['verification_uri'] as String),
+      );
+    } catch (_) {
+      opened = false;
+    }
+    if (!opened) {
       _waiting(
         error:
-            'No pudimos abrir el navegador. Abre el enlace de autorización para continuar.',
+            'No se abrió el navegador. Copia el enlace y ábrelo en cualquier navegador, aquí o en tu computadora.',
       );
     }
   }
