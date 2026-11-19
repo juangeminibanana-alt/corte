@@ -119,6 +119,19 @@ def _precio(valor: Any) -> str | None:
     return valor if isinstance(valor, str) and _PRECIO_RESPUESTA.fullmatch(valor) else None
 
 
+def _rango_precio(producto: Json) -> tuple[str | None, str | None, str | None]:
+    for campo in ('sales_price', 'original_price'):
+        precio = _objeto(producto.get(campo))
+        moneda = _texto(precio.get('currency'), 8)
+        if moneda is None or not _MONEDA.fullmatch(moneda):
+            continue
+        minimo = _precio(precio.get('minimum_amount'))
+        maximo = _precio(precio.get('maximum_amount'))
+        if minimo is not None or maximo is not None:
+            return minimo, maximo, moneda
+    return None, None, None
+
+
 def _entero_no_negativo(valor: Any) -> int | None:
     return valor if type(valor) is int and 0 <= valor <= 2**53 - 1 else None
 
@@ -127,10 +140,7 @@ def _producto(p: Json) -> Json | None:
     producto_id = _id(p.get('id'))
     if producto_id is None:
         return None
-    precios = _objeto(p.get('sales_price')) or _objeto(p.get('original_price'))
-    moneda = _texto(precios.get('currency'), 8)
-    if moneda is None or not _MONEDA.fullmatch(moneda):
-        moneda = None
+    minimo, maximo, moneda = _rango_precio(p)
     comision = _entero_no_negativo(_objeto(p.get('commission')).get('rate'))
     enlace: str | None = None
     try:
@@ -153,8 +163,8 @@ def _producto(p: Json) -> Json | None:
         'titulo': _texto(p.get('title'), 255),
         'tienda': _texto(_objeto(p.get('shop')).get('name'), 160),
         'region': _texto(p.get('sale_region'), 8),
-        'precio_min': _precio(precios.get('minimum_amount')) if moneda else None,
-        'precio_max': _precio(precios.get('maximum_amount')) if moneda else None,
+        'precio_min': minimo,
+        'precio_max': maximo,
         'moneda': moneda,
         'comision_porcentaje': comision / 100 if comision is not None and 100 <= comision <= 8000 else None,
         'unidades_vendidas': _entero_no_negativo(p.get('units_sold')),

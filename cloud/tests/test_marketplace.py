@@ -122,6 +122,22 @@ class MarketplaceTests(unittest.TestCase):
         for campo in ('enlace', 'imagen_url', 'comision_porcentaje', 'unidades_vendidas', 'moneda', 'precio_min'):
             self.assertIsNone(cuerpo['productos'][0][campo])
 
+    def test_precio_original_si_la_promocion_no_da_importe_y_moneda_validos(self):
+        original = {'currency': 'MXN', 'minimum_amount': '200.00', 'maximum_amount': '240.00'}
+        promociones = ({'minimum_amount': '190.00'}, {'currency': 'MXN'},
+                       {'currency': 'MXN', 'minimum_amount': 'indisponible'},
+                       {'currency': 'MXN', 'maximum_amount': '195.00'})
+        productos = [{'id': str(i), 'original_price': original, 'sales_price': promocion}
+                     for i, promocion in enumerate(promociones, 1)]
+        productos.append({'id': '5', 'sale_region': 'MX', 'original_price': {'minimum_amount': '200.00'}})
+        self.cliente.llamar.return_value = {'products': productos}
+
+        r, cuerpo = self.buscar({})
+
+        self.assertEqual(r.status, 200)
+        precios = [(p['precio_min'], p['precio_max'], p['moneda']) for p in cuerpo['productos']]
+        self.assertEqual(precios, [('200.00', '240.00', 'MXN')] * 3 + [(None, '195.00', 'MXN'), (None, None, None)])
+
     def test_limita_la_ruta_al_hub_nube_y_no_admite_post(self):
         r, _ = self.buscar({}, ctx=Contexto(origen='lan', plataforma='android', permisos='lectura_escritura'))
         self.assertEqual(r.status, 403)
