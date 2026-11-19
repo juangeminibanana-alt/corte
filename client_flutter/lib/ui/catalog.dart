@@ -11,6 +11,7 @@ import 'work.dart';
 import 'product_evidence.dart';
 import 'sales_origin.dart';
 import 'video_catalog.dart';
+import 'marketplace.dart';
 
 Future<void> openPublicLink(BuildContext context, String? value) async {
   final url = Uri.tryParse(value ?? '');
@@ -177,8 +178,49 @@ class ProductsPage extends StatefulWidget {
 class _ProductsPageState extends State<ProductsPage> {
   String _search = '', _order = 'comision';
   bool _samples = false;
+  (String?, String?, int)? _sessionKey;
+  Future<bool>? _marketplaceAccess;
+
   @override
-  Widget build(BuildContext context) => ApiData(
+  Widget build(BuildContext context) {
+    final ui = CorteScope.of(context);
+    final identity = (ui.repo.ownerScope, ui.repo.cacheScope);
+    final sessionKey = (identity.$1, identity.$2, ui.revision);
+    if (_sessionKey != sessionKey) {
+      _sessionKey = sessionKey;
+      _marketplaceAccess = ui.repo.sesion().then(
+        (session) => session.capacidades?['marketplace_creator'] == true,
+      );
+    }
+    final exploring =
+        Uri.tryParse(ui.location)?.queryParameters['segmento'] == 'marketplace';
+    return FutureBuilder<bool>(
+      key: ValueKey(identity),
+      future: _marketplaceAccess,
+      builder: (context, session) {
+        final available = session.data == true && !session.hasError;
+        if (exploring) {
+          return MarketplacePage(
+            key: ValueKey(available),
+            available: available,
+            checkingAccess: session.connectionState == ConnectionState.waiting,
+            error: session.error,
+            onRetryAccess: () => setState(() => _sessionKey = null),
+            onBack: () {
+              if (!ui.back()) ui.replace('/productos');
+            },
+          );
+        }
+        return _buildProducts(
+          onExplore: available
+              ? () => ui.go('/productos?segmento=marketplace')
+              : null,
+        );
+      },
+    );
+  }
+
+  Widget _buildProducts({VoidCallback? onExplore}) => ApiData(
     path: '/api/analitica/productos',
     query: const {'limite': 1000},
     builder: (context, data) {
@@ -218,6 +260,13 @@ class _ProductsPageState extends State<ProductsPage> {
                 'Productos',
                 subtitle:
                     '${data['total'] ?? rowsOf(data['items']).length} productos de tus ventas',
+                action: onExplore == null
+                    ? null
+                    : OutlinedButton.icon(
+                        onPressed: onExplore,
+                        icon: const Icon(Icons.search_rounded),
+                        label: const Text('Explorar TikTok Shop'),
+                      ),
               ),
               const SalesNavigation(selected: 'productos'),
               const SizedBox(height: 20),
@@ -983,10 +1032,7 @@ class VideoSalesDetail extends StatelessWidget {
                   ),
                 const SizedBox(height: 18),
                 MetricStrip([
-                  (
-                    'Vistas',
-                    v['vistas'] == null ? '—' : integer(v['vistas']),
-                  ),
+                  ('Vistas', v['vistas'] == null ? '—' : integer(v['vistas'])),
                   (
                     'Me gusta',
                     v['me_gusta'] == null && v['likes'] == null
@@ -995,15 +1041,11 @@ class VideoSalesDetail extends StatelessWidget {
                   ),
                   (
                     'Comentarios',
-                    v['comentarios'] == null
-                        ? '—'
-                        : integer(v['comentarios']),
+                    v['comentarios'] == null ? '—' : integer(v['comentarios']),
                   ),
                   (
                     'Compartidos',
-                    v['compartidos'] == null
-                        ? '—'
-                        : integer(v['compartidos']),
+                    v['compartidos'] == null ? '—' : integer(v['compartidos']),
                   ),
                 ]),
                 const SizedBox(height: 20),

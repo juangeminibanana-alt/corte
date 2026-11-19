@@ -7,11 +7,43 @@ import 'package:corte/app.dart';
 import 'package:corte/auth/auth_controller.dart';
 import 'package:corte/platform/corte_runtime.dart';
 import 'package:corte/ui/catalog.dart';
+import 'package:corte/ui/shell.dart';
 import 'package:corte/ui/work.dart';
 import 'package:corte/ui/widgets.dart';
 import 'package:corte/ui/theme.dart';
 
 void main() {
+  testWidgets('Android bottom navigation grows when labels wrap', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final auth = CorteAuthController(
+      runtime: CorteRuntime(
+        platform: 'android',
+        baseUri: Uri.parse(corteCloudOrigin),
+      ),
+      client: MockClient((_) async => http.Response('{}', 200)),
+    );
+    final ui = CorteUiController(auth: auth);
+    addTearDown(auth.dispose);
+    addTearDown(ui.dispose);
+    for (final width in [320.0, 390.0]) {
+      tester.view.physicalSize = Size(width, 880);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: corteTheme(),
+          home: CorteScope(controller: ui, child: const CorteShell()),
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Más'), findsOneWidget);
+    }
+    await tester.pumpWidget(const SizedBox.shrink());
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
   testWidgets(
     'browser back and forward restore content and application history',
     (tester) async {

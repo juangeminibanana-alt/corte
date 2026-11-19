@@ -7,14 +7,18 @@ import android.content.Intent
 class MainActivity : FlutterActivity() {
     private var nativeChannel: CorteNativeChannel? = null
     private var salesChannel: CorteSalesChannel? = null
+    private var googleAuthChannel: CorteGoogleAuthChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         nativeChannel = CorteNativeChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         salesChannel = CorteSalesChannel(this, flutterEngine.dartExecutor.binaryMessenger, nativeChannel!!)
+        googleAuthChannel = CorteGoogleAuthChannel(this, flutterEngine.dartExecutor.binaryMessenger)
     }
 
     override fun onDestroy() {
+        googleAuthChannel?.dispose()
+        googleAuthChannel = null
         salesChannel?.dispose()
         salesChannel = null
         nativeChannel?.dispose()

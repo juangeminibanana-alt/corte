@@ -401,7 +401,9 @@ class CorteAccess extends StatelessWidget {
   Widget build(BuildContext context) {
     final ui = CorteScope.of(context);
     final state = ui.auth.state;
-    final pending = state.pending;
+    final pending = ui.auth.runtime.platform == 'windows'
+        ? state.pending
+        : null;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: CorteColors.chrome,
@@ -446,7 +448,11 @@ class CorteAccess extends StatelessWidget {
                 ),
                 const SizedBox(height: 30),
                 if (state.busy)
-                  const Center(child: CircularProgressIndicator())
+                  const Center(
+                    child: CircularProgressIndicator(
+                      semanticsLabel: 'Conectando con Corte',
+                    ),
+                  )
                 else if (pending != null) ...[
                   Container(
                     padding: const EdgeInsets.all(22),

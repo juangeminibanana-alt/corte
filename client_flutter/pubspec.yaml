@@ -1,7 +1,7 @@
 name: corte
 description: Corte para Android, Windows y web, conectado a Google Cloud.
 publish_to: none
-version: 2.4.1+20401
+version: 2.4.2+20402
 
 environment:
   sdk: '>=3.10.0 <4.0.0'

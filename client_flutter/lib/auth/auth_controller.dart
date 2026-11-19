@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import '../platform/corte_runtime.dart';
@@ -21,12 +22,15 @@ class CorteAuthController extends ChangeNotifier {
     CorteCredentialStore? credentials,
     CorteExternalLinks? links,
     CorteWebSignIn? webSignIn,
+    Future<String?> Function()? androidSignIn,
     http.Client? client,
     DateTime Function()? clock,
   }) : runtime = runtime ?? CorteRuntime.current(),
        _credentials = credentials ?? const CorteNativeBridge(),
        _links = links ?? const CorteSystemLinks(),
        _webSignIn = webSignIn ?? createWebSignIn(),
+       _androidSignIn =
+           androidSignIn ?? const CorteNativeBridge().signInWithGoogle,
        _clock = clock ?? DateTime.now {
     transport = CorteTransport(
       runtime: this.runtime,
@@ -50,6 +54,7 @@ class CorteAuthController extends ChangeNotifier {
   final CorteCredentialStore _credentials;
   final CorteExternalLinks _links;
   final CorteWebSignIn _webSignIn;
+  final Future<String?> Function() _androidSignIn;
   final DateTime Function() _clock;
   late final CorteTransport transport;
   CorteAuthState _state = const CorteAuthState();
@@ -229,7 +234,9 @@ class CorteAuthController extends ChangeNotifier {
       _credentialsReady = false;
       _lockedOwner = await _credentials.read(sessionOwnerKey);
       _device = _json(await _credentials.read(deviceSessionKey));
-      _pending = _json(await _credentials.read(pendingAuthorizationKey));
+      _pending = runtime.platform == 'windows'
+          ? _json(await _credentials.read(pendingAuthorizationKey))
+          : null;
       _credentialsReady = true;
       if (_validDevice) {
         final owner = _text(_device?['owner_uid']);
@@ -427,6 +434,14 @@ class CorteAuthController extends ChangeNotifier {
         await initialize();
         if (!_credentialsReady) return;
       }
+      if (runtime.platform == 'android') {
+        if (_validDevice) {
+          await _probeNative();
+        } else {
+          await _signInAndroid();
+        }
+        return;
+      }
       if (_validPending && _pendingIsValid(_pending!)) {
         await openVerificationPage();
         _waiting();
@@ -447,9 +462,7 @@ class CorteAuthController extends ChangeNotifier {
         '/api/native/auth/start',
         body: {
           'platform': runtime.platform,
-          'name': runtime.platform == 'android'
-              ? 'Corte para Android'
-              : 'Corte para Windows',
+          'name': 'Corte para Windows',
           'code_challenge': challenge,
         },
         maxResponseBytes: 32 * 1024,
@@ -504,6 +517,105 @@ class CorteAuthController extends ChangeNotifier {
     } finally {
       _signingIn = false;
     }
+  }
+
+  Future<void> _signInAndroid() async {
+    final generation = ++_generation;
+    _set(const CorteAuthState(phase: CorteAuthPhase.checking));
+    String? error;
+    try {
+      final idToken = await _androidSignIn();
+      if (generation != _generation || _disposed) return;
+      if (idToken != null) {
+        final response = await transport.request(
+          'POST',
+          '/api/native/auth/google',
+          body: {'id_token': idToken, 'device_name': 'Corte para Android'},
+          maxResponseBytes: 32 * 1024,
+        );
+        if (generation != _generation || _disposed) return;
+        final device = _grantedDevice(response);
+        if (device == null) {
+          error = switch (response.statusCode) {
+            401 => 'Google no pudo confirmar el acceso. Vuelve a intentarlo.',
+            403 => 'Esta cuenta de Google no tiene acceso a Corte.',
+            429 => 'Espera un momento y vuelve a intentarlo.',
+            _ => 'No pudimos conectar Corte con Google. Vuelve a intentarlo.',
+          };
+        } else if (_lockedOwner != null &&
+            _lockedOwner != device['owner_uid']) {
+          error = 'Esta copia pertenece a otra cuenta. Usa la cuenta original.';
+        } else {
+          await _saveNativeDevice(device, generation);
+          return;
+        }
+      }
+    } on PlatformException catch (e) {
+      error = switch (e.code) {
+        'google_unavailable' =>
+          'Actualiza Servicios de Google Play e inténtalo de nuevo.',
+        'google_no_account' =>
+          'Agrega tu cuenta de Google en los ajustes de Android.',
+        'google_sign_in_busy' => 'Google ya está confirmando el acceso.',
+        _ => 'No pudimos conectar con Google. Vuelve a intentarlo.',
+      };
+    } on MissingPluginException {
+      error = 'El acceso con Google no está disponible en esta instalación.';
+    } on CorteTransportException catch (e) {
+      error = e.mensaje;
+    } catch (_) {
+      error =
+          'No pudimos guardar el acceso seguro. Tu copia anterior se conserva.';
+    }
+    if (generation == _generation && !_disposed) {
+      _set(
+        CorteAuthState(phase: CorteAuthPhase.signedOut, errorMessage: error),
+      );
+    }
+  }
+
+  Map<String, Object?>? _grantedDevice(CorteResponse response) {
+    final value = _response(response);
+    final owner = _object(value?['owner']);
+    final uid = _text(owner?['uid']);
+    final token = _text(value?['token']);
+    final deviceId = _text(value?['device_id']);
+    final expiry = _integer(value?['expires_at']);
+    if (response.statusCode != 200 ||
+        value?['estado'] != 'autorizado' ||
+        uid == null ||
+        uid.length > 128 ||
+        token == null ||
+        !_tokenPattern.hasMatch(token) ||
+        deviceId == null ||
+        !_idPattern.hasMatch(deviceId) ||
+        expiry <= _now) {
+      return null;
+    }
+    return {
+      'token': token,
+      'device_id': deviceId,
+      'expires_at': expiry,
+      'owner_uid': uid,
+      'owner_email': owner?['email'],
+    };
+  }
+
+  Future<void> _saveNativeDevice(
+    Map<String, Object?> device,
+    int generation,
+  ) async {
+    final uid = device['owner_uid'] as String;
+    await _storeMutation(generation, () async {
+      await _credentials.write(sessionOwnerKey, uid);
+      await _credentials.write(deviceSessionKey, jsonEncode(device));
+      await _credentials.delete(pendingAuthorizationKey);
+    });
+    if (generation != _generation || _disposed) return;
+    _lockedOwner = uid;
+    _device = device;
+    _pending = null;
+    await _probeNative();
   }
 
   bool _pendingIsValid(Map<String, Object?> pending) {
@@ -592,44 +704,15 @@ class CorteAuthController extends ChangeNotifier {
         );
         return;
       }
-      final value = _response(response);
-      final owner = _object(value?['owner']);
-      final uid = _text(owner?['uid']);
-      final token = _text(value?['token']);
-      final deviceId = _text(value?['device_id']);
-      final expiry = _integer(value?['expires_at']);
-      if (response.statusCode == 200 &&
-          value?['estado'] == 'autorizado' &&
-          uid != null &&
-          uid.length <= 128 &&
-          token != null &&
-          _tokenPattern.hasMatch(token) &&
-          deviceId != null &&
-          _idPattern.hasMatch(deviceId) &&
-          expiry > _now) {
-        if (_lockedOwner != null && _lockedOwner != uid) {
+      final device = _grantedDevice(response);
+      if (device != null) {
+        if (_lockedOwner != null && _lockedOwner != device['owner_uid']) {
           await _finishPending(
             'Esta copia pertenece a otra cuenta. Usa la cuenta original.',
           );
           return;
         }
-        final device = <String, Object?>{
-          'token': token,
-          'device_id': deviceId,
-          'expires_at': expiry,
-          'owner_uid': uid,
-          'owner_email': owner?['email'],
-        };
-        await _storeMutation(generation, () async {
-          await _credentials.write(sessionOwnerKey, uid);
-          await _credentials.write(deviceSessionKey, jsonEncode(device));
-          await _credentials.delete(pendingAuthorizationKey);
-        });
-        if (generation != _generation || _disposed) return;
-        _lockedOwner = uid;
-        _device = device;
-        _pending = null;
-        await _probeNative();
+        await _saveNativeDevice(device, generation);
       } else {
         await _finishPending(
           response.statusCode == 410
@@ -686,6 +769,7 @@ class CorteAuthController extends ChangeNotifier {
   Future<void> resume() async {
     if (_signingOut || _disposed) return;
     _foreground = true;
+    if (runtime.platform == 'android' && _signingIn) return;
     if (!_initialized) {
       await initialize();
       return;

@@ -16,6 +16,11 @@ class CorteNativeBridge implements CorteCredentialStore {
     MethodChannel channel = const MethodChannel('corte/native'),
   }) : _channel = channel;
   final MethodChannel _channel;
+  static const _google = MethodChannel('corte/google_auth');
+
+  Future<String?> signInWithGoogle() =>
+      _google.invokeMethod<String>('signInWithGoogle');
+
   static const _keys = {
     deviceSessionKey,
     pendingAuthorizationKey,

@@ -308,60 +308,64 @@ class _CorteShellState extends State<CorteShell> {
               color: CorteColors.chrome,
               child: SafeArea(
                 top: false,
-                child: SizedBox(
-                  height: 68,
-                  child: Row(
-                    children: [
-                      for (final item in [
-                        _destinations[0],
-                        _destinations[1],
-                        _destinations[2],
-                        _destinations[3],
-                        ('/ajustes', 'Más', Icons.more_horiz_rounded),
-                      ])
-                        Expanded(
-                          child: Semantics(
-                            selected: active == item.$1.substring(1),
-                            child: InkWell(
-                              onTap: () => ui.go(item.$1),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    item.$3,
-                                    size: 24,
-                                    color: active == item.$1.substring(1)
-                                        ? CorteColors.coral
-                                        : Colors.white,
-                                  ),
-                                  const SizedBox(height: 5),
-                                  Text(
-                                    item.$2,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: active == item.$1.substring(1)
-                                          ? const Color(0xFFFF5275)
-                                          : Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  Container(
-                                    height: 3,
-                                    width: 26,
-                                    decoration: BoxDecoration(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 68),
+                  child: IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final item in [
+                          _destinations[0],
+                          _destinations[1],
+                          _destinations[2],
+                          _destinations[3],
+                          ('/ajustes', 'Más', Icons.more_horiz_rounded),
+                        ])
+                          Expanded(
+                            child: Semantics(
+                              selected: active == item.$1.substring(1),
+                              child: InkWell(
+                                onTap: () => ui.go(item.$1),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      item.$3,
+                                      size: 24,
                                       color: active == item.$1.substring(1)
                                           ? CorteColors.coral
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(2),
+                                          : Colors.white,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      item.$2,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: active == item.$1.substring(1)
+                                            ? const Color(0xFFFF5275)
+                                            : Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Container(
+                                      height: 3,
+                                      width: 26,
+                                      decoration: BoxDecoration(
+                                        color: active == item.$1.substring(1)
+                                            ? CorteColors.coral
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

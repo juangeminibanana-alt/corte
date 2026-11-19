@@ -156,6 +156,7 @@ class CorteTransport implements CorteHttpAdapter {
     final unauthenticated = {
       '/api/native/auth/start',
       '/api/native/auth/poll',
+      '/api/native/auth/google',
     }.contains(uri.path);
     final bearer = runtime.isWeb || unauthenticated
         ? null

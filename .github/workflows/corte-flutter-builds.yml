@@ -3,7 +3,7 @@ name: Corte Flutter - reviewed builds
 on:
   # The new workflow is not yet on main. Build only Windows on these review branches.
   push:
-    branches: [codex/tiktok-shop-firebase-cloud, claude/corte-nube-trabajo]
+    branches: [codex/tiktok-shop-firebase-cloud, claude/corte-nube-trabajo, codex/corte-nube-revision]
     paths: ['client_flutter/**', '.github/workflows/corte-flutter-builds.yml']
   workflow_dispatch:
     inputs:
@@ -58,6 +58,17 @@ jobs:
       - run: flutter --no-version-check pub get --enforce-lockfile
       - run: flutter --no-version-check doctor -v
       - run: ./tool/package_windows.ps1 -NoPub
+      - name: Smoke test the packaged Windows runner
+        shell: pwsh
+        run: |
+          Expand-Archive build/artifacts/Corte-Flutter-Windows-x64.zip "$env:RUNNER_TEMP/corte-smoke"
+          $corte = Start-Process "$env:RUNNER_TEMP/corte-smoke/CreatorHub.exe" -WorkingDirectory "$env:RUNNER_TEMP/corte-smoke" -WindowStyle Hidden -PassThru
+          try {
+            if (!$corte.WaitForInputIdle(20000)) { throw 'Corte did not initialize its Windows event loop.' }
+            if ($corte.WaitForExit(8000)) { throw "Corte exited during startup with status $($corte.ExitCode)." }
+          } finally {
+            if (!$corte.HasExited) { Stop-Process -Id $corte.Id }
+          }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Corte-Flutter-Windows-x64

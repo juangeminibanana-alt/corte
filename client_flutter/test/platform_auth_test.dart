@@ -104,11 +104,14 @@ CorteAuthController auth(
   TestStore store,
   MockClient client, {
   TestLinks? links,
+  String platform = 'android',
+  Future<String?> Function()? androidSignIn,
 }) => CorteAuthController(
-  runtime: runtime,
+  runtime: CorteRuntime(platform: platform, baseUri: Uri.parse(origin)),
   credentials: store,
   client: client,
   links: links ?? TestLinks(),
+  androidSignIn: androidSignIn,
   clock: () => DateTime.fromMillisecondsSinceEpoch(now * 1000, isUtc: true),
 );
 
@@ -183,6 +186,7 @@ void main() {
           requests++;
           return jsonResponse(startResponse());
         }),
+        platform: 'windows',
       );
       addTearDown(controller.dispose);
       await controller.initialize();
@@ -257,7 +261,7 @@ void main() {
   );
 
   test(
-    'start and poll omit bearer; transient or business errors never expire the native session',
+    'device authorization routes omit bearer; business errors never expire the native session',
     () async {
       var invalidated = 0;
       final transport = CorteTransport(
@@ -289,6 +293,11 @@ void main() {
         'POST',
         '/api/native/auth/poll',
         body: {'request_id': 'synthetic'},
+      );
+      await transport.request(
+        'POST',
+        '/api/native/auth/google',
+        body: {'id_token': 'synthetic'},
       );
       await transport.request('GET', '/api/forbidden');
       await transport.request('GET', '/api/business');
@@ -392,6 +401,7 @@ void main() {
           return jsonResponse(session());
         }),
         links: links,
+        platform: 'windows',
       );
       addTearDown(controller.dispose);
       await controller.initialize();
@@ -403,6 +413,87 @@ void main() {
       expect(controller.state.cacheScope, cacheScope);
       expect(store.values.containsKey(deviceSessionKey), isTrue);
       expect(store.values.containsKey(pendingAuthorizationKey), isFalse);
+    },
+  );
+
+  test('Android upgrades a pending code to Google inside the app', () async {
+    final store = TestStore()
+      ..values[pendingAuthorizationKey] = jsonEncode({
+        ...startResponse(),
+        'code_verifier': repeated('v', 43),
+        'expires_at': now + 600,
+      });
+    final links = TestLinks();
+    final calls = <String>[];
+    final controller = auth(
+      store,
+      MockClient((request) async {
+        calls.add(request.url.path);
+        if (request.url.path == '/api/native/auth/google') {
+          expect(request.method, 'POST');
+          expect(request.headers['authorization'], isNull);
+          expect(jsonDecode(request.body), {
+            'id_token': 'synthetic-firebase-id-token',
+            'device_name': 'Corte para Android',
+          });
+          return jsonResponse(grant());
+        }
+        expect(request.url.path, '/api/native/session');
+        expect(request.headers['authorization'], 'Bearer ${token('a')}');
+        expect(store.values[deviceSessionKey], isNotNull);
+        return jsonResponse(session());
+      }),
+      links: links,
+      androidSignIn: () async => 'synthetic-firebase-id-token',
+    );
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    expect(controller.state.pending, isNull);
+    expect(controller.state.phase, CorteAuthPhase.signedOut);
+    await controller.signIn();
+    expect(calls, ['/api/native/auth/google', '/api/native/session']);
+    expect(links.opened, isEmpty);
+    expect(controller.state.authenticated, isTrue);
+    expect(controller.state.cacheScope, cacheScope);
+    expect(store.values[pendingAuthorizationKey], isNull);
+    expect(
+      store.values[deviceSessionKey],
+      isNot(contains('synthetic-firebase-id-token')),
+    );
+  });
+
+  test(
+    'Android returns to access if Google is cancelled during resume',
+    () async {
+      final result = Completer<String?>();
+      final store = TestStore()
+        ..values[deviceSessionKey] = jsonEncode({
+          ...device(),
+          'expires_at': now - 1,
+        });
+      final links = TestLinks();
+      var requests = 0;
+      final controller = auth(
+        store,
+        MockClient((_) async {
+          requests++;
+          return jsonResponse(grant());
+        }),
+        links: links,
+        androidSignIn: () => result.future,
+      );
+      addTearDown(controller.dispose);
+      await controller.initialize();
+      final access = controller.signIn();
+      controller.pause();
+      await controller.resume();
+      expect(controller.state.phase, CorteAuthPhase.checking);
+      result.complete(null);
+      await access;
+      expect(controller.state.phase, CorteAuthPhase.signedOut);
+      expect(controller.state.errorMessage, isNull);
+      expect(requests, 0);
+      expect(links.opened, isEmpty);
     },
   );
 
@@ -462,6 +553,7 @@ void main() {
           if (r.url.path.endsWith('/poll')) return jsonResponse(grant('b'));
           return jsonResponse(session());
         }),
+        platform: 'windows',
       );
       addTearDown(controller.dispose);
       await controller.initialize();
@@ -500,6 +592,7 @@ void main() {
           if (r.url.path.endsWith('/poll')) return jsonResponse(grant());
           return jsonResponse(session());
         }),
+        platform: 'windows',
       );
       addTearDown(controller.dispose);
       await controller.initialize();
