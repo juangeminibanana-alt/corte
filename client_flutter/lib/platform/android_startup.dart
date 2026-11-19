@@ -10,18 +10,6 @@ abstract final class CorteAndroidStartup {
   static bool get _android =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
-  static Future<bool> recoveryMode() async {
-    if (!_android) return false;
-    try {
-      return await _channel
-              .invokeMethod<bool>('mode')
-              .timeout(const Duration(milliseconds: 400)) ??
-          false;
-    } on Exception {
-      return false;
-    }
-  }
-
   static void mark(String phase) {
     if (_android) unawaited(_send(phase));
   }

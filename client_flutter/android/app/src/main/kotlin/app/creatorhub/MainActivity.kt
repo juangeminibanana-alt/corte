@@ -30,7 +30,6 @@ class MainActivity : FlutterActivity() {
         startupChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, StartupDiagnostics.CHANNEL_NAME)
         startupChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
-                "mode" -> result.success(recoveryMode)
                 "mark" -> {
                     StartupDiagnostics.recordPhase(this, call.arguments as? String)
                     result.success(null)
@@ -39,6 +38,9 @@ class MainActivity : FlutterActivity() {
             }
         }
     }
+
+    override fun getDartEntrypointFunctionName(): String =
+        if (recoveryMode) "corteInicioLigero" else "main"
 
     override fun onResume() {
         super.onResume()

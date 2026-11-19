@@ -4,7 +4,12 @@ import 'package:flutter/services.dart';
 import 'app.dart';
 import 'platform/android_startup.dart';
 
-Future<void> main() async {
+void main() => _runCorte(androidRecovery: false);
+
+@pragma('vm:entry-point')
+void corteInicioLigero() => _runCorte(androidRecovery: true);
+
+void _runCorte({required bool androidRecovery}) {
   WidgetsFlutterBinding.ensureInitialized();
   // Keep keyboard, screen reader and browser accessibility navigation available.
   if (kIsWeb) WidgetsBinding.instance.ensureSemantics();
@@ -31,7 +36,10 @@ Future<void> main() async {
     yield LicenseEntryWithLineBreaks(['Lucide'], iconsLicense);
   });
   CorteAndroidStartup.trackErrors();
-  final recovery = await CorteAndroidStartup.recoveryMode();
-  CorteAndroidStartup.mark(recovery ? 'dart_recovery_ready' : 'dart_ready');
-  runApp(CorteApplication(androidRecovery: recovery));
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    CorteAndroidStartup.mark(
+      androidRecovery ? 'dart_recovery_ready' : 'dart_ready',
+    );
+  });
+  runApp(CorteApplication(androidRecovery: androidRecovery));
 }
