@@ -83,7 +83,12 @@ internal class CorteGoogleAuthChannel(activity: Activity, messenger: BinaryMesse
                     override fun onResult(response: GetCredentialResponse) {
                         if (selection !== signal) return
                         selection = null
-                        exchange(response)
+                        try {
+                            exchange(response)
+                        } catch (_: RuntimeException) {
+                            // The provider response is read on the callback, after signIn's try block.
+                            fail()
+                        }
                     }
 
                     override fun onError(error: GetCredentialException) {
@@ -134,17 +139,22 @@ internal class CorteGoogleAuthChannel(activity: Activity, messenger: BinaryMesse
                         fail()
                         return@addOnCompleteListener
                     }
-                    val user = login.result?.user
-                    if (request == null || user == null) {
-                        finishExchange(auth, null)
-                    } else {
-                        try {
-                            user.getIdToken(false).addOnCompleteListener(callbacks) { token ->
-                                finishExchange(auth, if (token.isSuccessful) token.result?.token else null)
-                            }
-                        } catch (_: RuntimeException) {
+                    try {
+                        val user = login.result?.user
+                        if (request == null || user == null) {
                             finishExchange(auth, null)
+                        } else {
+                            user.getIdToken(false).addOnCompleteListener(callbacks) { token ->
+                                val idToken = try {
+                                    if (token.isSuccessful) token.result?.token else null
+                                } catch (_: RuntimeException) {
+                                    null
+                                }
+                                finishExchange(auth, idToken)
+                            }
                         }
+                    } catch (_: RuntimeException) {
+                        finishExchange(auth, null)
                     }
                 }
         } catch (_: RuntimeException) {
@@ -173,7 +183,11 @@ internal class CorteGoogleAuthChannel(activity: Activity, messenger: BinaryMesse
         deadline = null
         val signal = selection
         selection = null
-        signal?.cancel()
+        try {
+            signal?.cancel()
+        } catch (_: RuntimeException) {
+            // The request is already detached, even if the provider cannot cancel.
+        }
         return result
     }
 

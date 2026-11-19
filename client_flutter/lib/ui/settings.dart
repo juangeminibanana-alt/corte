@@ -51,6 +51,32 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SectionHeading('Apariencia'),
               const _AppearanceSettings(),
+              if (ui.textSize.available)
+                ListenableBuilder(
+                  listenable: ui.textSize,
+                  builder: (context, _) => SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Usar el tamaño de texto de Windows'),
+                    subtitle: const Text(
+                      'Desactívalo para usar la escala de CUTGC web.',
+                    ),
+                    value: ui.textSize.useSystem,
+                    onChanged: ui.textSize.ready
+                        ? (value) async {
+                            try {
+                              await ui.textSize.choose(value);
+                            } catch (_) {
+                              if (context.mounted) {
+                                toast(
+                                  context,
+                                  'No pudimos guardar el tamaño del texto.',
+                                );
+                              }
+                            }
+                          }
+                        : null,
+                  ),
+                ),
               const SectionHeading('Avisos de ventas'),
               const SalesNotificationsSettings(),
               const SectionHeading('Tu cuenta de Google'),
@@ -65,19 +91,7 @@ class _SettingsPageState extends State<SettingsPage> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
-                  onPressed: () async {
-                    if (!await _confirm(
-                          context,
-                          '¿Salir de CUTGC?',
-                          'Se cerrará el acceso a esta cuenta en este dispositivo. Los cambios guardados se conservan.',
-                          'Salir',
-                        ) ||
-                        !context.mounted) {
-                      return;
-                    }
-                    await ui.salesNotifications.setEnabled(false);
-                    await ui.auth.signOut();
-                  },
+                  onPressed: () => confirmCorteSignOut(context),
                   icon: const Icon(Icons.logout_rounded, size: 19),
                   label: const Text('Salir de esta cuenta'),
                 ),
@@ -1479,6 +1493,22 @@ class _EntityLink extends StatelessWidget {
 String _errorText(Object error) => error is ErrorApi
     ? error.mensaje
     : 'No pudimos completar el cambio. La información anterior se conserva.';
+
+Future<void> confirmCorteSignOut(BuildContext context) async {
+  final ui = CorteScope.of(context);
+  if (!await _confirm(
+        context,
+        '¿Salir de CUTGC?',
+        'Se cerrará el acceso a esta cuenta en este dispositivo. Los cambios guardados se conservan.',
+        'Salir',
+      ) ||
+      !context.mounted) {
+    return;
+  }
+  await ui.salesNotifications.setEnabled(false);
+  await ui.auth.signOut();
+}
+
 Future<bool> _confirm(
   BuildContext context,
   String title,

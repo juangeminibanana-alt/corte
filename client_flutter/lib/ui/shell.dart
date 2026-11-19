@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../app.dart';
+import 'corte_icons.dart';
 import 'theme.dart';
 import 'widgets.dart';
 import 'work.dart';
@@ -7,6 +9,8 @@ import 'catalog.dart';
 import 'settings.dart';
 import 'planner.dart';
 import 'desktop_shell.dart';
+
+const _enterCurve = Cubic(.05, .7, .1, 1);
 
 const _salesDestinations = <(String, String)>[
   ('ventas', 'Resumen'),
@@ -134,12 +138,36 @@ class _CorteShellState extends State<CorteShell> {
     final active = {'videos', 'productos', 'ordenes'}.contains(root)
         ? 'ventas'
         : root;
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
+    final screen = TweenAnimationBuilder<double>(
+      key: ValueKey(ui.location),
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: reducedMotion ? 120 : 200),
+      curve: _enterCurve,
+      builder: (context, progress, child) => Opacity(
+        opacity: progress,
+        child: Transform.translate(
+          offset: Offset(0, reducedMotion ? 0 : 8 * (1 - progress)),
+          child: child,
+        ),
+      ),
+      child: _screen(uri),
+    );
     if (!mobile) {
-      return DesktopShell(
-        body: KeyedSubtree(key: ValueKey(ui.location), child: _screen(uri)),
-        onSearch: _search,
-        onSync: _sync,
-        syncing: _syncing,
+      return CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+              _search,
+        },
+        child: Focus(
+          autofocus: true,
+          child: DesktopShell(
+            body: screen,
+            onSearch: _search,
+            onSync: _sync,
+            syncing: _syncing,
+          ),
+        ),
       );
     }
     return Scaffold(
@@ -161,8 +189,8 @@ class _CorteShellState extends State<CorteShell> {
                       IconButton(
                         onPressed: _search,
                         tooltip: 'Buscar en CUTGC',
-                        icon: const Icon(
-                          Icons.search_rounded,
+                        icon: const CorteIcon(
+                          CorteIconName.search,
                           color: Colors.white,
                           size: 22,
                         ),
@@ -180,8 +208,8 @@ class _CorteShellState extends State<CorteShell> {
                                   color: CorteColors.cyan,
                                 ),
                               )
-                            : const Icon(
-                                Icons.sync_rounded,
+                            : const CorteIcon(
+                                CorteIconName.refreshCw,
                                 color: CorteColors.chromeMuted,
                                 size: 22,
                               ),
@@ -207,12 +235,7 @@ class _CorteShellState extends State<CorteShell> {
               selected: root == 'ordenes' ? 'ventas' : root,
               onSelect: (id) => ui.go('/$id'),
             ),
-          Expanded(
-            child: KeyedSubtree(
-              key: ValueKey(ui.location),
-              child: _screen(uri),
-            ),
-          ),
+          Expanded(child: screen),
         ],
       ),
       bottomNavigationBar: ColoredBox(
@@ -230,7 +253,7 @@ class _CorteShellState extends State<CorteShell> {
                     corteDestinations[1],
                     corteDestinations[2],
                     corteDestinations[3],
-                    ('/ajustes', 'Más', Icons.more_horiz_rounded),
+                    ('/ajustes', 'Más', CorteIconName.ellipsis),
                   ])
                     Expanded(
                       child: Semantics(
@@ -240,12 +263,27 @@ class _CorteShellState extends State<CorteShell> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
-                                item.$3,
-                                size: 24,
-                                color: active == item.$1.substring(1)
-                                    ? CorteColors.coral
-                                    : Colors.white,
+                              TweenAnimationBuilder<double>(
+                                key: ValueKey(active == item.$1.substring(1)),
+                                duration: Duration(
+                                  milliseconds: reducedMotion ? 0 : 200,
+                                ),
+                                curve: _enterCurve,
+                                tween: Tween(
+                                  begin: active == item.$1.substring(1)
+                                      ? .9
+                                      : 1,
+                                  end: 1,
+                                ),
+                                builder: (context, scale, child) =>
+                                    Transform.scale(scale: scale, child: child),
+                                child: CorteIcon(
+                                  item.$3,
+                                  size: 22,
+                                  color: active == item.$1.substring(1)
+                                      ? CorteColors.coral
+                                      : const Color(0xFFE0E0E6),
+                                ),
                               ),
                               const SizedBox(height: 5),
                               Text(
@@ -262,7 +300,7 @@ class _CorteShellState extends State<CorteShell> {
                               const SizedBox(height: 5),
                               Container(
                                 height: 3,
-                                width: 26,
+                                width: 30,
                                 decoration: BoxDecoration(
                                   color: active == item.$1.substring(1)
                                       ? CorteColors.coral

@@ -20,6 +20,14 @@ void main() {
       'assets/fonts/OFL-MonaSans.txt',
     );
     yield LicenseEntryWithLineBreaks(['Mona Sans'], license);
+    final webFontLicense = await rootBundle.loadString(
+      'assets/fonts/OFL-CUTGCWebSans.txt',
+    );
+    yield LicenseEntryWithLineBreaks(['CUTGC Web Sans'], webFontLicense);
+    final iconsLicense = await rootBundle.loadString(
+      'assets/icons/LICENSE-Lucide.txt',
+    );
+    yield LicenseEntryWithLineBreaks(['Lucide'], iconsLicense);
   });
   runApp(const CorteApplication());
 }

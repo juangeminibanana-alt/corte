@@ -56,11 +56,16 @@ public final class Recordatorios {
 
     private static String recortar(String s, int n) { return s.length() > n ? s.substring(0, n) : s; }
 
+    private static String listaGuardada(SharedPreferences preferencias) {
+        Object valor = preferencias.getAll().get(CLAVE);
+        return valor instanceof String ? (String) valor : "[]";
+    }
+
     /** Reemplaza TODO lo programado por `json` (NotificacionProgramada[]). */
     public static synchronized void programar(Context ctx, String json) throws JSONException {
         JSONArray nueva = validar(json, System.currentTimeMillis() / 1000L);
         SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        cancelarTodo(ctx, p.getString(CLAVE, "[]"));
+        cancelarTodo(ctx, listaGuardada(p));
         p.edit().putString(CLAVE, nueva.toString()).apply();
         crearCanal(ctx);
         agendar(ctx, nueva);
@@ -70,7 +75,7 @@ public final class Recordatorios {
     static synchronized void reprogramar(Context ctx) {
         SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         try {
-            JSONArray vigente = validar(p.getString(CLAVE, "[]"), System.currentTimeMillis() / 1000L);
+            JSONArray vigente = validar(listaGuardada(p), System.currentTimeMillis() / 1000L);
             p.edit().putString(CLAVE, vigente.toString()).apply();
             crearCanal(ctx);
             agendar(ctx, vigente);
@@ -160,7 +165,7 @@ public final class Recordatorios {
     private static synchronized void quitarDeLista(Context ctx, String id) {
         SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         try {
-            JSONArray a = new JSONArray(p.getString(CLAVE, "[]"));
+            JSONArray a = new JSONArray(listaGuardada(p));
             JSONArray resto = new JSONArray();
             for (int i = 0; i < a.length(); i++) {
                 JSONObject n = a.optJSONObject(i);
@@ -175,7 +180,7 @@ public final class Recordatorios {
     /** "Olvidar esta PC" no borra recordatorios: son de la interfaz. Esto solo se usa al borrar todo. */
     public static synchronized void borrarTodo(Context ctx) {
         SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        cancelarTodo(ctx, p.getString(CLAVE, "[]"));
+        cancelarTodo(ctx, listaGuardada(p));
         p.edit().remove(CLAVE).apply();
     }
 

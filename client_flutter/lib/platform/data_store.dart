@@ -8,9 +8,13 @@ export '../data/corte_store.dart';
 Future<CorteDataStore> createCorteDataStore() async =>
     implementation.createStore();
 
-bool validCorteDataKey(String key) => RegExp(
-  r'^corte\.data\.[a-f0-9]{64}\.(snapshot|outbox|images|image\.[a-f0-9]{64})$',
-).hasMatch(key);
+const windowsTextSizeKey = 'corte.device.windows-text-size';
+
+bool validCorteDataKey(String key) =>
+    key == windowsTextSizeKey ||
+    RegExp(
+      r'^corte\.data\.[a-f0-9]{64}\.(snapshot|outbox|images|image\.[a-f0-9]{64})$',
+    ).hasMatch(key);
 
 class CorteStoreException implements Exception {
   const CorteStoreException(this.message);

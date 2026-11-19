@@ -59,7 +59,7 @@ class _CorteApplicationState extends State<CorteApplication>
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _ui.appearance,
+    animation: Listenable.merge([_ui.appearance, _ui.textSize]),
     builder: (context, _) => MaterialApp.router(
       title: 'CUTGC',
       debugShowCheckedModeBanner: false,
@@ -67,9 +67,12 @@ class _CorteApplicationState extends State<CorteApplication>
       darkTheme: corteTheme(brightness: Brightness.dark),
       themeMode: _ui.appearance.mode,
       builder: (context, child) {
-        final content = ThemeChromeSync(
+        Widget content = ThemeChromeSync(
           child: child ?? const SizedBox.shrink(),
         );
+        if (_ui.textSize.available && !_ui.textSize.useSystem) {
+          content = MediaQuery.withNoTextScaling(child: content);
+        }
         return useDesktopWorkspace(context)
             ? Theme(
                 data: desktopWorkspaceTheme(Theme.of(context)),
@@ -90,12 +93,16 @@ class CorteUiController extends ChangeNotifier {
   CorteUiController({required this.auth}) {
     repo = CorteRepository(adapter: auth.transport);
     appearance = CorteThemePreferences(repo)..addListener(notifyListeners);
+    textSize = CorteTextSizePreference(
+      available: auth.runtime.platform == 'windows',
+    );
     auth.addListener(_authChanged);
     unawaited(
       createCorteDataStore()
           .then((store) {
             if (!_closed) {
               repo.attachStore(store);
+              unawaited(textSize.load(store));
               repo.invalidar();
               unawaited(appearance.load(force: true));
               revision++;
@@ -134,6 +141,7 @@ class CorteUiController extends ChangeNotifier {
   String? _remoteRevision;
   late final CorteRepository repo;
   late final CorteThemePreferences appearance;
+  late final CorteTextSizePreference textSize;
   String location = '/inicio';
   final _history = <String>[];
   bool _receivedRoute = false;
@@ -322,6 +330,7 @@ class CorteUiController extends ChangeNotifier {
     salesNotifications.dispose();
     appearance.removeListener(notifyListeners);
     appearance.dispose();
+    textSize.dispose();
     auth.removeListener(_authChanged);
     repo.close();
     super.dispose();

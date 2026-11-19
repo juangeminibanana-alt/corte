@@ -330,6 +330,13 @@ class _CortePhotoState extends State<CortePhoto> {
                     return Image.memory(
                       snap.data!,
                       fit: widget.fit,
+                      cacheWidth: widget.original
+                          ? null
+                          : (widget.width *
+                                    MediaQuery.devicePixelRatioOf(context))
+                                .ceil()
+                                .clamp(1, 2048)
+                                .toInt(),
                       gaplessPlayback: false,
                       errorBuilder: (_, __, ___) => placeholder,
                       excludeFromSemantics: true,

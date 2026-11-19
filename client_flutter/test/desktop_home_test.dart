@@ -7,8 +7,10 @@ import 'package:corte/platform/corte_runtime.dart';
 import 'package:corte/ui/desktop.dart';
 import 'package:corte/ui/desktop_home.dart';
 import 'package:corte/ui/theme.dart';
+import 'package:corte/ui/shell.dart';
 import 'package:corte/ui/work.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -182,11 +184,13 @@ Future<void> _mount(
   double contentWidth = 1000,
   double textScale = 1,
   bool mobile = false,
+  double? windowPhysicalWidth,
+  double devicePixelRatio = 1,
 }) async {
-  // Home applies 28 px on both sides. Test the requested available content
-  // width instead of accidentally testing a narrower viewport minus padding.
-  tester.view.physicalSize = Size(contentWidth + 56, 1600);
-  tester.view.devicePixelRatio = 1;
+  final fullShell = windowPhysicalWidth != null;
+  final width = windowPhysicalWidth ?? (contentWidth + 64) * devicePixelRatio;
+  tester.view.physicalSize = Size(width, 1500 * devicePixelRatio);
+  tester.view.devicePixelRatio = devicePixelRatio;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(fixture.dispose);
@@ -202,7 +206,11 @@ Future<void> _mount(
           child: child!,
         ),
         home: Scaffold(
-          body: mobile ? const HomePage() : const DesktopHomePage(),
+          body: fullShell
+              ? const CorteShell()
+              : mobile
+              ? const HomePage()
+              : const DesktopHomePage(),
         ),
       ),
     ),
@@ -360,4 +368,108 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+  final viewports = [
+    (
+      name: '868 DIP del navegador de referencia',
+      platform: TargetPlatform.windows,
+      physicalWidth: 868.0,
+      dpr: 1.0,
+      textScale: 1.0,
+      expectedContent: 724.0,
+      columns: true,
+    ),
+    (
+      name: '868 DIP con texto de Windows al 144 %',
+      platform: TargetPlatform.windows,
+      physicalWidth: 868.0,
+      dpr: 1.0,
+      textScale: 1.44,
+      expectedContent: 724.0,
+      columns: true,
+    ),
+    (
+      name: '960 DIP con texto de Windows al 144 %',
+      platform: TargetPlatform.windows,
+      physicalWidth: 960.0,
+      dpr: 1.0,
+      textScale: 1.44,
+      expectedContent: 816.0,
+      columns: true,
+    ),
+    (
+      name: '960 píxeles físicos a 120 DPI',
+      platform: TargetPlatform.windows,
+      physicalWidth: 960.0,
+      dpr: 1.25,
+      textScale: 1.44,
+      expectedContent: 624.0,
+      columns: false,
+    ),
+    (
+      name: '960 DIP con accesibilidad extrema',
+      platform: TargetPlatform.windows,
+      physicalWidth: 960.0,
+      dpr: 1.0,
+      textScale: 2.0,
+      expectedContent: 816.0,
+      columns: false,
+    ),
+    (
+      name: '390 DIP en Android',
+      platform: TargetPlatform.android,
+      physicalWidth: 1170.0,
+      dpr: 3.0,
+      textScale: 1.0,
+      expectedContent: 358.0,
+      columns: false,
+    ),
+  ];
+  var loadedMonaSans = false;
+  for (final viewport in viewports) {
+    testWidgets('Inicio adapta métricas y paneles a ${viewport.name}', (
+      tester,
+    ) async {
+      if (!loadedMonaSans) {
+        await tester.runAsync(() async {
+          final font = FontLoader('MonaSans');
+          font.addFont(rootBundle.load('assets/fonts/MonaSans.ttf'));
+          await font.load();
+        });
+        loadedMonaSans = true;
+      }
+      await _mount(
+        tester,
+        _HomeFixture(),
+        windowPhysicalWidth: viewport.physicalWidth,
+        devicePixelRatio: viewport.dpr,
+        textScale: viewport.textScale,
+      );
+      final metrics = find.byKey(const ValueKey('home-history-metrics'));
+      expect(
+        tester.getSize(metrics).width,
+        closeTo(viewport.expectedContent, 1),
+      );
+      final heading = tester.widget<Text>(find.text('Tu negocio, en orden'));
+      expect(heading.style?.fontSize, 30);
+      expect(heading.style?.fontVariations?.single.value, 750);
+      final first = tester.getTopLeft(find.text('Ventas generadas'));
+      final second = tester.getTopLeft(find.text('Comisión estimada'));
+      final third = tester.getTopLeft(find.text('Pedidos'));
+      final priorities = tester.getTopLeft(find.text('Tus prioridades'));
+      final shortcuts = tester.getTopLeft(find.text('Accesos rápidos'));
+      if (viewport.columns) {
+        expect(second.dy, closeTo(first.dy, 1));
+        expect(third.dy, closeTo(first.dy, 1));
+        expect(third.dx, greaterThan(second.dx));
+        expect(shortcuts.dx, greaterThan(priorities.dx + 300));
+        expect(shortcuts.dy, closeTo(priorities.dy, 25));
+      } else {
+        expect(second.dy, greaterThan(first.dy));
+        expect(third.dy, greaterThan(second.dy));
+        expect(shortcuts.dx, closeTo(priorities.dx, 1));
+        expect(shortcuts.dy, greaterThan(priorities.dy));
+      }
+      expect(tester.takeException(), isNull);
+    }, variant: TargetPlatformVariant.only(viewport.platform));
+  }
 }

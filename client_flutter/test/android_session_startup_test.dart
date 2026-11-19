@@ -1,0 +1,174 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:corte/app.dart';
+import 'package:corte/auth/auth_controller.dart';
+import 'package:corte/platform/corte_runtime.dart';
+import 'package:corte/platform/native_bridge.dart';
+import 'package:corte/ui/shell.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+class _Credentials implements CorteCredentialStore {
+  _Credentials(this.values);
+
+  final Map<String, String> values;
+
+  @override
+  Future<String?> read(String key) async => values[key];
+
+  @override
+  Future<void> write(String key, String value) async => values[key] = value;
+
+  @override
+  Future<void> delete(String key) async => values.remove(key);
+}
+
+void main() {
+  for (final restore in [false, true]) {
+    testWidgets(
+      restore
+          ? 'Android opens Inicio when it restores an existing session'
+          : 'Android opens Inicio on return from a successful Google sign-in',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(390, 844);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetPhysicalSize);
+
+        const now = 1795000000;
+        const owner = 'synthetic-owner';
+        final cacheScope = List.filled(64, 'c').join();
+        final deviceId = List.filled(24, 'd').join();
+        final bearer = 'corte_native_v1_${List.filled(43, 'a').join()}';
+        final device = {
+          'token': bearer,
+          'device_id': deviceId,
+          'expires_at': now + 3600,
+          'owner_uid': owner,
+          'cache_scope': cacheScope,
+        };
+        final ownerInfo = {'uid': owner, 'email': 'synthetic@example.test'};
+        final credentials = _Credentials({
+          if (restore) ...{
+            sessionOwnerKey: owner,
+            deviceSessionKey: jsonEncode(device),
+          },
+        });
+        final googleCallback = Completer<String?>();
+        const googleProof = 'synthetic-firebase-owner-proof';
+        var googleRequests = 0;
+        final paths = <String>[];
+        final auth = CorteAuthController(
+          runtime: CorteRuntime(
+            platform: 'android',
+            baseUri: Uri.parse(corteCloudOrigin),
+          ),
+          credentials: credentials,
+          clock: () => DateTime.fromMillisecondsSinceEpoch(now * 1000),
+          androidSignIn: () {
+            googleRequests++;
+            return googleCallback.future;
+          },
+          client: MockClient((request) async {
+            final path = request.url.path;
+            paths.add(path);
+            if (path == '/api/native/auth/google') {
+              expect(request.headers['authorization'], isNull);
+              expect(jsonDecode(request.body)['id_token'], googleProof);
+            } else {
+              expect(request.headers['authorization'], 'Bearer $bearer');
+            }
+            final payload = switch (path) {
+              '/api/native/auth/google' => {
+                'estado': 'autorizado',
+                ...device,
+                'owner': ownerInfo,
+              },
+              '/api/native/session' => {
+                'authenticated': true,
+                'device_id': deviceId,
+                'expires_at': now + 3600,
+                'owner': ownerInfo,
+                'owner_scope': List.filled(64, 'b').join(),
+                'cache_scope': cacheScope,
+              },
+              '/api/session' => {
+                'conexion': {'estado': 'conectada'},
+                'datos': {'hay_datos': true},
+              },
+              '/api/dashboard' => {
+                'kpis': {
+                  'ventas_centavos': 12500,
+                  'comision_estimada_centavos': 1200,
+                  'pedidos': 3,
+                },
+              },
+              '/api/muestras' => {'items': []},
+              '/api/cloud/revision' => {
+                'cache_scope': cacheScope,
+                'revision': 1,
+              },
+              '/api/snapshot' => {
+                'version_esquema': 1,
+                'muestras': [],
+                'local': {},
+              },
+              _ => <String, Object?>{},
+            };
+            return http.Response(
+              jsonEncode(payload),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        );
+        final ui = CorteUiController(auth: auth);
+        final router = CorteRouter(ui);
+        try {
+          await tester.pumpWidget(
+            MaterialApp.router(
+              routerDelegate: router,
+              routeInformationParser: const CorteRouteParser(),
+            ),
+          );
+          expect(find.byType(CorteAccess), findsOneWidget);
+
+          await auth.initialize();
+          if (!restore) {
+            await tester.pumpAndSettle();
+            await tester.tap(find.text('Continuar con Google'));
+            await tester.pump();
+            expect(googleRequests, 1);
+            auth.pause();
+            await auth.resume();
+            googleCallback.complete(googleProof);
+          }
+          await tester.pumpAndSettle();
+
+          expect(find.byType(CorteShell), findsOneWidget);
+          expect(find.byType(CorteAccess), findsNothing);
+          expect(find.text('Tu negocio, en orden'), findsOneWidget);
+          expect(find.text('Ventas generadas'), findsOneWidget);
+          expect(paths, containsAll(['/api/native/session', '/api/dashboard']));
+          expect(paths.where((path) => path.startsWith('/api/native/auth/')), [
+            if (!restore) '/api/native/auth/google',
+          ]);
+          expect(credentials.values[sessionOwnerKey], owner);
+          expect(
+            jsonDecode(credentials.values[deviceSessionKey]!)['token'],
+            bearer,
+          );
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          router.dispose();
+          ui.dispose();
+          auth.dispose();
+        }
+      },
+    );
+  }
+}

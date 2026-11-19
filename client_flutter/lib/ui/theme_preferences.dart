@@ -1,6 +1,54 @@
 import 'package:flutter/material.dart';
 
 import '../data/corte_repository.dart';
+import '../platform/data_store.dart';
+
+/// The reference web app has a text scale independent of the OS. Windows
+/// users can switch this installation back to the Windows accessibility scale.
+class CorteTextSizePreference extends ChangeNotifier {
+  CorteTextSizePreference({required this.available});
+
+  final bool available;
+  CorteDataStore? _store;
+  bool useSystem = false;
+  bool saving = false;
+  bool _disposed = false;
+
+  bool get ready => _store != null && !saving;
+
+  Future<void> load(CorteDataStore store) async {
+    if (!available || _disposed) return;
+    try {
+      final saved = await store.read(windowsTextSizeKey);
+      if (_disposed) return;
+      _store = store;
+      useSystem = saved == 'windows';
+      notifyListeners();
+    } on CorteStoreException {
+      // Keep this installation usable if the optional preference is missing.
+    }
+  }
+
+  Future<void> choose(bool value) async {
+    final store = _store;
+    if (store == null || saving || useSystem == value || _disposed) return;
+    saving = true;
+    notifyListeners();
+    try {
+      await store.write(windowsTextSizeKey, value ? 'windows' : 'web');
+      useSystem = value;
+    } finally {
+      saving = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+}
 
 /// Uses the same revisioned preferences and private offline journal as the
 /// working plan. Theme changes never send a stale copy of the other fields.

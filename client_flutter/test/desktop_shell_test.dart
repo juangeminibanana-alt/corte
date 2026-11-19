@@ -89,7 +89,9 @@ void main() {
           expect(tester.takeException(), isNull);
           await tester.tap(find.byTooltip('Buscar en CUTGC'));
           await tester.pumpAndSettle();
-          await tester.tap(find.text('Actualizar'));
+          final refresh = find.byTooltip('Actualizar datos');
+          await tester.ensureVisible(refresh);
+          await tester.tap(refresh);
           await tester.pumpAndSettle();
           expect(searches, 1);
           expect(synchronizations, 1);

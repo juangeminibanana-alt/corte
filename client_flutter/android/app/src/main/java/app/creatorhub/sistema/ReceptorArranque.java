@@ -3,6 +3,7 @@ package app.creatorhub.sistema;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.util.Log;
 
 /**
  * RECEIVE_BOOT_COMPLETED (04 §B.11): las alarmas se pierden al apagar; aquí se vuelven a agendar. La lista vive en
@@ -15,7 +16,13 @@ public final class ReceptorArranque extends BroadcastReceiver {
         final PendingResult pendiente = goAsync();
         final Context app = ctx.getApplicationContext();
         new Thread(() -> {
-            try { Recordatorios.reprogramar(app); } finally { pendiente.finish(); }
+            try {
+                Recordatorios.reprogramar(app);
+            } catch (RuntimeException error) {
+                Log.w("CorteRecordatorios", "No pudimos reprogramar las alarmas: " + error.getClass().getSimpleName());
+            } finally {
+                pendiente.finish();
+            }
         }, "corte-arranque").start();
     }
 }

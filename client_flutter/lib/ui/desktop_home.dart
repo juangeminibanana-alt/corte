@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../app.dart';
 import '../domain/domain.dart';
+import 'corte_icons.dart';
 import 'format.dart';
 import 'home_sales.dart';
 import 'home_tiktok.dart';
@@ -15,8 +16,24 @@ const _sectionStyle = TextStyle(
   fontSize: 21,
   height: 1.35,
   fontWeight: FontWeight.w700,
+  fontVariations: [FontVariation('wght', 720)],
   letterSpacing: -.4,
 );
+
+const _amountStyle = TextStyle(
+  fontWeight: FontWeight.w700,
+  fontVariations: [FontVariation('wght', 720)],
+  fontFeatures: [FontFeature.tabularFigures()],
+  height: 1.2,
+  letterSpacing: -.9,
+);
+
+double _panelPadding(BuildContext context) =>
+    switch (MediaQuery.sizeOf(context).width) {
+      <= 599 => 16,
+      <= 1100 => 18,
+      _ => 22,
+    };
 typedef _HomeScope = (CorteUiController, String?, String?);
 
 /// The hierarchy of the web home, backed by the native scoped repository.
@@ -118,7 +135,9 @@ class _HomeState extends State<DesktopHomePage> {
     AsyncSnapshot<DashboardDto> dashboard,
     AsyncSnapshot<MuestrasDto> samples,
   ) {
-    final compact = MediaQuery.sizeOf(context).width < 600;
+    final viewport = MediaQuery.sizeOf(context).width;
+    final compact = viewport < 600;
+    final gap = compact ? 24.0 : 28.0;
     final updating = _updating || session.data?.sync?.enCurso == true;
     final sessionData = session.data?.datos;
     final showKpis =
@@ -130,15 +149,23 @@ class _HomeState extends State<DesktopHomePage> {
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.fromLTRB(
-          compact ? 20 : 28,
-          compact ? 24 : 32,
-          compact ? 20 : 28,
-          36,
+          compact ? 16 : 32,
+          compact ? 40 : 30,
+          compact ? 16 : 32,
+          48,
         ),
         children: [
-          _HomeHeader(
-            updating: updating,
-            onRefresh: () => _update(ui, session.data),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              viewport > 1100 ? 16 : 0,
+              0,
+              viewport > 1100 ? 16 : 0,
+              4,
+            ),
+            child: _HomeHeader(
+              updating: updating,
+              onRefresh: () => _update(ui, session.data),
+            ),
           ),
           if (_notice case final notice?) ...[
             const SizedBox(height: 12),
@@ -162,9 +189,9 @@ class _HomeState extends State<DesktopHomePage> {
               error: true,
             ),
           ],
-          const SizedBox(height: 28),
+          SizedBox(height: gap),
           _HomeResults(dashboard: dashboard, showKpis: showKpis),
-          const SizedBox(height: 28),
+          SizedBox(height: gap),
           LayoutBuilder(
             builder: (context, limits) {
               final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
@@ -173,18 +200,32 @@ class _HomeState extends State<DesktopHomePage> {
                 retry: () => setState(() => _samples = ui.repo.muestras()),
               );
               const shortcuts = _HomeShortcuts();
-              if (limits.maxWidth < 640 * scale) {
+              final compactPanels = viewport <= 1100;
+              final panelGap = compactPanels ? 16.0 : 20.0;
+              final usableWidth = limits.maxWidth - panelGap;
+              final shortcutsWidth = math.max(
+                compactPanels ? 275.0 : 300.0,
+                usableWidth / (compactPanels ? 2.4 : 2.65),
+              );
+              final prioritiesWidth = usableWidth - shortcutsWidth;
+              if (viewport <= 850 ||
+                  prioritiesWidth < 250 * scale ||
+                  shortcutsWidth < 210 * scale) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [priorities, const SizedBox(height: 20), shortcuts],
+                  children: [
+                    priorities,
+                    SizedBox(height: panelGap),
+                    shortcuts,
+                  ],
                 );
               }
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(flex: 14, child: priorities),
-                  const SizedBox(width: 20),
-                  const Expanded(flex: 10, child: shortcuts),
+                  Expanded(child: priorities),
+                  SizedBox(width: panelGap),
+                  SizedBox(width: shortcutsWidth, child: shortcuts),
                 ],
               );
             },
@@ -212,8 +253,10 @@ class _HomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, limits) {
+      final viewport = MediaQuery.sizeOf(context).width;
       final wide =
-          limits.maxWidth >= 600 &&
+          viewport >= 600 &&
+          limits.maxWidth >= 380 &&
           MediaQuery.textScalerOf(context).scale(14) <= 22;
       final heading = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,12 +266,11 @@ class _HomeHeader extends StatelessWidget {
             child: Text(
               'Tu negocio, en orden',
               style: TextStyle(
-                fontSize: (MediaQuery.sizeOf(context).width * .028)
-                    .clamp(30, 40)
-                    .toDouble(),
+                fontSize: (viewport * .028).clamp(30, 40).toDouble(),
                 height: 1.2,
                 fontWeight: FontWeight.w700,
-                letterSpacing: -1.1,
+                fontVariations: const [FontVariation('wght', 750)],
+                letterSpacing: viewport < 600 ? -.9 : -1.1,
               ),
             ),
           ),
@@ -236,7 +278,7 @@ class _HomeHeader extends StatelessWidget {
           Text(
             'Tus resultados y próximos pasos, en un solo lugar.',
             style: TextStyle(
-              fontSize: wide ? 17 : 15,
+              fontSize: viewport < 600 ? 15 : 17,
               height: 1.5,
               color: context.corte.muted,
             ),
@@ -302,14 +344,16 @@ class _ConnectShop extends StatelessWidget {
               ),
             ],
           );
-          final button = FilledButton(
+          final button = FilledButton.icon(
             onPressed: () => CorteScope.of(context).go('/ajustes/tiktok'),
-            child: const Text('Conectar cuenta'),
+            icon: const CorteIcon(CorteIconName.arrowRight, size: 18),
+            iconAlignment: IconAlignment.end,
+            label: const Text('Conectar cuenta'),
           );
           return wide
               ? Row(
                   children: [
-                    const Icon(Icons.storefront_outlined, size: 40),
+                    const CorteIcon(CorteIconName.store, size: 44),
                     const SizedBox(width: 20),
                     Expanded(child: details),
                     const SizedBox(width: 20),
@@ -360,27 +404,28 @@ class _HomeResults extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 16,
+          runSpacing: 6,
           children: [
-            Expanded(
-              child: Semantics(
-                header: true,
-                child: const Text(
-                  'Resultados',
-                  style: TextStyle(
-                    fontSize: 24,
-                    height: 1.3,
-                    fontWeight: FontWeight.w700,
-                  ),
+            Semantics(
+              header: true,
+              child: Text(
+                'Resultados',
+                style: _sectionStyle.copyWith(
+                  fontSize: MediaQuery.sizeOf(context).width < 600 ? 23 : 25,
+                  height: 1.3,
+                  letterSpacing: -.6,
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Text(
-                'Últimos 30 días',
-                textAlign: TextAlign.end,
-                style: TextStyle(fontSize: 14, color: context.corte.muted),
+            Text(
+              'Últimos 30 días',
+              style: TextStyle(
+                fontSize: MediaQuery.sizeOf(context).width < 600 ? 13 : 14,
+                color: context.corte.muted,
               ),
             ),
           ],
@@ -390,11 +435,24 @@ class _HomeResults extends StatelessWidget {
           key: const ValueKey('home-history-metrics'),
           child: LayoutBuilder(
             builder: (context, limits) {
-              final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
-              final wide = limits.maxWidth > 720 * scale;
+              final width = limits.maxWidth;
+              final values = [for (final (_, amount, _) in metrics) amount];
+              final columnAmountSize = (width * .036).clamp(24, 36).toDouble();
+              final wide =
+                  width > 720 &&
+                  _amountsFit(
+                    context,
+                    values,
+                    columnAmountSize,
+                    (width - 2) / 3 - 56,
+                  );
               final amountSize = wide
-                  ? (limits.maxWidth * .036).clamp(24, 36).toDouble()
-                  : (limits.maxWidth * .06).clamp(24, 32).toDouble();
+                  ? columnAmountSize
+                  : (width * .06).clamp(24, 32).toDouble();
+              final inlineValues =
+                  !wide &&
+                  width > 360 &&
+                  _amountsFit(context, values, amountSize, (width - 54) / 2);
               final tiles = [
                 for (final (label, value, subtitle) in metrics)
                   _HomeMetric(
@@ -402,16 +460,17 @@ class _HomeResults extends StatelessWidget {
                     value: value,
                     detail: value == '—' ? unavailable : subtitle,
                     amountSize: amountSize,
-                    sideBySide: !wide && limits.maxWidth > 360 * scale,
+                    sideBySide: inlineValues,
+                    wide: wide,
                     padding: EdgeInsets.symmetric(
                       horizontal: wide ? 28 : 20,
-                      vertical: wide ? 4 : 17,
+                      vertical: wide ? 0 : 18,
                     ),
                   ),
               ];
               if (wide) {
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: const EdgeInsets.symmetric(vertical: 20),
                   child: IntrinsicHeight(
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -452,6 +511,32 @@ class _HomeResults extends StatelessWidget {
   }
 }
 
+bool _amountsFit(
+  BuildContext context,
+  List<String> values,
+  double fontSize,
+  double availableWidth,
+) {
+  final painter = TextPainter(
+    textDirection: Directionality.of(context),
+    textScaler: MediaQuery.textScalerOf(context),
+    maxLines: 1,
+  );
+  final style = DefaultTextStyle.of(
+    context,
+  ).style.merge(_amountStyle.copyWith(fontSize: fontSize));
+  try {
+    for (final value in values) {
+      painter.text = TextSpan(text: value, style: style);
+      painter.layout();
+      if (painter.width > availableWidth) return false;
+    }
+    return true;
+  } finally {
+    painter.dispose();
+  }
+}
+
 class _HomeMetric extends StatelessWidget {
   const _HomeMetric({
     required this.label,
@@ -459,31 +544,36 @@ class _HomeMetric extends StatelessWidget {
     required this.detail,
     required this.amountSize,
     required this.sideBySide,
+    required this.wide,
     required this.padding,
   });
   final String label, value, detail;
   final double amountSize;
-  final bool sideBySide;
+  final bool sideBySide, wide;
   final EdgeInsets padding;
 
   @override
   Widget build(BuildContext context) {
     final title = Text(
       label,
-      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+      style: TextStyle(
+        fontSize: wide ? 16 : 14,
+        height: 1.4,
+        fontWeight: FontWeight.w600,
+        fontVariations: const [FontVariation('wght', 650)],
+      ),
     );
     final amount = Text(
       value,
-      style: TextStyle(
-        fontSize: amountSize,
-        fontWeight: FontWeight.w700,
-        height: 1.2,
-        letterSpacing: -.9,
-      ),
+      style: _amountStyle.copyWith(fontSize: amountSize),
     );
     final description = Text(
       detail,
-      style: TextStyle(fontSize: 13, height: 1.5, color: context.corte.muted),
+      style: TextStyle(
+        fontSize: wide ? 13 : 12,
+        height: 1.5,
+        color: context.corte.muted,
+      ),
     );
     return InkWell(
       onTap: () => CorteScope.of(context).go('/ventas?periodo=30d'),
@@ -536,24 +626,37 @@ class _HomePanel extends StatelessWidget {
         : Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Semantics(
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 62),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: _panelPadding(context),
+                    vertical: action == null ? 16 : 9,
+                  ),
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 12,
+                    runSpacing: 4,
+                    children: [
+                      Semantics(
                         header: true,
-                        child: Text(title!, style: _sectionStyle),
+                        child: Text(
+                          title!,
+                          style: _sectionStyle.copyWith(
+                            fontSize: switch (MediaQuery.sizeOf(
+                              context,
+                            ).width) {
+                              <= 599 => 20,
+                              <= 1100 => 19,
+                              _ => 21,
+                            },
+                          ),
+                        ),
                       ),
-                    ),
-                    if (action case final link?) ...[
-                      const SizedBox(width: 8),
-                      Flexible(child: link),
+                      ?action,
                     ],
-                  ],
+                  ),
                 ),
               ),
               const Divider(),
@@ -578,13 +681,22 @@ class _HomePriorities extends StatelessWidget {
       title: 'Tus prioridades',
       action: TextButton(
         onPressed: openSamples,
+        style: TextButton.styleFrom(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(0, 44),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          textStyle: TextStyle(
+            fontSize: MediaQuery.sizeOf(context).width < 600 ? 13 : 14,
+            decoration: TextDecoration.underline,
+          ),
+        ),
         child: const Text('Ver muestras', textAlign: TextAlign.center),
       ),
       child: samples.hasError
-          ? EmptyState(
-              'No pudimos cargar tus muestras',
+          ? _PrioritiesMessage(
+              title: 'No pudimos cargar tus muestras',
               text: 'Revisa tu conexión y vuelve a intentarlo.',
-              icon: Icons.error_outline_rounded,
+              icon: CorteIconName.circleAlert,
               action: OutlinedButton(
                 onPressed: retry,
                 child: const Text('Reintentar'),
@@ -600,16 +712,16 @@ class _HomePriorities extends StatelessWidget {
               ),
             )
           : priorities.isEmpty
-          ? EmptyState(
-              data.isEmpty
+          ? _PrioritiesMessage(
+              title: data.isEmpty
                   ? 'Todo empieza con tus muestras'
                   : 'Tus muestras están al día',
               text: data.isEmpty
                   ? 'Aquí verás qué productos necesitas grabar y cuándo publicarlos.'
                   : 'No tienes muestras pendientes de publicar. Puedes revisar todas en Muestras.',
               icon: data.isEmpty
-                  ? Icons.inventory_2_outlined
-                  : Icons.check_circle_outline_rounded,
+                  ? CorteIconName.package
+                  : CorteIconName.circleCheckBig,
               action: OutlinedButton(
                 onPressed: openSamples,
                 child: const Text('Ir a muestras'),
@@ -618,11 +730,110 @@ class _HomePriorities extends StatelessWidget {
           : Column(
               children: [
                 for (final (index, item) in priorities.take(5).indexed) ...[
-                  if (index > 0) const Divider(indent: 16, endIndent: 16),
+                  if (index > 0)
+                    Divider(
+                      indent: _panelPadding(context),
+                      endIndent: _panelPadding(context),
+                    ),
                   _PriorityRow(item.raw),
                 ],
               ],
             ),
+    );
+  }
+}
+
+class _PrioritiesMessage extends StatelessWidget {
+  const _PrioritiesMessage({
+    required this.icon,
+    required this.title,
+    required this.text,
+    required this.action,
+  });
+
+  final CorteIconName icon;
+  final String title, text;
+  final Widget action;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final error = icon == CorteIconName.circleAlert;
+    Widget accent(Color color, double angle) => Transform.rotate(
+      angle: angle,
+      child: Container(
+        width: 5,
+        height: 15,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(3),
+        ),
+      ),
+    );
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: compact ? 285 : 267),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 18 : 22,
+          vertical: 24,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (error)
+              CorteIcon(icon, size: 24, color: context.corte.danger)
+            else
+              SizedBox(
+                width: 80,
+                height: 70,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    CorteIcon(icon, size: 60, color: context.corte.ink),
+                    Positioned(
+                      top: 0,
+                      right: 10,
+                      child: accent(CorteColors.coral, 22 * math.pi / 180),
+                    ),
+                    Positioned(
+                      top: 9,
+                      right: 0,
+                      child: accent(context.corte.cyanInk, 55 * math.pi / 180),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: _sectionStyle.copyWith(
+                fontSize: compact ? 20 : 21,
+                fontVariations: const [FontVariation('wght', 700)],
+              ),
+            ),
+            const SizedBox(height: 12),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: Text(
+                text,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.5,
+                  color: context.corte.muted,
+                ),
+              ),
+            ),
+            const SizedBox(height: 15),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 152),
+              child: action,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -664,7 +875,12 @@ class _PriorityRow extends StatelessWidget {
         ? 'Muestra pausada'
         : 'Por organizar';
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      minTileHeight: 92,
+      horizontalTitleGap: 14,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: _panelPadding(context),
+        vertical: 16,
+      ),
       leading: ExcludeSemantics(
         child: CortePhoto(
           product['imagen'] is String ? product['imagen'] as String : null,
@@ -694,7 +910,7 @@ class _PriorityRow extends StatelessWidget {
           ),
         ],
       ),
-      trailing: const Icon(Icons.chevron_right_rounded, size: 18),
+      trailing: const CorteIcon(CorteIconName.chevronRight, size: 18),
       onTap: () => CorteScope.of(context).go(
         '/muestras/m/${Uri.encodeComponent(textOf(sample['application_id']))}',
       ),
@@ -724,19 +940,19 @@ class _HomeShortcuts extends StatelessWidget {
       'Organizar muestras',
       'Planea tus próximas publicaciones',
       '/muestras',
-      Icons.inventory_2_outlined,
+      CorteIconName.package,
     ),
     (
       'Revisar ventas',
       'Consulta ingresos y comisiones',
       '/ventas',
-      Icons.bar_chart_rounded,
+      CorteIconName.chartColumn,
     ),
     (
       'Ver tus tiendas',
       'Da seguimiento a cada colaboración',
       '/tiendas',
-      Icons.storefront_outlined,
+      CorteIconName.store,
     ),
   ];
 
@@ -749,13 +965,21 @@ class _HomeShortcuts extends StatelessWidget {
         children: [
           for (final (index, (title, detail, route, icon))
               in _links.indexed) ...[
-            if (index > 0) const Divider(indent: 16, endIndent: 16),
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
+            if (index > 0)
+              Divider(
+                indent: _panelPadding(context),
+                endIndent: _panelPadding(context),
               ),
-              leading: Icon(icon, size: 24),
+            ListTile(
+              minTileHeight: MediaQuery.sizeOf(context).width < 600 ? 86 : 88,
+              horizontalTitleGap: MediaQuery.sizeOf(context).width <= 1100
+                  ? 12
+                  : 18,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: _panelPadding(context),
+                vertical: 18,
+              ),
+              leading: CorteIcon(icon, size: 24),
               title: Text(
                 title,
                 style: const TextStyle(
@@ -764,7 +988,7 @@ class _HomeShortcuts extends StatelessWidget {
                 ),
               ),
               subtitle: Text(detail),
-              trailing: const Icon(Icons.chevron_right_rounded, size: 18),
+              trailing: const CorteIcon(CorteIconName.chevronRight, size: 18),
               onTap: () => ui.go(route),
             ),
           ],
@@ -906,8 +1130,8 @@ class _DesktopStoreRow extends StatelessWidget {
               else
                 Padding(
                   padding: const EdgeInsets.only(top: 3),
-                  child: Icon(
-                    Icons.storefront_outlined,
+                  child: CorteIcon(
+                    CorteIconName.store,
                     size: 20,
                     color: context.corte.muted,
                   ),
@@ -950,8 +1174,8 @@ class _DesktopStoreRow extends StatelessWidget {
               ),
               if (key.isNotEmpty) ...[
                 const SizedBox(width: 8),
-                Icon(
-                  Icons.chevron_right_rounded,
+                CorteIcon(
+                  CorteIconName.chevronRight,
                   size: 18,
                   color: context.corte.muted,
                 ),

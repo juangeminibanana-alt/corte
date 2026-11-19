@@ -19,11 +19,11 @@ abstract final class CorteColors {
 class CortePalette {
   const CortePalette({this.isDark = false});
   final bool isDark;
-  Color get surface => isDark ? const Color(0xFF15161B) : Colors.white;
-  Color get ink => isDark ? const Color(0xFFF5F5F7) : CorteColors.ink;
-  Color get muted => isDark ? const Color(0xFFB4B6C2) : CorteColors.muted;
-  Color get line => isDark ? const Color(0xFF363842) : CorteColors.line;
-  Color get soft => isDark ? const Color(0xFF202229) : CorteColors.soft;
+  Color get surface => isDark ? const Color(0xFF111216) : Colors.white;
+  Color get ink => isDark ? const Color(0xFFF7F7FA) : CorteColors.ink;
+  Color get muted => isDark ? const Color(0xFFC8C9D2) : CorteColors.muted;
+  Color get line => isDark ? const Color(0xFF3A3C48) : CorteColors.line;
+  Color get soft => isDark ? const Color(0xFF1B1C23) : CorteColors.soft;
   Color get rose => isDark ? const Color(0xFF35202A) : CorteColors.rose;
   Color get action =>
       isDark ? const Color(0xFFFF6687) : const Color(0xFFCE1640);
@@ -75,7 +75,8 @@ ThemeData corteTheme({Brightness brightness = Brightness.light}) {
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
-    fontFamily: 'MonaSans',
+    fontFamily: 'MonaSansWeb',
+    fontFamilyFallback: const ['MonaSans'],
     scaffoldBackgroundColor: colors.surface,
     canvasColor: colors.surface,
     colorScheme: scheme,
