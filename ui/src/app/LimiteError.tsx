@@ -25,7 +25,7 @@ class Limite extends Component<Props, { error: boolean; modulo: boolean; intento
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
-    if (import.meta.env.DEV) console.error(`[Corte · ${this.props.seccion}]`, error, info.componentStack);
+    if (import.meta.env.DEV) console.error(`[CUTGC · ${this.props.seccion}]`, error, info.componentStack);
   }
 
   override render(): ReactNode {
@@ -35,9 +35,9 @@ class Limite extends Component<Props, { error: boolean; modulo: boolean; intento
         <span className={css.icono} aria-hidden="true">
           <Icono nombre="CircleAlert" tamano={20} />
         </span>
-        <p className={css.texto}>{this.state.modulo ? 'No pudimos abrir esta sección. Recarga Corte para volver a intentarlo.' : TEXTO_ERROR_SECCION}</p>
+        <p className={css.texto}>{this.state.modulo ? 'No pudimos abrir esta sección. Recarga CUTGC para volver a intentarlo.' : TEXTO_ERROR_SECCION}</p>
         <Boton variante="secundario" tamano="sm" icono="RotateCcw" alPulsar={() => this.state.modulo ? window.location.reload() : this.setState((s) => ({ error: false, modulo: false, intento: s.intento + 1 }))}>
-          {this.state.modulo ? 'Recargar Corte' : 'Reintentar'}
+          {this.state.modulo ? 'Recargar CUTGC' : 'Reintentar'}
         </Boton>
       </div>
     );

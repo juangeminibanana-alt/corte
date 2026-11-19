@@ -213,9 +213,9 @@ export function Marco(p: { cargadores?: Cargadores; cargadoresReautorizar?: Carg
       <div className={css.columna}>
         {!completa && !enRaiz ? (
           <header className={css.cabecera}>
-            <a href="#/inicio" className={css.marcaMovil} aria-label="Corte · Inicio"><Logo tamano={28} /><span>Corte</span></a>
+            <a href="#/inicio" className={css.marcaMovil} aria-label="CUTGC · Inicio"><Logo tamano={28} /><span>CUTGC</span></a>
             <div className={css.herramientas}>
-              <button type="button" className={css.buscar} onClick={() => abrirPaleta()} aria-label="Buscar en Corte">
+              <button type="button" className={css.buscar} onClick={() => abrirPaleta()} aria-label="Buscar en CUTGC">
                 <Icono nombre="Search" tamano={18} /><span>Buscar</span><kbd>Ctrl K</kbd>
               </button>
               {esNube() ? <button type="button" className={css.salir} onClick={() => { void cerrarSesionNube().catch(() => toast.mostrar({ texto: 'No pudimos cerrar la sesión. Inténtalo de nuevo.', tono: 'error' })); }} aria-label="Cerrar sesión" title="Cerrar sesión"><LogOut size={18} strokeWidth={1.75} /></button> : null}

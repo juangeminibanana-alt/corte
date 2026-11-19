@@ -94,7 +94,7 @@ bool SalesNotifications::AddTray() {
   data.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_SHOWTIP;
   data.uCallbackMessage = kTray;
   data.hIcon = LoadIconW(GetModuleHandle(nullptr), MAKEINTRESOURCE(IDI_APP_ICON));
-  wcscpy_s(data.szTip, L"Corte \u00b7 Avisos de ventas activos");
+  wcscpy_s(data.szTip, L"CUTGC \u00b7 Avisos de ventas activos");
   tray_ = Shell_NotifyIconW(NIM_ADD, &data) != FALSE;
   if (tray_) { data.uVersion = NOTIFYICON_VERSION_4; Shell_NotifyIconW(NIM_SETVERSION, &data); }
   return tray_;
@@ -129,8 +129,8 @@ std::optional<LRESULT> SalesNotifications::Handle(UINT message, WPARAM wparam, L
     POINT point{}; GetCursorPos(&point);
     HMENU menu = CreatePopupMenu();
     if (menu) {
-      AppendMenuW(menu, MF_STRING, 1, L"Abrir Corte");
-      AppendMenuW(menu, MF_STRING, 2, L"Salir de Corte");
+      AppendMenuW(menu, MF_STRING, 1, L"Abrir CUTGC");
+      AppendMenuW(menu, MF_STRING, 2, L"Salir de CUTGC");
       SetForegroundWindow(window_);
       const auto action = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, point.x, point.y, 0, window_, nullptr);
       DestroyMenu(menu);

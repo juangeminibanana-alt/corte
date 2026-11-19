@@ -47,8 +47,8 @@ export async function importarConexionAnteriorTikTok(configuracion: Record<strin
     if (!respuesta.ok) {
       const error = datos !== null && typeof datos === 'object' && 'error' in datos ? datos.error : null;
       const codigo = error !== null && typeof error === 'object' && 'codigo' in error && typeof error.codigo === 'string' ? error.codigo : '';
-      const texto = respuesta.status === 401 ? 'Tu sesión terminó. Vuelve a entrar a Corte.'
-        : respuesta.status === 409 ? 'Corte ya tiene una conexión o el archivo pertenece a otra cuenta. No se cambió tu conexión actual.'
+      const texto = respuesta.status === 401 ? 'Tu sesión terminó. Vuelve a entrar a CUTGC.'
+        : respuesta.status === 409 ? 'CUTGC ya tiene una conexión o el archivo pertenece a otra cuenta. No se cambió tu conexión actual.'
         : respuesta.status === 413 ? 'El archivo supera el tamaño permitido para una conexión.'
         : 'No pudimos importar la conexión. Comprueba que sea el archivo original de tu panel anterior.';
       throw new ErrorIntegracionTikTok(codigo, texto);
@@ -90,7 +90,7 @@ export async function guardarIntegracionTikTok(credenciales: { app_key: string; 
         app_key_en_uso: 'Para cambiar la App key, primero desconecta la cuenta de TikTok Shop. Tus datos guardados se conservarán.',
         sin_internet: 'No pudimos verificar la integración con TikTok. Inténtalo de nuevo cuando se restablezca la conexión.',
       };
-      const texto = respuesta.status === 401 ? 'Tu sesión terminó. Vuelve a entrar a Corte.'
+      const texto = respuesta.status === 401 ? 'Tu sesión terminó. Vuelve a entrar a CUTGC.'
         : respuesta.status === 403 ? 'No tienes permiso para cambiar esta integración.'
         : mensajes[codigo] ?? 'No pudimos guardar la integración. Revisa las dos claves e inténtalo de nuevo.';
       throw new ErrorIntegracionTikTok(codigo, texto);
@@ -103,7 +103,7 @@ export async function guardarIntegracionTikTok(credenciales: { app_key: string; 
     return { app_key: datos.app_key, app_secret_configurado: true, tokens_configurados: datos.tokens_configurados };
   } catch (e) {
     if (e instanceof ErrorIntegracionTikTok) throw e;
-    throw new ErrorIntegracionTikTok('red', 'No pudimos conectar con Corte. Vuelve a intentarlo; si el secreto ya se guardó, aparecerá como configurado al actualizar.');
+    throw new ErrorIntegracionTikTok('red', 'No pudimos conectar con CUTGC. Vuelve a intentarlo; si el secreto ya se guardó, aparecerá como configurado al actualizar.');
   } finally {
     credenciales.app_secret = '';
     clearTimeout(limite);

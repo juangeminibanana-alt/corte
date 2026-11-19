@@ -468,7 +468,7 @@ class CorteRepository {
       throw ErrorApi(
         codigo: 'copia_no_disponible',
         mensaje:
-            'Conecta Corte para guardar este cambio. No hay una copia local vinculada.',
+            'Conecta CUTGC para guardar este cambio. No hay una copia local vinculada.',
       );
     }
     final generation = _generation;
@@ -872,7 +872,7 @@ String rutaCanonica(
       uri.pathSegments.any(
         (part) => part == '..' || part == '.' || part.contains('\\'),
       )) {
-    throw ArgumentError('La ruta debe pertenecer a la API de Corte.');
+    throw ArgumentError('La ruta debe pertenecer a la API de CUTGC.');
   }
   final params = <String, String>{...uri.queryParameters};
   for (final entry in query.entries) {

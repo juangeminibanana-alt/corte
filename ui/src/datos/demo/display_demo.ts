@@ -350,7 +350,7 @@ export function estadoDisplayDemo(d: DemoDisplay, sim: SimulacionDisplay): C.Est
     case 'reautorizar':
       return {
         ...conectada, estado: 'reautorizar', access_expira_at: ahora - 3 * DIA, refresh_expira_at: ahora - DIA,
-        ultimo_error: { codigo: 'reautorizar', mensaje: 'TikTok pide que vuelvas a autorizar a Corte para seguir trayendo las vistas de tus videos.', at: ahora - DIA },
+        ultimo_error: { codigo: 'reautorizar', mensaje: 'TikTok pide que vuelvas a autorizar a CUTGC para seguir trayendo las vistas de tus videos.', at: ahora - DIA },
       };
     case 'permiso':
       return {

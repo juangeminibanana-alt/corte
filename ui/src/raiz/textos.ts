@@ -17,7 +17,7 @@ export const T = {
   productos: 'Productos',
   mas: 'Más',
   ajustes: 'Configuración',
-  marca: 'Corte',
+  marca: 'CUTGC',
   demo: 'Datos de demostración',
   demoCorto: 'Demo',
   insigniaMuestras: (n: number): string => (n === 1 ? '1 muestra pendiente' : `${n} muestras pendientes`),
@@ -52,10 +52,10 @@ export const T = {
   // -------------------------------------------------------------------------------------------- banner (01 §4.16)
   bannerReautorizar: 'Tu conexión con TikTok se venció. Reautoriza para seguir actualizando tus datos.',
   /** C35: en Android no se reautoriza. */
-  bannerReautorizarAndroid: 'Tu conexión con TikTok venció. Vuelve a conectar desde Corte en tu PC.',
+  bannerReautorizarAndroid: 'Tu conexión con TikTok venció. Vuelve a conectar desde CUTGC en tu PC.',
   bannerPermiso: (que: string): string => `Falta un permiso para actualizar ${que}. Vuelve a autorizar y deja activados todos los permisos.`,
   bannerPermisoAndroid: (que: string): string =>
-    `Falta un permiso para actualizar ${que}. Vuelve a autorizar desde Corte en tu PC y deja activados todos los permisos.`,
+    `Falta un permiso para actualizar ${que}. Vuelve a autorizar desde CUTGC en tu PC y deja activados todos los permisos.`,
   bannerClave: 'Para conectar con TikTok falta la clave de tu app de Partner Center.',
   bannerSinRegion: 'Tu cuenta aún no tiene región de venta en TikTok Shop, así que no podemos leer tus datos. Revísalo en la app de TikTok.',
   bannerRevocado: 'Tu PC ya no reconoce este celular. Vuelve a emparejarlo para actualizarte.',

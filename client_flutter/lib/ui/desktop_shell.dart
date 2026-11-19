@@ -47,7 +47,7 @@ class DesktopShell extends StatelessWidget {
           'notas': 'Notas',
           'recordatorios': 'Recordatorios',
         }[root] ??
-        'Corte';
+        'CUTGC';
     final rail = MediaQuery.sizeOf(context).width < 1120;
     return Scaffold(
       backgroundColor: context.corte.surface,
@@ -85,7 +85,7 @@ class DesktopShell extends StatelessWidget {
                                     const SizedBox(width: 9),
                                     const Flexible(
                                       child: Text(
-                                        'Corte',
+                                        'CUTGC',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
@@ -169,7 +169,7 @@ class DesktopShell extends StatelessWidget {
                 if (ui.auth.state.offline)
                   const InlineNotice(
                     text:
-                        'Sin conexión. Corte mostrará la información que ya esté guardada en este dispositivo.',
+                        'Sin conexión. CUTGC mostrará la información que ya esté guardada en este dispositivo.',
                   ),
                 if (!ui.storageAvailable)
                   const InlineNotice(
@@ -376,7 +376,7 @@ class _DesktopToolbar extends StatelessWidget {
               const SizedBox(width: 8),
               IconButton(
                 onPressed: onSearch,
-                tooltip: 'Buscar en Corte',
+                tooltip: 'Buscar en CUTGC',
                 constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                 icon: Icon(
                   Icons.search_rounded,

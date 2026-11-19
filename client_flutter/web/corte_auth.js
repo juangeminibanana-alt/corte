@@ -31,7 +31,7 @@ const messages = {
   'auth/unauthorized-domain': 'Este dominio aún no está autorizado para entrar con Google.',
   'auth/operation-not-allowed': 'El acceso con Google aún no está disponible en el servicio.',
   'auth/web-storage-unsupported': 'El navegador bloquea el almacenamiento necesario para entrar con Google.',
-  'cuenta_no_autorizada': 'Esta cuenta de Google no tiene acceso a Corte.',
+  'cuenta_no_autorizada': 'Esta cuenta de Google no tiene acceso a CUTGC.',
   'demasiados_intentos': 'Espera antes de volver a intentar el acceso.',
 };
 function failure(error) {

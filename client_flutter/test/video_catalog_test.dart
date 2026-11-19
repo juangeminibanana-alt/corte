@@ -425,7 +425,7 @@ void main() {
       },
       '/api/notas': {'items': <Object>[], 'total': 0, 'data_version': 1},
     });
-    expect(find.text('Este video no tiene ventas registradas en Corte.'), findsOneWidget);
+    expect(find.text('Este video no tiene ventas registradas en CUTGC.'), findsOneWidget);
     expect(find.textContaining('todavía no tiene pedidos guardados'), findsNothing);
   });
 

@@ -22,7 +22,7 @@ export function EnlaceRuta(p: { a: string; children: ReactNode; className?: stri
 /** Contenedor de cada pantalla: título accesible, límite de error y avisarInterfazLista() la primera vez que está lista. */
 export function Pantalla(p: { titulo: string; lista: boolean; children: ReactNode; className?: string }): ReactElement {
   useEffect(() => {
-    document.title = `${p.titulo} · Corte`;
+    document.title = `${p.titulo} · CUTGC`;
   }, [p.titulo]);
   useEffect(() => {
     if (p.lista) avisarInterfazLista();

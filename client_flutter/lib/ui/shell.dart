@@ -74,7 +74,7 @@ class _CorteShellState extends State<CorteShell> {
     final route = DialogRoute<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Buscar en Corte'),
+        title: const Text('Buscar en CUTGC'),
         content: SizedBox(
           width: 440,
           child: TextField(
@@ -161,7 +161,7 @@ class _CorteShellState extends State<CorteShell> {
                           if (!rail) ...[
                             const SizedBox(width: 10),
                             const Text(
-                              'Corte',
+                              'CUTGC',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 30,
@@ -238,7 +238,7 @@ class _CorteShellState extends State<CorteShell> {
                                   CorteMark(size: 25),
                                   SizedBox(width: 8),
                                   Text(
-                                    'Corte',
+                                    'CUTGC',
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 25,
@@ -250,7 +250,7 @@ class _CorteShellState extends State<CorteShell> {
                             const Spacer(),
                             IconButton(
                               onPressed: _search,
-                              tooltip: 'Buscar en Corte',
+                              tooltip: 'Buscar en CUTGC',
                               icon: const Icon(
                                 Icons.search_rounded,
                                 color: Colors.white,
@@ -285,7 +285,7 @@ class _CorteShellState extends State<CorteShell> {
                 if (ui.auth.state.offline)
                   const InlineNotice(
                     text:
-                        'Sin conexión. Corte mostrará la información que ya esté guardada en este dispositivo.',
+                        'Sin conexión. CUTGC mostrará la información que ya esté guardada en este dispositivo.',
                   ),
                 if (!ui.storageAvailable)
                   const InlineNotice(

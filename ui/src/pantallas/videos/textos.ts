@@ -167,13 +167,13 @@ export const T = {
   colDia: 'Día',
   colNuevas: 'Vistas nuevas',
   colTotal: 'Vistas en total',
-  tendenciaPoca: 'La tendencia aparece cuando Corte guarde las cifras de dos días distintos.',
+  tendenciaPoca: 'La tendencia aparece cuando CUTGC guarde las cifras de dos días distintos.',
   tendenciaSinPc: 'Conéctate para descargar las vistas por día.',
-  tendenciaHuecos: 'Si Corte no se abrió algún día, sus vistas se suman al día siguiente.',
+  tendenciaHuecos: 'Si CUTGC no se abrió algún día, sus vistas se suman al día siguiente.',
   sinCifrasDetalle: 'TikTok no da cifras de este video: puede ser privado, estar borrado o ser de otra cuenta. Las ventas sí se cuentan.',
   reproductorTitulo: (nombre: string): string => `Video de TikTok: ${nombre}`,
   reproducirEn: 'Se reproduce aquí con el reproductor oficial de TikTok',
-  fueraDeLaApp: 'Se abre fuera de Corte, en TikTok.',
+  fueraDeLaApp: 'Se abre fuera de CUTGC, en TikTok.',
 
   // Encabezado compartido por las dos vistas de la galería.
   subtitulo: 'Tus publicaciones y sus resultados',
@@ -204,7 +204,7 @@ export const T = {
   sinVentasDesde: (fecha: string): string => `desde el ${fecha.replace(/ /g, ' ')}`,
   sinVentasRegistradas: 'registradas',
   sinVentasDesdeAyuda: (fecha: string): string =>
-    `Corte guarda tus pedidos desde el ${fecha.replace(/ /g, ' ')}: de antes de ese día no se puede saber si vendió.`,
+    `CUTGC guarda tus pedidos desde el ${fecha.replace(/ /g, ' ')}: de antes de ese día no se puede saber si vendió.`,
   publicacion: { no_confirmado: 'Sin confirmar', no_publico: 'Ya no es público' },
   publicacionAyuda: {
     no_confirmado: 'No salió en la última lectura de TikTok: puede haberse vuelto privado o haberse borrado.',
@@ -236,10 +236,10 @@ export const T = {
   ventasTitulo: 'Ventas',
   sinVentasDetalle: 'Este video aún no tiene ventas desde que se publicó.',
   sinVentasDetalleDesde: (fecha: string): string =>
-    `Sin ventas desde el ${fecha.replace(/ /g, ' ')}. Corte guarda tus pedidos desde ese día: de antes no se puede saber.`,
-  sinVentasDetalleRegistradas: 'Corte todavía no tiene pedidos guardados, así que este video no tiene ventas registradas.',
+    `Sin ventas desde el ${fecha.replace(/ /g, ' ')}. CUTGC guarda tus pedidos desde ese día: de antes no se puede saber.`,
+  sinVentasDetalleRegistradas: 'CUTGC todavía no tiene pedidos guardados, así que este video no tiene ventas registradas.',
   /** Mientras no se sabe desde cuándo hay pedidos guardados (o no se pudo leer): solo lo que es seguro. */
-  sinVentasDetalleSinCobertura: 'Este video no tiene ventas registradas en Corte.',
+  sinVentasDetalleSinCobertura: 'Este video no tiene ventas registradas en CUTGC.',
   sinCifrasCatalogo: 'TikTok no da cifras de este video: puede ser privado o estar borrado.',
   duracion: (texto: string): string => `Dura ${texto}`,
   portadaDe: (nombre: string): string => `Portada de ${nombre}`,

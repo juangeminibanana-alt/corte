@@ -112,7 +112,7 @@ class CorteJournal {
     if (existing.length > 5000) {
       throw ErrorApi(
         codigo: 'cola_llena',
-        mensaje: 'Conecta Corte para enviar los cambios pendientes.',
+        mensaje: 'Conecta CUTGC para enviar los cambios pendientes.',
       );
     }
     await _guardarOps(existing);
@@ -222,7 +222,7 @@ class CorteJournal {
       throw ErrorApi(
         codigo: 'cola_llena',
         mensaje:
-            'La copia pendiente alcanzó su límite. Conecta Corte para sincronizar.',
+            'La copia pendiente alcanzó su límite. Conecta CUTGC para sincronizar.',
       );
     }
     await store.write(key('outbox'), encoded);

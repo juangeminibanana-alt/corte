@@ -122,15 +122,15 @@ const ERRORES_EMPAREJAMIENTO: ReadonlySet<string> = new Set([
 ]);
 
 const MENSAJE_ERROR: Readonly<Record<CodigoErrorEmparejamiento, string>> = {
-  qr_invalido: 'Ese código QR no es de Corte. Escanea el que aparece en tu PC.',
+  qr_invalido: 'Ese código QR no es de CUTGC. Escanea el que aparece en tu PC.',
   codigo_invalido: 'Ese código no es válido. Revisa que tenga 12 caracteres.',
-  pc_no_encontrada: 'No encontramos tu PC en esta red. Revisa que Corte esté abierto en tu PC y que ambos estén en el mismo Wi‑Fi.',
+  pc_no_encontrada: 'No encontramos tu PC en esta red. Revisa que CUTGC esté abierto en tu PC y que ambos estén en el mismo Wi‑Fi.',
   huella_distinta: 'La PC no es la que emparejaste.',
   rechazado: 'Se rechazó el emparejamiento en tu PC.',
   vencido: 'El código venció. Genera uno nuevo en tu PC.',
   ocupado: 'Tu PC ya está emparejando otro celular. Inténtalo en unos minutos.',
-  red: 'No pudimos llegar a tu PC. Revisa que ambos estén en el mismo Wi‑Fi y que Corte esté abierto en la PC.',
-  version_incompatible: 'Tu PC y tu celular tienen versiones de Corte que no se entienden. Actualiza la que sea más vieja.',
+  red: 'No pudimos llegar a tu PC. Revisa que ambos estén en el mismo Wi‑Fi y que CUTGC esté abierto en la PC.',
+  version_incompatible: 'Tu PC y tu celular tienen versiones de CUTGC que no se entienden. Actualiza la que sea más vieja.',
   cancelado: 'Cancelaste el emparejamiento.',
 };
 
@@ -160,7 +160,7 @@ function emparejar(llamar: (id: string) => void, alEvento: (e: EventoEmparejamie
   if (!android) {
     let cancelado = false;
     const t = setTimeout(() => {
-      if (!cancelado) alEvento({ fase: 'error', error: 'red', mensaje: 'Para emparejar abre Corte en tu celular Android.' });
+      if (!cancelado) alEvento({ fase: 'error', error: 'red', mensaje: 'Para emparejar abre CUTGC en tu celular Android.' });
     }, 0);
     return () => {
       cancelado = true;
@@ -235,7 +235,7 @@ export async function actualizarCopiaAhora(): Promise<void> {
     (d) => (typeof d['ok'] === 'boolean' ? d['ok'] : null),
     TOPE_ACTUALIZAR_MS,
   );
-  if (ok !== true) throw new Error('No pudimos llegar a tu PC. Revisa que ambos estén en el mismo Wi‑Fi y que Corte esté abierto en la PC.');
+  if (ok !== true) throw new Error('No pudimos llegar a tu PC. Revisa que ambos estén en el mismo Wi‑Fi y que CUTGC esté abierto en la PC.');
 }
 
 /** Enlace creatorhub://pair?… recibido de fuera y aún no usado; '' → null. Nunca empareja solo. */

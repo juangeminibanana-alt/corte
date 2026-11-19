@@ -190,7 +190,7 @@ export function PantallaAjustes(): ReactElement {
   return (
     <Pantalla titulo={titulo} lista>
       <div className={cx(css.raiz)} data-vista="dos-columnas" data-seccion-activa={activa}>
-        <EncabezadoPantalla titulo={titulo} contexto={nube ? 'Tu cuenta, tus datos y cómo se ve Corte.' : android ? T.contextoAndroid : T.contexto} />
+        <EncabezadoPantalla titulo={titulo} contexto={nube ? 'Tu cuenta, tus datos y cómo se ve CUTGC.' : android ? T.contextoAndroid : T.contexto} />
         <div className={cx(css.columnas)}>
           <Subnav secciones={secciones} activa={activa === 'invalida' ? null : activa} />
           <div className={cx(css.contenido)}>{activa === 'invalida' ? <NoExiste /> : <Contenido id={activa} android={android} />}</div>

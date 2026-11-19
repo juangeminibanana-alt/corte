@@ -21,7 +21,7 @@ export function DispositivoNativo(): ReactElement {
     {sesion?.migration_available ? <Fila etiqueta="Organización de la aplicación anterior" descripcion={confirmar ? 'Incorpora los planes, notas y recordatorios guardados a la cuenta conectada actualmente.' : 'Conservamos una copia de tu información anterior.'}>
       <Boton variante="secundario" cargando={ocupado} alPulsar={() => confirmar ? void recuperar() : setConfirmar(true)}>{confirmar ? 'Confirmar recuperación' : 'Recuperar organización'}</Boton>
     </Fila> : null}
-    <Fila etiqueta="Acceso a Corte" descripcion="Cierra el acceso únicamente en este dispositivo.">
+    <Fila etiqueta="Acceso a CUTGC" descripcion="Cierra el acceso únicamente en este dispositivo.">
       <Boton variante="secundario" alPulsar={() => void cerrarSesionNube().catch(e => toast.mostrar({ texto: e instanceof Error ? e.message : 'No pudimos cerrar la sesión.', tono: 'error' }))}>Cerrar sesión</Boton>
     </Fila>
   </Grupo>;

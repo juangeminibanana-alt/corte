@@ -86,14 +86,14 @@ export function AprobarDispositivo(): ReactElement {
 
   const resuelta = solicitud && solicitud.estado !== 'pendiente';
   return <main className={css.fondo}>
-    <div className={css.marca}>Corte</div>
+    <div className={css.marca}>CUTGC</div>
     <section className={css.panel} aria-labelledby="titulo-dispositivo" aria-busy={cargando || enviando}>
       <span className={css.etiqueta}>ACCESO A TU CUENTA</span>
       <h1 id="titulo-dispositivo">{terminado === 'aprobado' ? 'Tu app ya puede conectarse' : terminado === 'denegado' ? 'Conexión rechazada' : 'Conecta tu dispositivo'}</h1>
       {terminado ? <div role="status">
-        <p>{terminado === 'aprobado' ? 'Vuelve a Corte en tu dispositivo. La conexión terminará allí automáticamente.' : 'Este dispositivo no tendrá acceso. Puedes cerrar esta página.'}</p>
+        <p>{terminado === 'aprobado' ? 'Vuelve a CUTGC en tu dispositivo. La conexión terminará allí automáticamente.' : 'Este dispositivo no tendrá acceso. Puedes cerrar esta página.'}</p>
       </div> : <>
-        <p>Confirma el dispositivo que abriste para usar Corte con tus datos en la nube.</p>
+        <p>Confirma el dispositivo que abriste para usar CUTGC con tus datos en la nube.</p>
         {!solicitud && !cargando && <form className={css.formulario} onSubmit={buscar}>
           <label htmlFor="codigo-dispositivo">Código de la app</label>
           <input id="codigo-dispositivo" value={codigo} maxLength={9} autoComplete="off" spellCheck={false}
@@ -101,7 +101,7 @@ export function AprobarDispositivo(): ReactElement {
               const limpio = e.currentTarget.value.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 8);
               setCodigo(limpio.length > 4 ? `${limpio.slice(0, 4)}-${limpio.slice(4)}` : limpio);
             }} />
-          <span id="ayuda-codigo" className={css.ayuda}>Aparece al pulsar «Conectar mi cuenta» en Corte para Windows o Android.</span>
+          <span id="ayuda-codigo" className={css.ayuda}>Aparece al pulsar «Conectar mi cuenta» en CUTGC para Windows o Android.</span>
           <button type="submit" className={css.principal}>Revisar dispositivo</button>
         </form>}
         {cargando && <p role="status">Comprobando el dispositivo…</p>}
@@ -112,7 +112,7 @@ export function AprobarDispositivo(): ReactElement {
             <div><dt>Código</dt><dd className={css.codigo}>{solicitud.user_code}</dd></div>
           </dl>
           {resuelta ? <p role="status">Esta solicitud ya fue resuelta. Vuelve a la app para comprobar su conexión.</p> : <>
-            <p className={css.aviso}>Aprueba solo si acabas de abrir Corte en ese dispositivo y el código coincide. Tendrá acceso a tus datos y podrá guardar cambios.</p>
+            <p className={css.aviso}>Aprueba solo si acabas de abrir CUTGC en ese dispositivo y el código coincide. Tendrá acceso a tus datos y podrá guardar cambios.</p>
             <div className={css.acciones}>
               <button type="button" className={css.principal} disabled={enviando} onClick={() => { void decidir(true); }}>{enviando ? 'Guardando…' : 'Aprobar conexión'}</button>
               <button type="button" className={css.secundario} disabled={enviando} onClick={() => { void decidir(false); }}>Rechazar</button>
@@ -122,6 +122,6 @@ export function AprobarDispositivo(): ReactElement {
       </>}
       {error && <p className={css.error} role="alert">{error}</p>}
     </section>
-    <a className={css.volver} href="/">Ir a Corte</a>
+    <a className={css.volver} href="/">Ir a CUTGC</a>
   </main>;
 }

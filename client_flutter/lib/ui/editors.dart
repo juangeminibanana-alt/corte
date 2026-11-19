@@ -141,7 +141,7 @@ class _EditorDialogState extends State<_EditorDialog> {
           widget.parentContext,
           outcome.enCola
               ? 'Guardado en este equipo; pendiente de envío.'
-              : 'Guardado en Corte.',
+              : 'Guardado en CUTGC.',
         );
       }
     } catch (failure) {
@@ -686,7 +686,7 @@ class _MessageEditorDialogState extends State<MessageEditorDialog> {
         throw ErrorApi(
           codigo: 'plantillas_no_disponibles',
           mensaje:
-              'No hay plantillas disponibles en esta copia. Conecta Corte y actualiza.',
+              'No hay plantillas disponibles en esta copia. Conecta CUTGC y actualiza.',
         );
       _choose(candidates.isEmpty ? _templates.first : candidates.first);
       setState(() => _loading = false);
@@ -1148,7 +1148,7 @@ Future<void> _localAction(BuildContext context, JsonMap operation) async {
       context,
       result.enCola
           ? 'Guardado en este equipo; pendiente de envío.'
-          : 'Guardado en Corte.',
+          : 'Guardado en CUTGC.',
     );
   } catch (error) {
     if (context.mounted)

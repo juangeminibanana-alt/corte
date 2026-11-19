@@ -41,7 +41,7 @@ export function AccesoClienteNativo(p: { inicial: SesionNativa; children: ReactN
   if (sesion.authenticated && !sesion.migration_pending) return <>{p.children}</>;
   const migrar = sesion.authenticated && sesion.migration_pending;
   return <main className={css.fondo}>
-    <div className={css.marca}><Logo tamano={32} />Corte <span className={nativo.plataforma}>{sesion.platform === 'windows' ? 'Windows' : 'Android'}</span></div>
+    <div className={css.marca}><Logo tamano={32} />CUTGC <span className={nativo.plataforma}>{sesion.platform === 'windows' ? 'Windows' : 'Android'}</span></div>
     <section className={css.panel} aria-labelledby="acceso-nativo" aria-busy={ocupado}>
       <h1 id="acceso-nativo">{migrar ? 'Recupera tu organización' : 'Tu espacio, conectado'}</h1>
       {migrar ? <>
@@ -53,7 +53,7 @@ export function AccesoClienteNativo(p: { inicial: SesionNativa; children: ReactN
       </> : <>
         <p>Conecta esta aplicación con tu cuenta de Google para consultar tus datos desde cualquier lugar.</p>
         {sesion.pending ? <div className={nativo.pendiente}>
-          <p>En el navegador, comprueba este código y aprueba el acceso. Después vuelve a Corte.</p>
+          <p>En el navegador, comprueba este código y aprueba el acceso. Después vuelve a CUTGC.</p>
           <strong className={nativo.codigo}>{sesion.pending.user_code}</strong>
           <p role="status">Esperando tu autorización…</p>
         </div> : null}

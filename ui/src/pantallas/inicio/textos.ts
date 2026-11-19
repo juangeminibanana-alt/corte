@@ -166,7 +166,7 @@ export const T = {
 
   estados: {
     sinDatosAndroidTitulo: 'Todavía no hay datos en este celular.',
-    sinDatosAndroidTexto: 'Empareja tu celular con Corte de tu PC para traer tu información.',
+    sinDatosAndroidTexto: 'Empareja tu celular con CUTGC de tu PC para traer tu información.',
     emparejar: 'Emparejar con mi PC',
     errorTitulo: 'No pudimos cargar tu inicio',
     reintentar: 'Reintentar',

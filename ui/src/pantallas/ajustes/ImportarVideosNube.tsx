@@ -33,7 +33,7 @@ export function ImportarVideosNube(): ReactElement {
   }
   return <Grupo titulo="Recuperar la conexión anterior">
     <input type="file" accept=".json,application/json" hidden ref={archivo} onChange={e => void importar(e.target.files?.[0])} />
-    <Fila etiqueta="Conexión de videos de tu aplicación anterior" descripcion="Corte comprueba que pertenezca a tu cuenta antes de recuperar las portadas y las métricas.">
+    <Fila etiqueta="Conexión de videos de tu aplicación anterior" descripcion="CUTGC comprueba que pertenezca a tu cuenta antes de recuperar las portadas y las métricas.">
       <Boton variante="secundario" cargando={ocupado} alPulsar={() => archivo.current?.click()}>Recuperar conexión de videos</Boton>
     </Fila>
   </Grupo>;

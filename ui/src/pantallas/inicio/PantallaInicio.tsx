@@ -172,7 +172,7 @@ export function PantallaInicio(): ReactElement {
             </nav>
           </section>
         </div>
-        <footer className={css.pie}>Corte · Tu espacio para crear y crecer</footer>
+        <footer className={css.pie}>CUTGC · Tu espacio para crear y crecer</footer>
       </div>
     </Pantalla>
   );

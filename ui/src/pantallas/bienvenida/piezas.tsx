@@ -13,7 +13,7 @@ import { cx } from './clases';
 export function Logotipo(p: { tamano?: number; conTexto?: boolean }): ReactElement {
   const t = p.tamano ?? 44;
   return (
-    <span className={cx(css.logo)} style={{ ['--logo' as string]: `${t}px` }} role="img" aria-label="Corte">
+    <span className={cx(css.logo)} style={{ ['--logo' as string]: `${t}px` }} role="img" aria-label="CUTGC">
       <svg viewBox="0 0 1024 1024" width={t} height={t} aria-hidden="true" className={cx(css.logoIcono)}>
         <rect width="1024" height="1024" rx="232" className={cx(css.logoFondo)} />
         <g transform="translate(18 -6)">

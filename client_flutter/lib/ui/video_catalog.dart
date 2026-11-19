@@ -152,12 +152,12 @@ String noSalesDetail(
   final t = noSalesText(v, pedidosDesde, ahora: ahora);
   if (t == null) return '';
   if (t.$2 == 'registradas') {
-    return 'Corte todavía no tiene pedidos guardados, así que este video no tiene ventas registradas.';
+    return 'CUTGC todavía no tiene pedidos guardados, así que este video no tiene ventas registradas.';
   }
   if (t.$2 == 'desde que se publicó') {
     return 'Este video aún no tiene ventas desde que se publicó.';
   }
-  return 'Sin ventas desde el ${fechaCortaDe(pedidosDesde!, ahora: ahora)}. Corte guarda tus pedidos desde ese día: de antes no se puede saber.';
+  return 'Sin ventas desde el ${fechaCortaDe(pedidosDesde!, ahora: ahora)}. CUTGC guarda tus pedidos desde ese día: de antes no se puede saber.';
 }
 
 /// Aviso de «Todos» cuando el hub solo puede listar los videos con ventas.
@@ -704,7 +704,7 @@ class CatalogVideoDetail extends StatelessWidget {
             query: const {'limite': 2000},
             padding: EdgeInsets.zero,
             errorBuilder: (context, _) =>
-                const Text('Este video no tiene ventas registradas en Corte.'),
+                const Text('Este video no tiene ventas registradas en CUTGC.'),
             builder: (context, lista) => Text(
               noSalesDetail(
                 v,

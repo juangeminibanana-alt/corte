@@ -128,11 +128,11 @@ class CorteSalesNotifications extends ChangeNotifier {
         if (!_current(generation)) return;
         if (allowed != 'concedido')
           throw StateError(
-            'Permite las notificaciones de Corte en los ajustes del dispositivo.',
+            'Permite las notificaciones de CUTGC en los ajustes del dispositivo.',
           );
         if (!await _configure(true, _scope)) {
           throw StateError(
-            'El dispositivo no pudo activar las notificaciones de Corte. Vuelve a intentar.',
+            'El dispositivo no pudo activar las notificaciones de CUTGC. Vuelve a intentar.',
           );
         }
         if (!_current(generation)) return;

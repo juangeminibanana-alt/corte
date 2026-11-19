@@ -274,7 +274,7 @@ JsonMap parsePublicProductPage(
   if (scripts.length != 1) {
     throw _sourceError(
       'fuente_sin_datos',
-      'La ficha no ofrece datos públicos de tallas o reseñas que Corte pueda leer.',
+      'La ficha no ofrece datos públicos de tallas o reseñas que CUTGC pueda leer.',
     );
   }
   final JsonMap data;

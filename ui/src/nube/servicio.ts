@@ -6,7 +6,7 @@ import { ErrorHub } from '../datos/errores';
 export async function fetchCorte(ruta: string, init?: RequestInit): Promise<Response> {
   const metodo = (init?.method ?? 'GET').toUpperCase();
   if (infoPlataforma().plataforma !== 'android' || !['POST', 'PATCH', 'PUT', 'DELETE'].includes(metodo)) return fetch(ruta, init);
-  if (!ruta.startsWith('/api/') || ruta.startsWith('//')) throw new Error('Ruta de Corte no válida.');
+  if (!ruta.startsWith('/api/') || ruta.startsWith('//')) throw new Error('Ruta de CUTGC no válida.');
   const cuerpo: unknown = typeof init?.body === 'string' && init.body ? JSON.parse(init.body) : undefined;
   try {
     const transporte = await obtenerTransporte();

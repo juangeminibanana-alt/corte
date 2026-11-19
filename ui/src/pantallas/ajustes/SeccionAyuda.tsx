@@ -8,7 +8,7 @@ import { cx } from './clases';
 import { esNube } from '../../nube/entorno';
 
 const AYUDA_WEB = [
-  { pregunta: '¿Necesito mi PC encendida?', respuesta: 'Puedes abrir Corte desde tu teléfono o computadora usando internet. El servidor mantiene tus datos y realiza la sincronización automática según el intervalo que elijas.' },
+  { pregunta: '¿Necesito mi PC encendida?', respuesta: 'Puedes abrir CUTGC desde tu teléfono o computadora usando internet. El servidor mantiene tus datos y realiza la sincronización automática según el intervalo que elijas.' },
   { pregunta: '¿Cómo conecto mi cuenta?', respuesta: 'Abre Configuración › TikTok Shop y autoriza tu cuenta en la página oficial de TikTok. La conexión de métricas de videos se configura por separado.' },
   { pregunta: '¿Quién puede entrar a mi espacio?', respuesta: 'El servicio verifica el acceso con Google y permite únicamente las cuentas autorizadas en la configuración del servidor. Cierra la sesión al terminar en un dispositivo compartido.' },
   { pregunta: '¿Dónde se guardan mis respaldos?', respuesta: 'Los respaldos que creas desde Privacidad y datos se guardan de forma privada en Firebase Storage. Puedes importarlos desde esa misma sección. No incluyen las credenciales de TikTok.' },

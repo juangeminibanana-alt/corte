@@ -156,7 +156,7 @@ class _PlannerFormState extends State<_PlannerForm> {
       setState(
         () => saved = result.enCola
             ? 'El lote se guardó en este dispositivo. Hay cambios pendientes de envío.'
-            : 'Tus ${checked.items.length} planes se guardaron en Corte.',
+            : 'Tus ${checked.items.length} planes se guardaron en CUTGC.',
       );
       ui.refresh();
     } catch (failure) {

@@ -313,9 +313,9 @@ export const T = {
   prioridadGrupo: (nivel: string, n: number): string => `Prioridad ${nivel} (${n})`,
 
   // ------------------------------------------------------------------ QR (01 §4.14 C, C6)
-  llevaCorte: 'Lleva Corte en tu celular',
+  llevaCorte: 'Lleva CUTGC en tu celular',
   llevaCorteTexto: 'Avisa a tus tiendas desde el celular, con tu plan y tus ventas, incluso sin internet. Se actualiza cuando tu celular y esta PC están en la misma red Wi‑Fi.',
-  paso1: 'Instala Corte en tu Android.',
+  paso1: 'Instala CUTGC en tu Android.',
   paso2: 'Ábrelo y toca Emparejar con mi PC.',
   paso3: 'Escanea este código.',
   noPuedesEscanear: '¿No puedes escanear? Escribe este código en tu celular:',
@@ -324,14 +324,14 @@ export const T = {
   generandoCodigo: 'Generando tu código…',
   errorCodigo: 'No pudimos generar el código para emparejar.',
   reintentar: 'Reintentar',
-  soloEnPc: 'El código para emparejar se genera en Corte de tu PC.',
+  soloEnPc: 'El código para emparejar se genera en CUTGC de tu PC.',
   qrAlt: 'Código QR para emparejar tu celular con esta PC',
   celularConectado: (d: string): string => `${d} quedó conectado.`,
   tuCelular: 'Tu celular',
 
   // ------------------------------------------------------------------ solicitud de emparejamiento (01 §4.14 C)
   conectarCelular: '¿Conectar este celular?',
-  quiereConectarse: (d: string): string => `${d} quiere conectarse a Corte.`,
+  quiereConectarse: (d: string): string => `${d} quiere conectarse a CUTGC.`,
   verificaNumero: 'Verifica que tu celular muestre este número:',
   permitir: 'Permitir',
   rechazar: 'Rechazar',
@@ -339,11 +339,11 @@ export const T = {
   numeroConfirmacion: 'Número de confirmación:',
 
   // ------------------------------------------------------------------ cierre de la ventana (01 §3.2, C23)
-  cierreTitulo: '¿Mantener Corte en segundo plano?',
+  cierreTitulo: '¿Mantener CUTGC en segundo plano?',
   cierreTexto: 'Así tu celular puede actualizarse y seguimos sincronizando con TikTok.',
   mantener: 'Mantener en segundo plano',
   cerrarCompleto: 'Cerrar por completo',
-  iniciarConWindows: 'Abrir Corte al iniciar Windows (minimizado)',
+  iniciarConWindows: 'Abrir CUTGC al iniciar Windows (minimizado)',
   cierreAyuda: 'Lo puedes cambiar en Ajustes › Sincronización.',
 
   // ------------------------------------------------------------------ muestra nueva (01 §5.5 paso 4)

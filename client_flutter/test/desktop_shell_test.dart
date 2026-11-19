@@ -86,7 +86,7 @@ void main() {
           );
           expect(MediaQuery.textScalerOf(contentContext).scale(10), scale * 10);
           expect(tester.takeException(), isNull);
-          await tester.tap(find.byTooltip('Buscar en Corte'));
+          await tester.tap(find.byTooltip('Buscar en CUTGC'));
           await tester.pumpAndSettle();
           await tester.tap(find.text('Actualizar'));
           await tester.pumpAndSettle();

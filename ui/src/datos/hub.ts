@@ -17,7 +17,7 @@ function esObjeto(v: unknown): v is Record<string, unknown> {
 }
 
 function respuestaInvalida(): ErrorHub {
-  return new ErrorHub('error_interno', 'Corte respondió algo que no esperábamos. Inténtalo de nuevo.', 0);
+  return new ErrorHub('error_interno', 'CUTGC respondió algo que no esperábamos. Inténtalo de nuevo.', 0);
 }
 
 /** Valida lo mínimo de la respuesta (objeto con las claves indicadas) y la tipa. */

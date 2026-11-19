@@ -61,7 +61,7 @@ class _CorteApplicationState extends State<CorteApplication>
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: _ui.appearance,
     builder: (context, _) => MaterialApp.router(
-      title: 'Corte',
+      title: 'CUTGC',
       debugShowCheckedModeBanner: false,
       theme: corteTheme(),
       darkTheme: corteTheme(brightness: Brightness.dark),
@@ -413,7 +413,7 @@ class CorteAccess extends StatelessWidget {
           children: [
             CorteMark(),
             SizedBox(width: 9),
-            Text('Corte', style: TextStyle(fontWeight: FontWeight.w800)),
+            Text('CUTGC', style: TextStyle(fontWeight: FontWeight.w800)),
           ],
         ),
         centerTitle: true,
@@ -432,7 +432,7 @@ class CorteAccess extends StatelessWidget {
                       ? 'Abriendo tu espacio'
                       : pending != null
                       ? 'Conecta este dispositivo'
-                      : 'Tu espacio en Corte',
+                      : 'Tu espacio en CUTGC',
                   style: Theme.of(context).textTheme.headlineLarge,
                 ),
                 const SizedBox(height: 12),
@@ -450,7 +450,7 @@ class CorteAccess extends StatelessWidget {
                 if (state.busy)
                   const Center(
                     child: CircularProgressIndicator(
-                      semanticsLabel: 'Conectando con Corte',
+                      semanticsLabel: 'Conectando con CUTGC',
                     ),
                   )
                 else if (pending != null) ...[

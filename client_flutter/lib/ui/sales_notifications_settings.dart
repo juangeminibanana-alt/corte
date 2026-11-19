@@ -11,7 +11,7 @@ class SalesNotificationsSettings extends StatelessWidget {
     final service = CorteScope.of(context).salesNotifications;
     if (!service.supported) {
       return const Text(
-        'Activa los avisos de ventas desde Corte para Android o Windows.',
+        'Activa los avisos de ventas desde CUTGC para Android o Windows.',
       );
     }
     return AnimatedBuilder(
@@ -24,8 +24,8 @@ class SalesNotificationsSettings extends StatelessWidget {
             title: const Text('Una notificación por cada venta nueva'),
             subtitle: Text(
               service.isWindows
-                  ? 'Corte seguirá en la bandeja al cerrar la ventana. «Salir» detiene los avisos.'
-                  : 'Recibe los avisos aunque Corte esté cerrada.',
+                  ? 'CUTGC seguirá en la bandeja al cerrar la ventana. «Salir» detiene los avisos.'
+                  : 'Recibe los avisos aunque CUTGC esté cerrada.',
             ),
             value: service.enabled,
             onChanged: service.busy

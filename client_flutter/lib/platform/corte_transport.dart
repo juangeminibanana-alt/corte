@@ -302,7 +302,7 @@ class CorteTransport implements CorteHttpAdapter {
       _onConnectionChanged?.call(false);
       throw const CorteTransportException(
         'sin_internet',
-        'No pudimos conectar con Corte. Tu copia y tus cambios siguen guardados.',
+        'No pudimos conectar con CUTGC. Tu copia y tus cambios siguen guardados.',
       );
     } finally {
       timer.cancel();
@@ -317,7 +317,7 @@ class CorteTransport implements CorteHttpAdapter {
     if (!_uri(path).path.startsWith('/img/')) {
       throw const CorteTransportException(
         'ruta_invalida',
-        'No es una imagen de Corte.',
+        'No es una imagen de CUTGC.',
       );
     }
     final response = await request(

@@ -179,7 +179,7 @@ class CorteMark extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) => Semantics(
-    label: 'Corte',
+    label: 'CUTGC',
     child: SizedBox.square(
       dimension: size,
       child: CustomPaint(painter: _MarkPainter()),

@@ -189,7 +189,7 @@ export async function buscarPcs(): Promise<PcEncontrada[]> {
 function emparejarNoDisponible(alEvento: (e: EventoEmparejamiento) => void): () => void {
   let cancelado = false;
   const t = setTimeout(() => {
-    if (!cancelado) alEvento({ fase: 'error', error: 'red', mensaje: 'Para conectar tu celular abre Corte en Android.' });
+    if (!cancelado) alEvento({ fase: 'error', error: 'red', mensaje: 'Para conectar tu celular abre CUTGC en Android.' });
   }, 0);
   return () => {
     cancelado = true;

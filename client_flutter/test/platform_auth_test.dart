@@ -435,7 +435,7 @@ void main() {
           expect(request.headers['authorization'], isNull);
           expect(jsonDecode(request.body), {
             'id_token': 'synthetic-firebase-id-token',
-            'device_name': 'Corte para Android',
+            'device_name': 'CUTGC para Android',
           });
           return jsonResponse(grant());
         }
@@ -531,7 +531,7 @@ void main() {
         expect(controller.state.phase, CorteAuthPhase.signedOut);
         expect(
           controller.state.errorMessage,
-          'El acceso con Google no está disponible en este dispositivo. Puedes volver a intentarlo desde Corte.',
+          'El acceso con Google no está disponible en este dispositivo. Puedes volver a intentarlo desde CUTGC.',
         );
         expect(store.values, storedValues);
         expect(links.opened, isEmpty);

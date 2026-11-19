@@ -7,8 +7,8 @@ import { esNube } from '../../nube/entorno';
 export const T = {
   tituloPantalla: 'Conexión y ajustes',
   tituloMas: 'Más',
-  contexto: 'Tu cuenta de TikTok Shop, tu celular y cómo se comporta Corte en esta PC.',
-  contextoAndroid: 'Tu conexión con la PC, tus recordatorios y cómo se ve Corte en este celular.',
+  contexto: 'Tu cuenta de TikTok Shop, tu celular y cómo se comporta CUTGC en esta PC.',
+  contextoAndroid: 'Tu conexión con la PC, tus recordatorios y cómo se ve CUTGC en este celular.',
   navegacion: 'Secciones de ajustes',
   noExiste: 'Esta sección no existe',
   noExisteTexto: 'Elige una de la lista para ver sus ajustes.',
@@ -49,7 +49,7 @@ export const T = {
 
   // A. TikTok Shop
   tiktok: {
-    descripcion: 'Corte usa la API oficial de TikTok Shop con tu autorización. Son dos cosas separadas: la clave de tu app de Partner Center y la autorización de tu cuenta.',
+    descripcion: 'CUTGC usa la API oficial de TikTok Shop con tu autorización. Son dos cosas separadas: la clave de tu app de Partner Center y la autorización de tu cuenta.',
     grupoCuenta: 'Autorización de tu cuenta',
     grupoClave: 'Clave de la app (Partner Center)',
     grupoPermisos: 'Permisos que otorgaste',
@@ -70,7 +70,7 @@ export const T = {
       dias <= 1 ? 'Tu autorización vence mañana. Renuévala ahora; tarda menos de un minuto.' : `Tu autorización vence en ${dias} días. Renuévala ahora; tarda menos de un minuto.`,
     vencida: 'Tu autorización venció o la retiraste en TikTok. Tus datos guardados siguen aquí, pero no se actualizarán hasta que reautorices.',
     faltanPermisos: (lista: string) => `Faltan permisos: ${lista}. Algunas secciones no se actualizarán. Vuelve a autorizar y deja activados todos los permisos.`,
-    faltaClave: 'Para conectar, Corte necesita la clave de tu app de Partner Center (una sola vez).',
+    faltaClave: 'Para conectar, CUTGC necesita la clave de tu app de Partner Center (una sola vez).',
     sinAutorizar: 'La clave de la app ya está guardada. Falta que autorices tu cuenta en TikTok Shop; tarda menos de un minuto.',
     sinRegion: 'Tu cuenta aún no tiene región de venta en TikTok Shop, así que no podemos leer tus datos. Revísalo en la app de TikTok.',
     reautorizar: 'Reautorizar',
@@ -87,7 +87,7 @@ export const T = {
     borrarAnterior: 'Mandar el archivo anterior a la Papelera',
     // Android (C35): solo lectura
     androidManeja: 'La conexión con TikTok la maneja tu PC.',
-    androidC35: 'Para volver a conectar, abre Corte en tu PC › Conexión y ajustes › TikTok.',
+    androidC35: 'Para volver a conectar, abre CUTGC en tu PC › Conexión y ajustes › TikTok.',
     // Datos técnicos
     tecnicos: 'Datos técnicos',
     tecnicosClaves: 'Claves de los permisos',
@@ -109,7 +109,7 @@ export const T = {
 
   // A2. Métricas de tus videos (Display API de TikTok for Developers, contrato rev. 5)
   metricas: {
-    descripcion: 'Corte puede traer las vistas, likes, comentarios y compartidos de tus videos públicos para que veas cuántos pedidos te deja cada 1,000 vistas. Solo lee: no publica ni cambia nada en tu cuenta.',
+    descripcion: 'CUTGC puede traer las vistas, likes, comentarios y compartidos de tus videos públicos para que veas cuántos pedidos te deja cada 1,000 vistas. Solo lee: no publica ni cambia nada en tu cuenta.',
     get queEs() { return esNube() ? 'La conexión de métricas usa una app de TikTok for Developers, independiente de la app de TikTok Shop.' : 'Usa una app aparte, que creas tú en TikTok for Developers en modo Sandbox. No es la de TikTok Shop.'; },
     // Estados
     chipConectada: 'Conectada',
@@ -162,7 +162,7 @@ export const T = {
     cambiarDescripcion: 'Si cambias el Client key, la conexión actual se borra y tendrás que volver a conectar.',
     // Esperando el regreso
     esperandoTitulo: 'Esperando a que autorices en TikTok…',
-    esperandoTexto: 'Abrimos TikTok en tu navegador. Autoriza a Corte y vuelve aquí: esto se actualiza solo.',
+    esperandoTexto: 'Abrimos TikTok en tu navegador. Autoriza a CUTGC y vuelve aquí: esto se actualiza solo.',
     caducaEn: (tiempo: string) => `El enlace vence en ${tiempo}`,
     abrirOtraVez: 'Abrir TikTok otra vez',
     noAbrio: 'No pudimos abrir tu navegador. Copia el enlace y ábrelo tú.',
@@ -201,13 +201,13 @@ export const T = {
     autorizacionHasta: 'Autorización vigente hasta',
     // Desconectar
     desconectarTitulo: '¿Desconectar las métricas de tus videos?',
-    desconectarTexto: 'Corte dejará de traer las vistas de tus videos y le pedirá a TikTok que retire el acceso. Tus ventas no cambian.',
+    desconectarTexto: 'CUTGC dejará de traer las vistas de tus videos y le pedirá a TikTok que retire el acceso. Tus ventas no cambian.',
     borrarDatos: 'Borrar también las vistas, la tendencia y las portadas que ya se trajeron',
     olvidarApp: 'Olvidar el Client key y el Client secret',
     desconectada: 'Desconectamos las métricas de tus videos',
-    get desconectadaSinInternet() { return esNube() ? 'Se desconectó de Corte. No pudimos avisar a TikTok; también puedes retirar el acceso desde la app de TikTok.' : 'Se desconectó de esta PC. No pudimos avisar a TikTok porque no hay internet; puedes retirar el acceso desde la app de TikTok.'; },
+    get desconectadaSinInternet() { return esNube() ? 'Se desconectó de CUTGC. No pudimos avisar a TikTok; también puedes retirar el acceso desde la app de TikTok.' : 'Se desconectó de esta PC. No pudimos avisar a TikTok porque no hay internet; puedes retirar el acceso desde la app de TikTok.'; },
     // Avisos
-    reautorizar: 'TikTok pide que vuelvas a autorizar a Corte. Mientras tanto, las vistas que ya tienes se quedan como están.',
+    reautorizar: 'TikTok pide que vuelvas a autorizar a CUTGC. Mientras tanto, las vistas que ya tienes se quedan como están.',
     volverAConectar: 'Volver a conectar',
     faltanPermisos: (lista: string, n: number) =>
       n === 1
@@ -217,7 +217,7 @@ export const T = {
     reintentarLuego: 'Lo volvemos a intentar en la siguiente sincronización.',
     // Android
     androidTitulo: 'Se configura en la PC',
-    androidTexto: 'Para conectar las métricas de tus videos, abre Corte en tu PC › Conexión y ajustes › Métricas de tus videos. El celular verá las vistas en cuanto la PC las traiga.',
+    androidTexto: 'Para conectar las métricas de tus videos, abre CUTGC en tu PC › Conexión y ajustes › Métricas de tus videos. El celular verá las vistas en cuanto la PC las traiga.',
     androidConectada: (usuario: string) => `Tu PC ya trae las vistas de @${usuario}.`,
     // Demo
     demo: 'En el modo de demostración la conexión ya viene lista con datos de ejemplo.',
@@ -225,7 +225,7 @@ export const T = {
 
   // B. Sincronización
   sync: {
-    descripcion: 'Corte trae tus muestras, pedidos y productos de TikTok Shop. Tu plan, tus avisos y tus notas nunca se tocan.',
+    descripcion: 'CUTGC trae tus muestras, pedidos y productos de TikTok Shop. Tu plan, tus avisos y tus notas nunca se tocan.',
     ultima: (cuando: string, tardo: string | null) => `Última sincronización: ${cuando}${tardo ? ` (tardó ${tardo})` : ''}`,
     nunca: 'Todavía no se ha sincronizado',
     ahora: 'Sincronizar ahora',
@@ -234,14 +234,14 @@ export const T = {
     grupoAuto: 'Automática',
     intervalo: 'Sincronizar automáticamente',
     opciones: { '15': '15 min', '30': '30 min', '60': '60 min', apagado: 'Apagada' },
-    cada: (min: number) => esNube() ? `Cada ${min} minutos desde el servidor, aunque cierres la página.` : `Cada ${min} minutos mientras Corte está abierto o en segundo plano.`,
+    cada: (min: number) => esNube() ? `Cada ${min} minutos desde el servidor, aunque cierres la página.` : `Cada ${min} minutos mientras CUTGC está abierto o en segundo plano.`,
     apagada: 'No sincronizamos solos. Usa Sincronizar ahora cuando quieras.',
     recomendado: 'Recomendado: 30 min',
     segundoPlano: 'Mantener en segundo plano al cerrar la ventana',
     segundoPlanoDesc: 'Así tu celular puede actualizarse y seguimos sincronizando con TikTok.',
     segundoPlanoSinElegir: 'Te lo preguntaremos la primera vez que cierres la ventana.',
-    iniciarWindows: 'Abrir Corte al iniciar Windows (minimizado)',
-    iniciarWindowsDesc: 'Corte arranca en la bandeja del sistema, sin abrir la ventana.',
+    iniciarWindows: 'Abrir CUTGC al iniciar Windows (minimizado)',
+    iniciarWindowsDesc: 'CUTGC arranca en la bandeja del sistema, sin abrir la ventana.',
     iniciarBloqueado: 'Lo apagaste desde el Administrador de tareas de Windows. Vuelve a activarlo ahí.',
     get grupoModulos() { return esNube() ? 'Datos sincronizados' : 'Qué tienes en esta PC'; },
     ventas: 'Tus ventas',
@@ -270,22 +270,22 @@ export const T = {
     muestrasNuevas: (n: number) => (n === 1 ? '1 muestra nueva' : `${n} muestras nuevas`),
     muestrasCambiaron: (n: number) => (n === 1 ? '1 muestra cambió de estado' : `${n} muestras cambiaron de estado`),
     productosNuevos: (n: number) => (n === 1 ? '1 producto nuevo' : `${n} productos nuevos`),
-    origenes: { auto: 'automática', usuario: 'tú la pediste', arranque: 'al abrir Corte', telefono: 'desde tu celular', demo: 'demostración' } as Record<string, string>,
+    origenes: { auto: 'automática', usuario: 'tú la pediste', arranque: 'al abrir CUTGC', telefono: 'desde tu celular', demo: 'demostración' } as Record<string, string>,
     tipoCompleta: 'revisión completa',
     androidCopia: (cuando: string) => `Última copia de tu PC: ${cuando}`,
     androidSinCopia: 'Todavía no hay copia en este celular.',
-    androidTexto: 'La sincronización con TikTok la hace Corte en tu PC. Tu celular trae una copia cada vez que se conecta.',
+    androidTexto: 'La sincronización con TikTok la hace CUTGC en tu PC. Tu celular trae una copia cada vez que se conecta.',
     sincronizando: 'Empezamos a sincronizar',
   },
 
   // C. Celular (Windows)
   celular: {
     descripcion: 'Avisa a tus tiendas desde el celular, con tu plan y tus ventas, incluso sin internet. Se actualiza cuando tu celular y esta PC están en la misma red Wi‑Fi.',
-    titulo: 'Lleva Corte en tu celular',
+    titulo: 'Lleva CUTGC en tu celular',
     permitir: 'Permitir que mis celulares se conecten',
     permitirDesc: 'Tu celular solo se conecta dentro de tu red Wi‑Fi. Nunca recibe tu acceso a TikTok.',
     avisoRedesTitulo: 'Antes de activar',
-    avisoRedes: 'Windows te preguntará si Corte puede usar la red. Elige “Redes privadas”.',
+    avisoRedes: 'Windows te preguntará si CUTGC puede usar la red. Elige “Redes privadas”.',
     activar: 'Activar',
     apagado: 'Mientras esté apagado, tus celulares se quedan con su última copia.',
     grupoPc: 'Esta PC',
@@ -316,7 +316,7 @@ export const T = {
     // Firewall (04 §C.10)
     firewallRevisando: 'Revisando el firewall de Windows…',
     firewallBien: 'Windows deja que tu celular encuentre esta PC en esta red.',
-    firewallBloqueado: 'Windows está bloqueando a Corte en esta red.',
+    firewallBloqueado: 'Windows está bloqueando a CUTGC en esta red.',
     firewallArreglar: 'Arreglar (pide permiso de Windows)',
     firewallPublica: 'Tu Wi‑Fi está marcada como Pública. Para que tu celular encuentre esta PC, elige una opción:',
     firewallOpcionPrivada: 'Es mi red de casa: márcala como privada',
@@ -340,7 +340,7 @@ export const T = {
     metaConectado: 'Se actualiza sola mientras tu celular y tu PC están en el mismo Wi‑Fi.',
     metaSinConexion: 'Trabajas con tu última copia. Tus cambios se envían al reconectar.',
     sinEmparejar: 'Todavía no emparejas este celular',
-    sinEmparejarTexto: 'Empareja tu celular con Corte de tu PC para traer tu información.',
+    sinEmparejarTexto: 'Empareja tu celular con CUTGC de tu PC para traer tu información.',
     emparejar: 'Emparejar con mi PC',
     ultimaCopia: 'Última copia',
     sinCopia: 'Todavía no hay copia',
@@ -358,9 +358,9 @@ export const T = {
     olvidarTexto: (n: number) => `Se borrará la copia de este celular y tus cambios que aún no se envían (${n}).`,
     revocado: 'Tu PC ya no reconoce este celular. Vuelve a emparejarlo para actualizarte.',
     emparejarDeNuevo: 'Emparejar de nuevo',
-    actualizaPc: 'Actualiza Corte en tu PC: tiene una versión más vieja que la de este celular.',
-    actualizaApp: 'Actualiza Corte en este celular: tu PC tiene una versión más nueva.',
-    ayuda: 'Tu celular se actualiza desde Corte de tu PC por Wi‑Fi. Mientras tanto, puedes seguir trabajando con la última copia.',
+    actualizaPc: 'Actualiza CUTGC en tu PC: tiene una versión más vieja que la de este celular.',
+    actualizaApp: 'Actualiza CUTGC en este celular: tu PC tiene una versión más nueva.',
+    ayuda: 'Tu celular se actualiza desde CUTGC de tu PC por Wi‑Fi. Mientras tanto, puedes seguir trabajando con la última copia.',
   },
 
   // D. Recordatorios
@@ -368,8 +368,8 @@ export const T = {
     descripcion: 'Avisos en tu celular o en Windows para que no se te pase un video ni una promesa. Funcionan sin internet.',
     grupoPermiso: 'Notificaciones',
     permisoConcedido: 'Las notificaciones están activadas.',
-    permisoDenegado: 'Las notificaciones están desactivadas para Corte. Actívalas para recibir tus recordatorios.',
-    permisoNoAplica: 'Los recordatorios salen como globos de Windows mientras Corte está abierto o en segundo plano.',
+    permisoDenegado: 'Las notificaciones están desactivadas para CUTGC. Actívalas para recibir tus recordatorios.',
+    permisoNoAplica: 'Los recordatorios salen como globos de Windows mientras CUTGC está abierto o en segundo plano.',
     permisoExplicacion: 'Para recordarte tus videos y tus promesas necesitamos permiso para mostrar notificaciones.',
     pedirPermiso: 'Permitir notificaciones',
     grupoAvisos: 'Qué te recordamos',
@@ -401,7 +401,7 @@ export const T = {
 
   // E. Plantillas
   plantillas: {
-    descripcion: 'Corte arma el mensaje para cada tienda con estas plantillas. Las variables entre llaves se llenan solas con tus datos.',
+    descripcion: 'CUTGC arma el mensaje para cada tienda con estas plantillas. Las variables entre llaves se llenan solas con tus datos.',
     lista: 'Tus plantillas',
     editada: 'Editada',
     original: 'Original',
@@ -423,8 +423,8 @@ export const T = {
 
   // F. Apariencia
   apariencia: {
-    get descripcion() { return esNube() ? 'Personaliza la apariencia y las animaciones de tu espacio.' : 'Cómo se ve Corte en este equipo. El tema y las animaciones también llegan a tu celular.'; },
-    descripcionAndroid: 'Cómo se ve Corte en este celular.',
+    get descripcion() { return esNube() ? 'Personaliza la apariencia y las animaciones de tu espacio.' : 'Cómo se ve CUTGC en este equipo. El tema y las animaciones también llegan a tu celular.'; },
+    descripcionAndroid: 'Cómo se ve CUTGC en este celular.',
     tema: 'Tema',
     temas: { sistema: 'Según el sistema', claro: 'Claro', oscuro: 'Oscuro' },
     densidad: 'Densidad',
@@ -440,10 +440,10 @@ export const T = {
 
   // G. Privacidad y datos
   datos: {
-    get privacidad() { return esNube() ? 'Tus datos se guardan en el servidor de Corte. Las credenciales de TikTok se cifran antes de guardarse. Firebase verifica tu acceso con Google y los respaldos que crees se guardan en Firebase Storage con acceso privado.' : 'Tus datos de TikTok Shop se guardan solo en esta PC, dentro de tu usuario de Windows, y en tu celular si lo emparejas. Tus llaves de TikTok van cifradas y nunca salen de esta PC. Corte no los envía a ningún servidor que no sea de TikTok.'; },
+    get privacidad() { return esNube() ? 'Tus datos se guardan en el servidor de CUTGC. Las credenciales de TikTok se cifran antes de guardarse. Firebase verifica tu acceso con Google y los respaldos que crees se guardan en Firebase Storage con acceso privado.' : 'Tus datos de TikTok Shop se guardan solo en esta PC, dentro de tu usuario de Windows, y en tu celular si lo emparejas. Tus llaves de TikTok van cifradas y nunca salen de esta PC. CUTGC no los envía a ningún servidor que no sea de TikTok.'; },
     grupoEspacio: 'Espacio usado',
     espacio: (datos: string, imagenes: string) => `Espacio usado: datos ${datos} · imágenes ${imagenes}`,
-    get espacioTitulo() { return esNube() ? 'Espacio que ocupa Corte en el servidor' : 'Espacio que ocupa Corte en esta PC'; },
+    get espacioTitulo() { return esNube() ? 'Espacio que ocupa CUTGC en el servidor' : 'Espacio que ocupa CUTGC en esta PC'; },
     partes: { datos: 'Datos', imagenes: 'Imágenes', registros: 'Registros' },
     columnaQue: 'Qué',
     columnaEspacio: 'Espacio',
@@ -460,12 +460,12 @@ export const T = {
     exportado: 'Guardamos tu archivo',
     exportadoCancelado: 'No se guardó el archivo',
     importar: 'Importar plan, avisos y notas',
-    importarDesc: 'Desde un archivo que exportaste de Corte. Lo que ya tienes no se duplica.',
-    tituloElegir: 'Elige tu archivo de Corte',
+    importarDesc: 'Desde un archivo que exportaste de CUTGC. Lo que ya tienes no se duplica.',
+    tituloElegir: 'Elige tu archivo de CUTGC',
     importado: (p: number, a: number, n: number) => `Importamos ${p} ${p === 1 ? 'video del plan' : 'videos del plan'}, ${a} ${a === 1 ? 'aviso' : 'avisos'} y ${n} ${n === 1 ? 'nota' : 'notas'}`,
     importadoOmitidos: (o: number) => (o === 1 ? '1 ya lo tenías.' : `${o} ya los tenías.`),
     grupoAnterior: 'Archivo de tu conexión anterior',
-    anteriorTexto: (ruta: string) => `Sigue en ${ruta} y guarda tus claves sin cifrar. Corte ya tiene la suya.`,
+    anteriorTexto: (ruta: string) => `Sigue en ${ruta} y guarda tus claves sin cifrar. CUTGC ya tiene la suya.`,
     anteriorBorrar: 'Mandar a la Papelera',
     anteriorEnPapelera: 'Mandamos el archivo anterior a la Papelera',
     anteriorNoExiste: 'El archivo anterior ya no estaba',
@@ -483,7 +483,7 @@ export const T = {
     get borrarTodoTexto2() { return esNube() ? ', plan, avisos, notas y plantillas del servidor. Los respaldos en Firebase Storage se conservan. Para volver a conectar necesitarás autorizar de nuevo tu cuenta. No se puede deshacer. Escribe BORRAR para confirmar.' : ', plan, avisos, notas, plantillas y celulares emparejados. Para volver a conectar necesitarás el archivo anterior o la clave de Partner Center. No se puede deshacer. Escribe BORRAR para confirmar.'; },
     borrarTodoCampo: 'Escribe BORRAR',
     borrarTodoBoton: 'Borrar todo',
-    get todoBorrado() { return esNube() ? 'Borramos los datos de Corte del servidor' : 'Borramos todo de esta PC'; },
+    get todoBorrado() { return esNube() ? 'Borramos los datos de CUTGC del servidor' : 'Borramos todo de esta PC'; },
     // Android
     androidPrivacidad:
       'Tu celular guarda una copia de tus datos para verla sin conexión. Tus llaves de TikTok se quedan en tu PC y nunca llegan al celular.',
@@ -496,14 +496,14 @@ export const T = {
 
   // H. Acerca de
   acerca: {
-    version: (v: string) => `Corte ${v}`,
+    version: (v: string) => `CUTGC ${v}`,
     hecho: 'Hecho para creadores de TikTok Shop México.',
     api: 'Usa la API oficial de TikTok Shop con tu autorización. No es una app de TikTok.',
     grupoTecnico: 'Datos técnicos',
     versionEtiqueta: 'Versión',
     puerto: 'Puerto de la interfaz',
     puertoRespaldo: (p: number) =>
-      `Corte usa el puerto ${p} porque el 39229 estaba ocupado por otra app. Todo funciona igual; si algo no carga, cierra la otra app y vuelve a abrir Corte.`,
+      `CUTGC usa el puerto ${p} porque el 39229 estaba ocupado por otra app. Todo funciona igual; si algo no carga, cierra la otra app y vuelve a abrir CUTGC.`,
     plataforma: 'Plataforma',
     plataformas: { windows: 'Windows', android: 'Android', navegador: 'Navegador de desarrollo' } as Record<string, string>,
     licencias: 'Licencias de terceros',
@@ -523,21 +523,21 @@ export const T = {
     {
       pregunta: '¿Dónde pego el mensaje?',
       respuesta:
-        'En la app de TikTok abre el chat con la tienda y pega el mensaje que copiaste en Corte. Cuando lo envíes, vuelve a Corte y toca «Sí, ya se lo envié».',
+        'En la app de TikTok abre el chat con la tienda y pega el mensaje que copiaste en CUTGC. Cuando lo envíes, vuelve a CUTGC y toca «Sí, ya se lo envié».',
     },
     {
       pregunta: '¿Cómo copio el enlace del video?',
-      respuesta: 'En TikTok abre tu video, toca Compartir y luego Copiar enlace. Pégalo en Corte; también aceptamos enlaces cortos.',
+      respuesta: 'En TikTok abre tu video, toca Compartir y luego Copiar enlace. Pégalo en CUTGC; también aceptamos enlaces cortos.',
     },
     {
       pregunta: '¿Por qué mi celular no se actualiza?',
       respuesta:
-        'Tu celular se actualiza desde Corte de tu PC por Wi‑Fi. Revisa que la PC esté encendida con Corte abierto o en segundo plano y que ambos estén en la misma red. Mientras tanto, puedes seguir trabajando con la última copia.',
+        'Tu celular se actualiza desde CUTGC de tu PC por Wi‑Fi. Revisa que la PC esté encendida con CUTGC abierto o en segundo plano y que ambos estén en la misma red. Mientras tanto, puedes seguir trabajando con la última copia.',
     },
     {
       pregunta: '¿Mis datos salen de mi PC?',
       respuesta:
-        'Tus datos de TikTok Shop se guardan solo en esta PC, dentro de tu usuario de Windows, y en tu celular si lo emparejas. Tus llaves de TikTok van cifradas y nunca salen de esta PC. Corte no los envía a ningún servidor que no sea de TikTok.',
+        'Tus datos de TikTok Shop se guardan solo en esta PC, dentro de tu usuario de Windows, y en tu celular si lo emparejas. Tus llaves de TikTok van cifradas y nunca salen de esta PC. CUTGC no los envía a ningún servidor que no sea de TikTok.',
     },
   ],
   ayudaDescripcion: 'Respuestas cortas a lo que más se pregunta.',
@@ -549,7 +549,7 @@ export const T = {
     pasos: ['Abre TikTok Shop', 'Pega el enlace de regreso', 'Listo'] as const,
     pasoDe: (n: number) => `Paso ${n} de 3`,
     clave: 'Antes de empezar',
-    claveTexto: 'Para conectar, Corte necesita la clave de tu app de Partner Center (una sola vez).',
+    claveTexto: 'Para conectar, CUTGC necesita la clave de tu app de Partner Center (una sola vez).',
     abrirTexto:
       'Vamos a abrir TikTok Shop en tu navegador. Inicia sesión con tu cuenta de creador, deja activados todos los permisos y toca Autorizar.',
     abrir: 'Abrir TikTok Shop',
@@ -580,7 +580,7 @@ export const T = {
     },
     cambioTitulo: 'Esta autorización es de otra cuenta',
     cambioTexto:
-      'Autorizaste una cuenta de TikTok distinta a la que usabas en Corte. Si continúas, cambiamos a la cuenta nueva y borramos de esta PC los datos de TikTok de la anterior.',
+      'Autorizaste una cuenta de TikTok distinta a la que usabas en CUTGC. Si continúas, cambiamos a la cuenta nueva y borramos de esta PC los datos de TikTok de la anterior.',
     cambiar: 'Cambiar de cuenta',
     eresTu: '¿Eres tú?',
     eresTuTexto: 'Conectamos esta cuenta de TikTok Shop. Revisa que sea la tuya antes de traer tus datos.',

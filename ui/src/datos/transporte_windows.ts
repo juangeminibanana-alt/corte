@@ -33,7 +33,7 @@ async function leerCuerpo(resp: Response): Promise<unknown> {
     const v: unknown = JSON.parse(texto);
     return v;
   } catch {
-    throw new ErrorHub('error_interno', 'Corte respondió algo que no esperábamos. Inténtalo de nuevo.', resp.status);
+    throw new ErrorHub('error_interno', 'CUTGC respondió algo que no esperábamos. Inténtalo de nuevo.', resp.status);
   }
 }
 
@@ -271,14 +271,14 @@ export function crearTransporteWindows(): Transporte {
         const tramo = ops.slice(i, i + MAX_OPS_POR_LOTE);
         try {
           const r = await mutar('POST', '/api/local/ops', { ops: tramo } satisfies C.OpsRequest);
-          if (!esOpsResponse(r)) throw new ErrorHub('error_interno', 'Corte respondió algo que no esperábamos. Inténtalo de nuevo.', 200);
+          if (!esOpsResponse(r)) throw new ErrorHub('error_interno', 'CUTGC respondió algo que no esperábamos. Inténtalo de nuevo.', 200);
           const porId = new Map(r.resultados.map((x) => [x.op_id, x] as const));
           for (const op of tramo) {
             const x = porId.get(op.op_id);
             salida.push(
               x
                 ? desdeOpsResultado(x)
-                : { op_id: op.op_id, estado: 'error', estado_hub: null, objeto: null, error: new ErrorHub('error_interno', 'Corte no confirmó este cambio. Inténtalo de nuevo.', 200) },
+                : { op_id: op.op_id, estado: 'error', estado_hub: null, objeto: null, error: new ErrorHub('error_interno', 'CUTGC no confirmó este cambio. Inténtalo de nuevo.', 200) },
             );
           }
         } catch (e) {

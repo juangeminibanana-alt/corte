@@ -198,9 +198,9 @@ function PrivacidadWindows(): ReactElement {
       const datos: unknown = JSON.parse(await elegido.text());
       const r = await fetchCorte('/api/cloud/import', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-CH-Hub': '1', Accept: 'application/json' }, body: JSON.stringify(datos) });
       if (r.status === 401) expirarSesionNube();
-      if (!r.ok) throw new Error('El archivo no pudo importarse. Comprueba que sea una exportación de Corte.');
+      if (!r.ok) throw new Error('El archivo no pudo importarse. Comprueba que sea una exportación de CUTGC.');
       invalidar();
-      toast.mostrar({ texto: 'Importamos tu archivo de Corte.', tono: 'ok' });
+      toast.mostrar({ texto: 'Importamos tu archivo de CUTGC.', tono: 'ok' });
     } catch (e) { toast.mostrar({ texto: e instanceof SyntaxError ? 'El archivo no contiene un JSON válido.' : mensaje(e), tono: 'error' }); }
     finally { setTrabajando(null); if (archivo.current) archivo.current.value = ''; }
   };

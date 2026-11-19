@@ -224,7 +224,7 @@ export const T = {
   esteProducto: (partes: readonly string[]): string => `Este producto: ${partes.join(' · ')}`,
   esteProductoComision: (tasa: string): string => `${tasa} de comisión`,
   vendidosCorto: (u: number): string => `${n(u)} vendidos`,
-  enCorte: 'En Corte',
+  enCorte: 'En CUTGC',
   pagaMas: 'Paga más',
   sinTasa: 'Sin dato',
   verTodosParecidos: (k: number): string => `Ver los ${n(k)}`,

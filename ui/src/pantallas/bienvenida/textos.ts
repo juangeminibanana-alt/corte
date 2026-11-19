@@ -7,10 +7,10 @@ export const T = {
   pasoDe: (n: number, total: number) => `Paso ${n} de ${total}`,
   progreso: 'Avance de la bienvenida',
   rail: ['Bienvenida', 'Conexión', 'Tus datos', 'Tu plan', 'Celular', 'Avisa'] as const,
-  cargando: 'Preparando Corte…',
+  cargando: 'Preparando CUTGC…',
 
   // W1
-  w1Titulo: 'Bienvenido a Corte',
+  w1Titulo: 'Bienvenido a CUTGC',
   w1Texto: 'Ponte al día con tus muestras, cuida a tus tiendas y entiende tus ventas de TikTok Shop. En tu PC y en tu celular.',
   w1Lista: 'Lo que vamos a hacer',
   w1Pasos: [
@@ -33,9 +33,9 @@ export const T = {
   w2a1Titulo: (u: string) => `Listo: conectado como @${u}`,
   w2a1TituloSinNombre: 'Listo: ya estás conectado',
   w2a1Texto:
-    'El archivo anterior guarda tus claves sin cifrar. Si lo borras, Corte será el único lugar con tu clave (también puedes volver a copiarla de Partner Center).',
+    'El archivo anterior guarda tus claves sin cifrar. Si lo borras, CUTGC será el único lugar con tu clave (también puedes volver a copiarla de Partner Center).',
   /** BUILD_SPEC C42 · texto nuevo de W2a'. */
-  w2a1C42: 'Desde ahora usa solo Corte: si el panel anterior también se conecta a TikTok, la conexión puede vencerse.',
+  w2a1C42: 'Desde ahora usa solo CUTGC: si el panel anterior también se conecta a TikTok, la conexión puede vencerse.',
   borrarAnterior: 'Borrar archivo anterior',
   conservarlo: 'Conservarlo',
   enPapelera: 'Mandamos el archivo anterior a la Papelera.',
@@ -89,7 +89,7 @@ export const T = {
   w5Titulo: 'Los mensajes a tus tiendas se mandan desde tu celular',
   w5Texto: 'Empareja ahora para tener la lista ahí.',
   w5Deteccion: 'Se detecta solo cuando el celular termina.',
-  w5AvisoRedes: 'Windows te preguntará si Corte puede usar la red. Elige “Redes privadas”.',
+  w5AvisoRedes: 'Windows te preguntará si CUTGC puede usar la red. Elige “Redes privadas”.',
   w5MostrarCodigo: 'Mostrar el código',
   ahoraNo: 'Ahora no',
   emparejado: (n: string) => `${n} quedó emparejado`,
@@ -99,7 +99,7 @@ export const T = {
   w6TituloSinTiendas: (fecha: string) => `Plan listo: terminas el ${fecha}.`,
   w6TituloSinPlan: 'Todo listo para empezar',
   w6TextoSinPlan: 'Cuando quieras, arma tu plan desde Inicio y te decimos cuándo terminas.',
-  w6ConCelular: 'Abre Corte en tu celular › Avisar a mis tiendas. La lista ya está ahí.',
+  w6ConCelular: 'Abre CUTGC en tu celular › Avisar a mis tiendas. La lista ya está ahí.',
   w6SinCelular: 'Puedes avisar desde esta PC o emparejar tu celular después.',
   w6Tiendas: 'Tiendas por avisar',
   w6Mas: (n: number) => `y ${n} más`,
@@ -107,13 +107,13 @@ export const T = {
   avisarPc: 'Avisar desde esta PC',
 
   // Android
-  a1Titulo: 'Corte en tu celular',
-  a1Texto: 'Avisa a tus tiendas, revisa tu plan y tus ventas, siempre contigo. Se conecta con Corte de tu PC.',
+  a1Titulo: 'CUTGC en tu celular',
+  a1Texto: 'Avisa a tus tiendas, revisa tu plan y tus ventas, siempre contigo. Se conecta con CUTGC de tu PC.',
   a1Emparejar: 'Emparejar con mi PC',
   a1SinPc: '¿Aún no lo tienes en tu PC?',
-  a1SinPcTitulo: 'Primero, Corte en tu PC',
+  a1SinPcTitulo: 'Primero, CUTGC en tu PC',
   a1SinPcTexto:
-    'Corte se instala en tu PC con Windows. Ábrelo, conecta tu cuenta de TikTok Shop y entra a Conexión y ajustes › Celular: ahí aparece el código para emparejar este celular.',
+    'CUTGC se instala en tu PC con Windows. Ábrelo, conecta tu cuenta de TikTok Shop y entra a Conexión y ajustes › Celular: ahí aparece el código para emparejar este celular.',
   a1Puntos: [
     { icono: 'MessageCircle', texto: 'Avisa a tus tiendas en 2 toques' },
     { icono: 'CalendarDays', texto: 'Tu plan y tus promesas, siempre contigo' },
@@ -126,14 +126,14 @@ export const T = {
   a4Esperando: 'Esperando la primera copia de tu PC…',
   a4TituloListo: 'Tus datos ya están aquí',
   a4DesdePc: (pc: string) => `Desde ${pc}`,
-  a4Listo: 'Ya puedes usar Corte en este celular, incluso sin internet.',
+  a4Listo: 'Ya puedes usar CUTGC en este celular, incluso sin internet.',
   a4ImagenesSiguen: 'Ya puedes seguir: las fotos de tus productos terminan de llegar solas.',
   a4Seguir: 'Seguir',
   a5Titulo: '¿Te recordamos tus videos y tus promesas?',
   a5Texto: 'Te avisamos los días que haces videos, antes de que venza una muestra y un día antes de lo que prometiste.',
   a5Activar: 'Activar recordatorios',
   a5Ejemplo: 'Hoy toca: 3 videos de muestras',
-  a5EjemploDe: 'Corte · ahora',
+  a5EjemploDe: 'CUTGC · ahora',
   a6Titulo: (n: number) => `Avisa a tus ${n} ${n === 1 ? 'tienda' : 'tiendas'} desde aquí`,
   a6Texto: 'Tu plan ya tiene fechas. Te llevamos tienda por tienda: copias, pegas en TikTok y listo.',
   a6SinAvisarTitulo: 'Listo: tus datos ya están en tu celular',

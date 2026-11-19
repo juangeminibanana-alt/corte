@@ -13,7 +13,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   // when the user opens the same installed shortcut again.
   HANDLE single_instance = CreateMutexW(nullptr, FALSE, L"Local\\Corte.Flutter.Main");
   if (single_instance && GetLastError() == ERROR_ALREADY_EXISTS) {
-    if (HWND existing = FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", L"Corte")) {
+    if (HWND existing = FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", L"CUTGC")) {
       ShowWindow(existing, IsIconic(existing) ? SW_RESTORE : SW_SHOW);
       SetForegroundWindow(existing);
     }
@@ -41,7 +41,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1360, 860);
-  if (!window.Create(L"Corte", origin, size)) {
+  if (!window.Create(L"CUTGC", origin, size)) {
     if (single_instance) CloseHandle(single_instance);
     return EXIT_FAILURE;
   }

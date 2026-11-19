@@ -209,7 +209,7 @@ class CorteAuthController extends ChangeNotifier {
     _set(
       const CorteAuthState(
         phase: CorteAuthPhase.signedOut,
-        errorMessage: 'Tu sesión venció. Vuelve a conectar Corte con Google.',
+        errorMessage: 'Tu sesión venció. Vuelve a conectar CUTGC con Google.',
       ),
     );
   }
@@ -462,7 +462,7 @@ class CorteAuthController extends ChangeNotifier {
         '/api/native/auth/start',
         body: {
           'platform': runtime.platform,
-          'name': 'Corte para Windows',
+          'name': 'CUTGC para Windows',
           'code_challenge': challenge,
         },
         maxResponseBytes: 32 * 1024,
@@ -530,7 +530,7 @@ class CorteAuthController extends ChangeNotifier {
         final response = await transport.request(
           'POST',
           '/api/native/auth/google',
-          body: {'id_token': idToken, 'device_name': 'Corte para Android'},
+          body: {'id_token': idToken, 'device_name': 'CUTGC para Android'},
           maxResponseBytes: 32 * 1024,
         );
         if (generation != _generation || _disposed) return;
@@ -538,9 +538,9 @@ class CorteAuthController extends ChangeNotifier {
         if (device == null) {
           error = switch (response.statusCode) {
             401 => 'Google no pudo confirmar el acceso. Vuelve a intentarlo.',
-            403 => 'Esta cuenta de Google no tiene acceso a Corte.',
+            403 => 'Esta cuenta de Google no tiene acceso a CUTGC.',
             429 => 'Espera un momento y vuelve a intentarlo.',
-            _ => 'No pudimos conectar Corte con Google. Vuelve a intentarlo.',
+            _ => 'No pudimos conectar CUTGC con Google. Vuelve a intentarlo.',
           };
         } else if (_lockedOwner != null &&
             _lockedOwner != device['owner_uid']) {
@@ -553,14 +553,14 @@ class CorteAuthController extends ChangeNotifier {
     } on PlatformException catch (e) {
       error = switch (e.code) {
         'google_services_unavailable' =>
-          'El acceso con Google no está disponible en este dispositivo. Puedes volver a intentarlo desde Corte.',
+          'El acceso con Google no está disponible en este dispositivo. Puedes volver a intentarlo desde CUTGC.',
         'google_unavailable' =>
-          'El acceso con Google no está disponible en esta instalación de Corte.',
+          'El acceso con Google no está disponible en esta instalación de CUTGC.',
         'google_no_account' =>
-          'Corte no encontró una cuenta de Google disponible en este dispositivo.',
+          'CUTGC no encontró una cuenta de Google disponible en este dispositivo.',
         'google_sign_in_busy' => 'Google ya está confirmando el acceso.',
         'google_sign_in_timeout' =>
-          'Google tardó en responder. Puedes volver a intentarlo desde Corte.',
+          'Google tardó en responder. Puedes volver a intentarlo desde CUTGC.',
         _ => 'No pudimos conectar con Google. Vuelve a intentarlo.',
       };
     } on MissingPluginException {
@@ -833,7 +833,7 @@ class CorteAuthController extends ChangeNotifier {
         const CorteAuthState(
           phase: CorteAuthPhase.signedOut,
           errorMessage:
-              'Se cerró el acceso local. No pudimos confirmar el cierre remoto; revisa tus dispositivos desde Corte.',
+              'Se cerró el acceso local. No pudimos confirmar el cierre remoto; revisa tus dispositivos desde CUTGC.',
         ),
       );
     } finally {

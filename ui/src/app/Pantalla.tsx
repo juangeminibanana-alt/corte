@@ -28,7 +28,7 @@ export function Pantalla(p: { titulo: string; lista: boolean; children: ReactNod
   const region = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (typeof document !== 'undefined') document.title = p.titulo === 'Inicio' ? 'Corte' : `${p.titulo} · Corte`;
+    if (typeof document !== 'undefined') document.title = p.titulo === 'Inicio' ? 'CUTGC' : `${p.titulo} · CUTGC`;
   }, [p.titulo]);
 
   useEffect(() => {

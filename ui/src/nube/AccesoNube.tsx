@@ -106,7 +106,7 @@ export function AccesoNube(p: { children: ReactNode }): ReactElement {
       headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CH-Hub': '1' },
       body: JSON.stringify({ id_token: idToken }),
     });
-    if (!r.ok) throw new Error(r.status === 403 ? 'Esta cuenta de Google no tiene acceso a este espacio de Corte.' : r.status === 429 ? 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.' : 'No pudimos verificar tu acceso. Vuelve a entrar con Google.');
+    if (!r.ok) throw new Error(r.status === 403 ? 'Esta cuenta de Google no tiene acceso a este espacio de CUTGC.' : r.status === 429 ? 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.' : 'No pudimos verificar tu acceso. Vuelve a entrar con Google.');
     const datos: unknown = await r.json();
     if (datos === null || typeof datos !== 'object' || !('authenticated' in datos) || datos.authenticated !== true) throw new Error('El servidor no confirmó el acceso. Inténtalo de nuevo.');
   };
@@ -146,7 +146,7 @@ export function AccesoNube(p: { children: ReactNode }): ReactElement {
       if (datos === null || typeof datos !== 'object' || !('authenticated' in datos) || datos.authenticated !== true) throw new Error('sesion');
       setClave('');
       setAcceso('autorizado');
-    } catch { setError('No pudimos conectar con Corte. Revisa tu conexión e inténtalo de nuevo.'); }
+    } catch { setError('No pudimos conectar con CUTGC. Revisa tu conexión e inténtalo de nuevo.'); }
     finally { setEnviando(false); }
   };
 
@@ -154,12 +154,12 @@ export function AccesoNube(p: { children: ReactNode }): ReactElement {
   if (acceso === 'local' || acceso === 'autorizado') return <>{p.children}</>;
   return (
     <main className={css.fondo}>
-      <div className={css.marca} aria-label="Corte">
+      <div className={css.marca} aria-label="CUTGC">
         <Logo tamano={32} />
-        <span>Corte</span>
+        <span>CUTGC</span>
       </div>
       <section className={css.panel} aria-labelledby="acceso-titulo" aria-busy={acceso === 'comprobando' || enviando}>
-        {acceso === 'comprobando' ? <><h1 id="acceso-titulo">Abriendo tu espacio</h1><p role="status">Comprobando el acceso a Corte…</p><span className={css.carga} aria-hidden="true" /></> : acceso === 'error' ? <><h1 id="acceso-titulo">No pudimos conectar</h1><p role="alert">{error || 'El servidor no respondió. Revisa tu conexión y vuelve a intentarlo.'}</p><button className={css.principal} onClick={() => { setError(''); setAcceso('comprobando'); setIntento((i) => i + 1); }}>Volver a intentar</button></> : <>
+        {acceso === 'comprobando' ? <><h1 id="acceso-titulo">Abriendo tu espacio</h1><p role="status">Comprobando el acceso a CUTGC…</p><span className={css.carga} aria-hidden="true" /></> : acceso === 'error' ? <><h1 id="acceso-titulo">No pudimos conectar</h1><p role="alert">{error || 'El servidor no respondió. Revisa tu conexión y vuelve a intentarlo.'}</p><button className={css.principal} onClick={() => { setError(''); setAcceso('comprobando'); setIntento((i) => i + 1); }}>Volver a intentar</button></> : <>
           <h1 id="acceso-titulo">Bienvenido a tu espacio</h1>
           <p>Entra para consultar tus resultados y organizar tus próximas publicaciones.</p>
           {config?.auth_provider === 'firebase' ? <div className={css.formulario}>
@@ -174,7 +174,7 @@ export function AccesoNube(p: { children: ReactNode }): ReactElement {
             <label htmlFor="clave-acceso">Contraseña de acceso</label>
             <input id="clave-acceso" name="password" type="password" autoComplete="current-password" value={clave} onChange={(e) => setClave(e.target.value)} autoFocus required aria-invalid={error ? true : undefined} aria-describedby={error ? 'error-acceso' : undefined} disabled={enviando} />
             {error ? <p id="error-acceso" className={css.error} role="alert">{error}</p> : null}
-            <button className={css.principal} type="submit" disabled={enviando}>{enviando ? 'Entrando…' : 'Entrar a Corte'}<span aria-hidden="true">→</span></button>
+            <button className={css.principal} type="submit" disabled={enviando}>{enviando ? 'Entrando…' : 'Entrar a CUTGC'}<span aria-hidden="true">→</span></button>
           </form>}
         </>}
       </section>

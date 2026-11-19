@@ -48,7 +48,7 @@ class SettingsPage extends StatelessWidget {
                   onPressed: () async {
                     if (!await _confirm(
                           context,
-                          '¿Salir de Corte?',
+                          '¿Salir de CUTGC?',
                           'Se cerrará el acceso a esta cuenta en este dispositivo. Los cambios guardados se conservan.',
                           'Salir',
                         ) ||
@@ -254,8 +254,8 @@ class _AppearanceSettingsState extends State<_AppearanceSettings> {
                 : appearance.pending
                 ? 'Tu elección se enviará cuando recuperes la conexión.'
                 : appearance.value == 'sistema'
-                ? 'Corte cambia con el tema de tu dispositivo.'
-                : 'Tu elección se conserva en tu cuenta de Corte.',
+                ? 'CUTGC cambia con el tema de tu dispositivo.'
+                : 'Tu elección se conserva en tu cuenta de CUTGC.',
             style: TextStyle(color: context.corte.muted),
           ),
           if (appearance.error != null) ...[
@@ -339,7 +339,7 @@ class _NotificationSettingsState extends State<_NotificationSettings> {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                'Android todavía no permite las notificaciones de Corte.',
+                'Android todavía no permite las notificaciones de CUTGC.',
                 style: TextStyle(color: context.corte.muted),
               ),
             ),
@@ -655,7 +655,7 @@ class _PreferencesFormState extends State<_PreferencesForm> {
                 if (!await _confirm(
                       context,
                       '¿Cargar las preferencias actuales?',
-                      'El formulario se reemplazará por la versión guardada en Corte.',
+                      'El formulario se reemplazará por la versión guardada en CUTGC.',
                       'Cargar versión actual',
                     ) ||
                     !mounted) {
@@ -919,7 +919,7 @@ class _QueuedChangeState extends State<_QueuedChange> {
         context,
         result.enCola
             ? 'Cambio revisado y guardado en este equipo; pendiente de envío.'
-            : 'Cambio revisado y confirmado en Corte.',
+            : 'Cambio revisado y confirmado en CUTGC.',
       );
     } catch (failure) {
       if (mounted) setState(() => error = _errorText(failure));
@@ -988,7 +988,7 @@ class _QueuedChangeState extends State<_QueuedChange> {
                   if (!await _confirm(
                         context,
                         '¿Descartar este cambio local?',
-                        'Se quitará sólo este cambio de la cola. Los datos ya guardados en Corte se conservarán.',
+                        'Se quitará sólo este cambio de la cola. Los datos ya guardados en CUTGC se conservarán.',
                         'Descartar cambio',
                       ) ||
                       !mounted) {
@@ -1377,7 +1377,7 @@ class _DeleteLocalButtonState extends State<_DeleteLocalButton> {
                   widget.label == 'nota'
                       ? '¿Eliminar esta nota?'
                       : '¿Eliminar este recordatorio?',
-                  'Este cambio también se enviará a Corte.',
+                  'Este cambio también se enviará a CUTGC.',
                   'Eliminar',
                 ) ||
                 !mounted) {

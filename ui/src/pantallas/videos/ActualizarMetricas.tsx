@@ -23,7 +23,7 @@ export function ActualizarMetricas(p: { id: string; refrescar: () => Promise<voi
       const sesion = await transporte.obtener('/api/cloud/session') as { cache_scope?: string } | null;
       const scope = sesion?.cache_scope;
       if (!scope || !scopeValido.test(scope)) {
-        setError('Vuelve a conectar Corte para actualizar este video.');
+        setError('Vuelve a conectar CUTGC para actualizar este video.');
         return;
       }
       const respuesta = await transporte.pedir(

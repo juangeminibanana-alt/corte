@@ -30,7 +30,7 @@ import { esNube } from '../nube/entorno';
 export const INTERVALO_SYNC_MS = 1500;
 export const ESPERA_OPS_MS = 2000;
 const TOPE_PETICION_MS = 30_000;
-const textoRedAndroid = (): string => esNube() ? 'No pudimos conectar con Corte. Revisa tu conexión a internet. Tu copia y tus cambios siguen guardados.' : TEXTO_RED_ANDROID;
+const textoRedAndroid = (): string => esNube() ? 'No pudimos conectar con CUTGC. Revisa tu conexión a internet. Tu copia y tus cambios siguen guardados.' : TEXTO_RED_ANDROID;
 const sinConexionAndroid = (): ErrorHub => esNube() ? new ErrorHub('sin_internet', 'No hay conexión a internet y esta información aún no está en tu copia guardada.') : necesitaPc();
 const TIPOS_OP: ReadonlySet<string> = new Set<C.OpLocal['tipo']>([
   'plan.crear', 'plan.editar', 'plan.borrar', 'nota.crear', 'nota.editar', 'nota.borrar', 'recordatorio.crear',
@@ -70,7 +70,7 @@ function leerResultadoOps(v: unknown): C.OpsResultado | null {
 
 function puenteObligatorio(): PuenteAndroid {
   const p = puenteAndroidDatos();
-  if (!p) throw new ErrorHub('error_interno', 'Falta la capa de Android de Corte.', 0);
+  if (!p) throw new ErrorHub('error_interno', 'Falta la capa de Android de CUTGC.', 0);
   return p;
 }
 
@@ -304,7 +304,7 @@ export function crearTransporteAndroid(): Transporte {
       try {
         datos = await resp.json();
       } catch {
-        throw new ErrorHub('error_interno', 'Corte respondió algo que no esperábamos. Inténtalo de nuevo.', resp.status);
+        throw new ErrorHub('error_interno', 'CUTGC respondió algo que no esperábamos. Inténtalo de nuevo.', resp.status);
       }
       const desdeArchivo = resp.headers.get('X-CH-Fuente') === 'copia';
       const copiaAtCabecera = Number(resp.headers.get('X-CH-Copia-At'));

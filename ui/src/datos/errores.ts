@@ -35,19 +35,19 @@ export const TEXTO_CONFLICTO = 'Esta muestra también se cambió en tu PC mientr
 /** Android sin la PC y la vista no se arma con la copia (02 §11, BUILD_SPEC §8.3). */
 export const TEXTO_NECESITA_PC = 'Necesita tu PC encendida';
 /** Android: la PC no responde (01 §5.3 B). */
-export const TEXTO_RED_ANDROID = 'No pudimos llegar a tu PC. Revisa que ambos estén en el mismo Wi‑Fi y que Corte esté abierto en la PC.';
+export const TEXTO_RED_ANDROID = 'No pudimos llegar a tu PC. Revisa que ambos estén en el mismo Wi‑Fi y que CUTGC esté abierto en la PC.';
 
 /** Respaldo por código cuando la respuesta no trae `mensaje`. */
 export const MENSAJES: Readonly<Record<CodigoErrorUi, string>> = {
   no_encontrado: 'No encontramos lo que buscas. Puede que ya no exista.',
   parametros_invalidos: 'Algo no cuadró con lo que pediste. Revisa los datos e inténtalo de nuevo.',
   cuerpo_demasiado_grande: 'Es demasiado grande para guardarlo de una vez.',
-  sesion_invalida: 'Tu sesión en Corte se cerró. Cierra y vuelve a abrir Corte.',
+  sesion_invalida: 'Tu sesión en CUTGC se cerró. Cierra y vuelve a abrir CUTGC.',
   prohibido: 'No tienes permiso para hacer este cambio.',
-  solo_local: 'Esto solo se puede hacer desde Corte en tu PC.',
+  solo_local: 'Esto solo se puede hacer desde CUTGC en tu PC.',
   conflicto: TEXTO_CONFLICTO,
   demasiadas_solicitudes: 'Vamos muy rápido. Espera un momento e inténtalo de nuevo.',
-  sin_credenciales: 'Falta conectar Corte con TikTok.',
+  sin_credenciales: 'Falta conectar CUTGC con TikTok.',
   reautorizar: 'Tu conexión con TikTok se venció. Reautoriza para seguir actualizando tus datos.',
   sin_permiso_tiktok: 'Falta un permiso de TikTok. Vuelve a autorizar y deja activados todos los permisos.',
   tiktok_no_disponible: 'TikTok Shop tuvo un problema temporal. Reintentaremos automáticamente.',
@@ -57,7 +57,7 @@ export const MENSAJES: Readonly<Record<CodigoErrorUi, string>> = {
   cuenta_distinta: 'Autorizaste otra cuenta de TikTok distinta de la que ya estaba conectada.',
   no_es_creador: 'La cuenta que autorizaste no es de creador de TikTok Shop. Cierra sesión en TikTok Shop y vuelve a intentarlo con tu cuenta de creador.',
   archivo_no_encontrado: 'No encontramos ese archivo. Revisa que siga en su lugar.',
-  archivo_invalido: 'Ese archivo no es válido para Corte.',
+  archivo_invalido: 'Ese archivo no es válido para CUTGC.',
   app_secret_invalido: 'La clave de la app no es válida. Revísala en Partner Center.',
   firma_invalida: 'No pudimos verificar la conexión con tu PC. Inténtalo de nuevo.',
   reloj_desfasado: 'La hora de tu celular no coincide con la de tu PC. Revisa la fecha y hora del celular.',
@@ -67,11 +67,11 @@ export const MENSAJES: Readonly<Record<CodigoErrorUi, string>> = {
   emparejamiento_vencido: 'El código para emparejar venció. Genera uno nuevo.',
   emparejamiento_rechazado: 'Se rechazó el emparejamiento.',
   emparejamiento_ocupado: 'Ya hay otro emparejamiento en curso. Termínalo o espera unos minutos.',
-  base_de_version_nueva: 'Tus datos son de una versión más nueva de Corte. Actualiza Corte en esta PC.',
-  error_interno: 'Algo salió mal en Corte. Inténtalo de nuevo.',
+  base_de_version_nueva: 'Tus datos son de una versión más nueva de CUTGC. Actualiza CUTGC en esta PC.',
+  error_interno: 'Algo salió mal en CUTGC. Inténtalo de nuevo.',
   necesita_pc: TEXTO_NECESITA_PC,
-  solo_en_pc: 'Esto solo se puede hacer desde Corte en tu PC.',
-  red: 'No pudimos conectar con Corte. Inténtalo de nuevo.',
+  solo_en_pc: 'Esto solo se puede hacer desde CUTGC en tu PC.',
+  red: 'No pudimos conectar con CUTGC. Inténtalo de nuevo.',
 };
 
 const CODIGOS_HUB: ReadonlySet<string> = new Set<C.CodigoError>([

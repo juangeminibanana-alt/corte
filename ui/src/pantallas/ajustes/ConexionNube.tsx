@@ -95,7 +95,7 @@ export function FormularioIntegracionTikTokNube(p: { alGuardada: (datos: Integra
   return <form className={css.pila} aria-label="Integración de la app de TikTok Shop" onSubmit={(e) => { e.preventDefault(); void guardar(); }}>
     <p className={css.parrafo}>Configura tu app una sola vez. Copia las dos claves de la misma app en Partner Center → App &amp; Service → App credentials.</p>
     <CampoTexto etiqueta="App key" valor={appKey} alCambiar={setAppKey} ayuda="Identifica tu app de TikTok Shop." error={errorKey || null} monoespaciado maximo={64} alEnter={() => void guardar()} />
-    <CampoTexto key={vueltaSecreto} etiqueta="App secret" tipo="password" valor="" alCambiar={(v) => { secreto.current = v; }} ayuda="Se guarda cifrado en Corte y nunca vuelve a mostrarse. No es tu contraseña de TikTok." error={errorSecret || null} alEnter={() => void guardar()} />
+    <CampoTexto key={vueltaSecreto} etiqueta="App secret" tipo="password" valor="" alCambiar={(v) => { secreto.current = v; }} ayuda="Se guarda cifrado en CUTGC y nunca vuelve a mostrarse. No es tu contraseña de TikTok." error={errorSecret || null} alEnter={() => void guardar()} />
     <p className={css.filaDesc}>En esa app, registra esta URL de regreso (Redirect URL):<br /><code className={css.mono}>{callback}</code></p>
     {error ? <Aviso tono="critico" vivo>{error}</Aviso> : null}
     <div className={css.acciones}><Boton variante="primario" cargando={guardando} alPulsar={() => void guardar()}>Guardar integración</Boton></div>
@@ -174,16 +174,16 @@ export function ConectarTikTokNube(p: {
     </> : <>
       {configurada ? <>
         <Dato etiqueta="App key configurada" valor={appKeyActual} mono />
-        {!p.soloIntegracion ? <><p className={css.parrafo}>Tu app está configurada. Continúa para autorizar tu cuenta en TikTok Shop y regresar a Corte.</p><div className={css.acciones}><Boton variante="primario" iconoFinal="ArrowRight" cargando={guardando} alPulsar={() => void abrir()}>Continuar en TikTok Shop</Boton></div></> : null}
+        {!p.soloIntegracion ? <><p className={css.parrafo}>Tu app está configurada. Continúa para autorizar tu cuenta en TikTok Shop y regresar a CUTGC.</p><div className={css.acciones}><Boton variante="primario" iconoFinal="ArrowRight" cargando={guardando} alPulsar={() => void abrir()}>Continuar en TikTok Shop</Boton></div></> : null}
         <details ref={edicion} className={css.tecnicos}>
           <summary className={css.tecnicosResumen}>Cambiar integración</summary>
           <div className={css.tecnicosCuerpo}><FormularioIntegracionTikTokNube alGuardada={alGuardada} /><ImportarConexionAnteriorTikTok alImportada={alImportada} /></div>
         </details>
       </> : <><ImportarConexionAnteriorTikTok alImportada={alImportada} /><FormularioIntegracionTikTokNube alGuardada={alGuardada} /></>}
       {!p.soloIntegracion && configurada ? <details className={css.tecnicos}>
-        <summary className={css.tecnicosResumen}>Si TikTok no te devuelve a Corte</summary>
+        <summary className={css.tecnicosResumen}>Si TikTok no te devuelve a CUTGC</summary>
         <div className={css.tecnicosCuerpo}>
-          <p className={css.parrafo}>Pega la dirección completa de la página de regreso. Corte verificará que corresponda a esta autorización.</p>
+          <p className={css.parrafo}>Pega la dirección completa de la página de regreso. CUTGC verificará que corresponda a esta autorización.</p>
           <CampoTexto etiqueta="Dirección de regreso" valor={enlace} alCambiar={setEnlace} alEnter={() => void canjear()} />
           <Boton variante="secundario" cargando={guardando} alPulsar={() => void canjear()}>Completar conexión</Boton>
         </div>

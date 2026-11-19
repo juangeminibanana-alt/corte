@@ -14,7 +14,7 @@ export const T = {
   camaraApunta: 'Apunta la cámara al código de tu PC',
   camaraDenegada: 'Sin la cámara puedes escribir el código que aparece en tu PC.',
   camaraNoDisponible: 'Este celular no nos deja usar la cámara. Escribe el código que aparece en tu PC.',
-  qrNoEsDeCorte: 'Ese código QR no es de Corte. Escanea el que aparece en tu PC.',
+  qrNoEsDeCorte: 'Ese código QR no es de CUTGC. Escanea el que aparece en tu PC.',
   escribirCodigo: 'Escribir código',
   etiquetaVisor: 'Visor de la cámara',
 
@@ -25,9 +25,9 @@ export const T = {
   etiquetaCodigo: 'Código de tu PC',
   ayudaCodigo: (n: number) => (n === 12 ? 'Código completo' : `${n} de 12 caracteres · da igual mayúsculas o minúsculas`),
   usarCamara: 'Usar la cámara',
-  buscandoPc: 'Buscando Corte en tu Wi‑Fi…',
-  encontramos: 'Encontramos Corte en tu Wi‑Fi',
-  encontramosVarias: 'Encontramos Corte en estas PC de tu Wi‑Fi',
+  buscandoPc: 'Buscando CUTGC en tu Wi‑Fi…',
+  encontramos: 'Encontramos CUTGC en tu Wi‑Fi',
+  encontramosVarias: 'Encontramos CUTGC en estas PC de tu Wi‑Fi',
   mismoWifi: 'mismo Wi‑Fi',
   pcElegida: 'Nos conectaremos a esta PC',
   noEncontramos: 'No vimos tu PC en esta red. Escribe su dirección o déjala vacía para seguir buscando.',
@@ -48,7 +48,7 @@ export const T = {
 
   // Progreso
   conectando: 'Conectando con tu PC…',
-  conectandoTexto: 'Esto tarda unos segundos. Mantén Corte abierto en tu PC.',
+  conectandoTexto: 'Esto tarda unos segundos. Mantén CUTGC abierto en tu PC.',
   tituloA3: 'Confirma en tu PC',
   textoA3: 'Revisa que tu PC muestre el mismo número y toca Permitir.',
   etiquetaNumero: (n: string) => `Número de confirmación: ${n.split('').join(' ')}`,
@@ -60,14 +60,14 @@ export const T = {
     vencido: 'Ese código ya caducó. Escanea el código nuevo que aparece en tu PC.',
     sinRespuesta: 'No confirmaste en tu PC a tiempo. Vuelve a intentarlo.',
     rechazado: 'Tu PC rechazó la conexión.',
-    red: 'No pudimos llegar a tu PC. Revisa que ambos estén en el mismo Wi‑Fi y que Corte esté abierto en la PC.',
+    red: 'No pudimos llegar a tu PC. Revisa que ambos estén en el mismo Wi‑Fi y que CUTGC esté abierto en la PC.',
     redAyuda: 'Si Windows preguntó por la red, elige Redes privadas. Las redes de invitados o públicas suelen bloquear esta conexión.',
     huella: 'La PC respondió con una identidad distinta. Por seguridad no nos conectamos. Escanea el código otra vez desde tu PC.',
     ocupado: 'Demasiados intentos. Espera un minuto e inténtalo de nuevo.',
     enlaceInvalido: 'Ese enlace no apunta a una PC de tu red. Escanea el código desde tu PC.',
-    qrInvalido: 'Ese código QR no es de Corte. Escanea el que aparece en tu PC.',
+    qrInvalido: 'Ese código QR no es de CUTGC. Escanea el que aparece en tu PC.',
     codigoInvalido: 'Ese código no es válido. Revisa los 12 caracteres que aparecen en tu PC.',
-    version: 'Corte de tu PC y el de este celular tienen versiones distintas. Actualiza el que sea más viejo.',
+    version: 'CUTGC de tu PC y el de este celular tienen versiones distintas. Actualiza el que sea más viejo.',
     cancelado: 'Se canceló el emparejamiento.',
   },
   escanearDeNuevo: 'Escanear de nuevo',
@@ -77,6 +77,6 @@ export const T = {
 
   // Windows
   soloAndroidTitulo: 'El emparejamiento se hace desde tu celular',
-  soloAndroidTexto: 'Abre Corte en tu Android y toca Emparejar con mi PC. En esta PC, el código está en Conexión y ajustes › Celular.',
+  soloAndroidTexto: 'Abre CUTGC en tu Android y toca Emparejar con mi PC. En esta PC, el código está en Conexión y ajustes › Celular.',
   irACelular: 'Ir a Celular',
 } as const;

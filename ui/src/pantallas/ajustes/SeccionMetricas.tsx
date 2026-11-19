@@ -154,7 +154,7 @@ function ComoCrear(): ReactElement {
     'Crea o configura tu app en TikTok for Developers y activa Login Kit para web.',
     'Agrega los permisos user.info.basic, user.info.profile, user.info.stats y video.list.',
     'Registra exactamente la dirección HTTPS de regreso que aparece abajo.',
-    'Guarda el Client key y el Client secret de tu app en Corte.',
+    'Guarda el Client key y el Client secret de tu app en CUTGC.',
   ] : M.pasos;
   return (
     <details className={cx(css.tecnicos)}>
