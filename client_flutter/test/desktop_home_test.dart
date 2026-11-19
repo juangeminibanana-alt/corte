@@ -432,7 +432,7 @@ void main() {
       if (!loadedMonaSans) {
         await tester.runAsync(() async {
           final font = FontLoader('MonaSans');
-          font.addFont(rootBundle.load('assets/fonts/MonaSans.ttf'));
+          font.addFont(rootBundle.load('assets/fonts/CUTGCWebSans.ttf'));
           await font.load();
         });
         loadedMonaSans = true;

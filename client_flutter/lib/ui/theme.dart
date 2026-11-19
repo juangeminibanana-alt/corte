@@ -75,8 +75,8 @@ ThemeData corteTheme({Brightness brightness = Brightness.light}) {
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
-    fontFamily: 'MonaSansWeb',
-    fontFamilyFallback: const ['MonaSans'],
+    fontFamily: 'MonaSans',
+    fontFamilyFallback: const ['MonaSansExtended'],
     scaffoldBackgroundColor: colors.surface,
     canvasColor: colors.surface,
     colorScheme: scheme,

@@ -31,9 +31,9 @@ flutter:
     - assets/fonts/OFL-CUTGCWebSans.txt
     - assets/icons/LICENSE-Lucide.txt
   fonts:
-    - family: MonaSansWeb
+    - family: MonaSans
       fonts:
         - asset: assets/fonts/CUTGCWebSans.ttf
-    - family: MonaSans
+    - family: MonaSansExtended
       fonts:
         - asset: assets/fonts/MonaSans.ttf
