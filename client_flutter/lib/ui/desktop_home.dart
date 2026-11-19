@@ -686,6 +686,7 @@ class _HomePriorities extends StatelessWidget {
           textStyle: TextStyle(
             fontSize: MediaQuery.sizeOf(context).width < 600 ? 13 : 14,
             decoration: TextDecoration.underline,
+            decorationThickness: .5,
           ),
         ),
         child: const Text('Ver muestras', textAlign: TextAlign.center),
@@ -874,11 +875,9 @@ class _PriorityRow extends StatelessWidget {
         : 'Por organizar';
     return ListTile(
       minTileHeight: 92,
+      minVerticalPadding: 16,
       horizontalTitleGap: 14,
-      contentPadding: EdgeInsets.symmetric(
-        horizontal: _panelPadding(context),
-        vertical: 16,
-      ),
+      contentPadding: EdgeInsets.symmetric(horizontal: _panelPadding(context)),
       leading: ExcludeSemantics(
         child: CortePhoto(
           product['imagen'] is String ? product['imagen'] as String : null,
@@ -970,12 +969,12 @@ class _HomeShortcuts extends StatelessWidget {
               ),
             ListTile(
               minTileHeight: MediaQuery.sizeOf(context).width < 600 ? 86 : 88,
+              minVerticalPadding: 18,
               horizontalTitleGap: MediaQuery.sizeOf(context).width <= 1100
                   ? 12
                   : 18,
               contentPadding: EdgeInsets.symmetric(
                 horizontal: _panelPadding(context),
-                vertical: 18,
               ),
               leading: CorteIcon(icon, size: 24),
               title: Text(
