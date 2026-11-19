@@ -204,13 +204,11 @@ class _HomeState extends State<DesktopHomePage> {
               final panelGap = compactPanels ? 16.0 : 20.0;
               final usableWidth = limits.maxWidth - panelGap;
               final shortcutsWidth = math.max(
-                compactPanels ? 275.0 : 300.0,
+                math.max(compactPanels ? 275.0 : 300.0, 210 * scale),
                 usableWidth / (compactPanels ? 2.4 : 2.65),
               );
               final prioritiesWidth = usableWidth - shortcutsWidth;
-              if (viewport <= 850 ||
-                  prioritiesWidth < 250 * scale ||
-                  shortcutsWidth < 210 * scale) {
+              if (viewport <= 850 || prioritiesWidth < 250 * scale) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

@@ -67,6 +67,7 @@ Future<CorteUiController> _app(
     client: MockClient(
       (request) async => switch (request.url.path) {
         '/api/session' => _json({'capacidades': capabilities}),
+        '/api/dashboard' => _json({'muestras': {}}),
         '/api/analitica/productos' => _json({'items': [], 'total': 0}),
         _ => showcase(request),
       },
