@@ -143,8 +143,9 @@ class Boveda(Protocol):                                             # boveda.cre
 
 
 class ClienteTikTok(Protocol):                                      # tiktok.cliente.crear_cliente(...)
-    def llamar(self, metodo: Literal['GET', 'POST'], path: str, query: Mapping[str, str] | None = None,
-               body: Json | None = None, *, ctx: ContextoSync | None = None) -> Json: ...   # data{} o ErrorApi
+    def llamar(self, metodo: Literal['GET', 'POST', 'DELETE'], path: str, query: Mapping[str, str] | None = None,
+               body: Json | None = None, *, ctx: ContextoSync | None = None,
+               reintentar: bool = True) -> Json: ...                  # data{} o ErrorApi
     def refrescar(self, token_visto: str | None = None) -> bool: ...
     def ahora(self) -> int: ...                                     # reloj corregido por el desfase con TikTok
 

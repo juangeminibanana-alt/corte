@@ -433,17 +433,17 @@ class ClienteTikTokReal:
             raise
 
     # ================================================================ llamada firmada
-    def llamar(self, metodo: Literal['GET', 'POST'], path: str, query: Mapping[str, str] | None = None,
-               body: Json | None = None, *, ctx: ContextoSync | None = None) -> Json:
+    def llamar(self, metodo: Literal['GET', 'POST', 'DELETE'], path: str, query: Mapping[str, str] | None = None,
+               body: Json | None = None, *, ctx: ContextoSync | None = None, reintentar: bool = True) -> Json:
         """data{} de la respuesta o ErrorApi(codigo, mensaje_limpio, decision, http, request_id, path, transitorio)."""
-        if metodo not in ('GET', 'POST'):
+        if metodo not in ('GET', 'POST', 'DELETE'):
             raise ValueError(f'método no permitido: {metodo!r}')
         if not isinstance(path, str) or not path.startswith('/') or '?' in path or '#' in path:
             raise ValueError('path debe ser una ruta absoluta sin query')
         previo = getattr(self._local, 'ctx', None)
         self._local.ctx = ctx
         try:
-            return self._llamar(metodo, path, query, body, ctx)
+            return self._llamar(metodo, path, query, body, ctx, reintentar)
         finally:
             self._local.ctx = previo
             self.volcar_errores()
@@ -467,7 +467,7 @@ class ClienteTikTokReal:
             raise
 
     def _llamar(self, metodo: str, path: str, query: Mapping[str, Any] | None, body: Json | None,
-                ctx: ContextoSync | None) -> Json:
+                ctx: ContextoSync | None, reintentar: bool = True) -> Json:
         b = self.boveda.leer()
         self._verificar_contexto(b, ctx, path)
         if not b.get('app_secret') or not b.get('access_token'):
@@ -497,7 +497,7 @@ class ClienteTikTokReal:
             except ErrorRed as e:
                 fallos_red += 1
                 regla_red = self.politica.regla_red
-                agotado = fallos_red > regla_red.reintentos
+                agotado = not reintentar or fallos_red > regla_red.reintentos
                 self._encolar_error(path, None, None, f'Sin conexión ({type(e).__name__})', None, intento,
                                     'abortar' if agotado else 'reintentar')
                 if not agotado:
@@ -508,7 +508,7 @@ class ClienteTikTokReal:
                                transitorio=True) from None
             self._registrar_fecha()
             codigo = r.get('code') if isinstance(r, dict) else None
-            if r is not None and codigo == 0:
+            if r is not None and codigo == 0 and (reintentar or 200 <= http < 300):
                 data = r.get('data')
                 return dict(data) if isinstance(data, dict) else {}
             regla = self.politica.decidir(http, codigo, sin_json=r is None)
@@ -516,7 +516,7 @@ class ClienteTikTokReal:
                                                                  else f'TikTok respondió con el código {codigo}')
             request_id = (r or {}).get('request_id')
             self._encolar_error(path, http, codigo, mensaje, request_id, intento, regla.decision)
-            if regla.decision == 'refrescar_token':
+            if regla.decision == 'refrescar_token' and (reintentar or http < 500):
                 if not refrescado:
                     refrescado = True
                     try:
@@ -546,7 +546,8 @@ class ClienteTikTokReal:
                 if regla.efecto == 'cuenta_sin_region':
                     self._marcar_sin_region(e)
                 raise e
-            if regla.decision in ('reintentar', 'reintentar_lento') and reintentos_politica < regla.reintentos:
+            if (reintentar and regla.decision in ('reintentar', 'reintentar_lento')
+                    and reintentos_politica < regla.reintentos):
                 reintentos_politica += 1
                 self._contar(reintento=True)
                 espera = None

@@ -66,6 +66,8 @@ from .reloj import crear_reloj
 from .sincronizador import crear_sincronizador
 from .tiktok.cliente import crear_cliente
 from .tiktok.marketplace import MarketplaceCreator
+from .tiktok.showcase import ShowcaseCreator
+from .tiktok.affiliate_links import AffiliateLinksCreator
 from .tiktok.transporte import crear_transporte_real
 from .tiktok_dev.boveda import crear_boveda_display
 from .tiktok_dev.servicio import crear_servicio_display, crear_transporte_display
@@ -197,6 +199,10 @@ class Hub:
         self.auth: Any = None
         self.marketplace = (MarketplaceCreator(cliente, boveda, lambda: self.auth.conexion())
                             if op.nube and op.modo == 'real' and cliente is not None else None)
+        self.showcase = (ShowcaseCreator(cliente, boveda, lambda: self.auth.conexion(), almacen, reloj.ahora)
+                         if op.nube and op.modo == 'real' and cliente is not None else None)
+        self.affiliate_links = (AffiliateLinksCreator(cliente, boveda, lambda: self.auth.conexion())
+                                if op.nube and op.modo == 'real' and cliente is not None else None)
         self.sincronizador: Any = None
         self.planificador: Any = None
         self.lan: Any = None
@@ -362,6 +368,8 @@ class Hub:
         dv, lr, _ir = self.almacen.versiones()
         local = ctx.origen == 'ui'
         conexion = self.auth.conexion()
+        vitrina, vitrina_escribir = (self.showcase.capacidades(conexion)
+                                    if local and self.showcase is not None else (False, False))
         r: Json = {
             'cuenta': self.auth.cuenta(), 'conexion': conexion, 'sync': estado,
             'datos': {'data_version': dv, 'local_rev': lr, 'ultima_sync_ok_at': estado.get('ultima_ok_at'),
@@ -372,6 +380,10 @@ class Hub:
                             'portapapeles': local and not self.op.nube,
                             'escribir': ctx.puede_escribir, 'sincronizar': ctx.puede_escribir,
                             'catalogo_videos': True,
+                            'vitrina_creator': vitrina,
+                            'vitrina_creator_escribir': vitrina_escribir,
+                            'enlaces_afiliado_creator': (local and self.affiliate_links is not None
+                                                         and self.affiliate_links.disponible(conexion)),
                             'marketplace_creator': (local and self.marketplace is not None
                                                     and self.marketplace.disponible(conexion))},
         }

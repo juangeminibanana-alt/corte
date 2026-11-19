@@ -685,9 +685,17 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
                            and re.fullmatch(r'/api/productos/[0-9]{1,25}/evidencia', route) is not None)
                           or (request.method == 'POST'
                               and re.fullmatch(r'/api/productos/[0-9]{1,25}/extraer', route) is not None))
-        if evidence_write and expected_scope is None:
-            return error('cuenta_cambio_sin_aplicar', 'Actualiza la ficha antes de importar información del producto.', 409)
-        if evidence_write or route == '/api/local/ops' and request.method == 'POST' and expected_scope is not None:
+        creator_write = request.method == 'POST' and route in (
+            '/api/catalogo/vitrina/agregar', '/api/catalogo/vitrina/quitar', '/api/catalogo/vitrina/fijar',
+            '/api/catalogo/enlaces-afiliado',
+        )
+        if (evidence_write or creator_write) and expected_scope is None:
+            message = ('Actualiza la ficha antes de importar información del producto.' if evidence_write
+                       else 'Actualiza la cuenta conectada antes de realizar la acción.')
+            return error('cuenta_cambio_sin_aplicar', message, 409)
+        if evidence_write or creator_write or (
+            route == '/api/local/ops' and request.method == 'POST' and expected_scope is not None
+        ):
             # New clients bind pending operations to the exact owner + creator.
             # Keep the comparison and mutation atomic with account changes.
             with hub._candado_mutacion:

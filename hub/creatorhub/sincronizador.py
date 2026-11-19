@@ -148,6 +148,7 @@ MONEDA_ESPERADA = 'MXN'
 IMPORTES_LINEA: tuple[str, ...] = ('price', 'estimated_commission', 'actual_commission', 'estimated_commission_base',
                                    'actual_commission_base', 'isr', 'iva', 'shared_with_partner')
 REV_VITRINA = '5'                       # sync_cursores 'vitrina.rev': incorporar las imágenes personalizadas
+VITRINA_MUTACIONES = 'vitrina.mutaciones'
 
 _SQL_PORTADAS = f"""
 WITH lv AS (
@@ -1567,18 +1568,31 @@ class _Sincronizador(FasesFicha, PasoVideosTikTok):
 
     def _paso_vitrina(self) -> tuple[int, int, int]:
         token, vistos, total, nuevos_v, cambios_v = None, set(), 0, 0, 0
+        mutaciones = self._leer_cursor(VITRINA_MUTACIONES)
+        completa = False
+        total_esperado = 0
+        productos_vistos: set[str] = set()
         muestras = {r[0] for r in self._leer('SELECT DISTINCT product_id FROM muestras')}
         for _ in range(100):
             q: dict[str, Any] = {'page_size': 20, 'origin': 'SHOWCASE'}
             if token:
                 q['page_token'] = token
             d = self._llamar('GET', P_VITRINA, q)
-            prods = d.get('products') or []
+            lista = d.get('products')
+            remotos = d.get('total_count')
+            if type(remotos) is int:
+                total_esperado = max(total_esperado, remotos)
+            if not isinstance(lista, list) and remotos != 0:
+                break
+            prods = lista if isinstance(lista, list) else []
             total += len(prods)
             pedidos = []
             with self._tx() as db:
                 n_pag = c_pag = 0
                 for p in prods:
+                    if not isinstance(p, dict) or not isinstance(p.get('id'), str) or not RE_ID_IMAGEN.fullmatch(p['id']):
+                        continue
+                    productos_vistos.add(p['id'])
                     pr = p.get('price') or {}
                     op, dp = pr.get('original_price') or {}, pr.get('seller_discount_price') or {}
                     pp = pr.get('platform_discount_price') or {}              # rev. 4
@@ -1650,13 +1664,23 @@ class _Sincronizador(FasesFicha, PasoVideosTikTok):
                 cambios_v += c_pag
             self._encolar(pedidos)
             token = d.get('next_page_token') or ''
-            if not prods or not token or token in vistos:
+            if not token:
+                completa = len(productos_vistos) == total and len(productos_vistos) >= total_esperado
+                break
+            if not prods or not isinstance(token, str) or token in vistos:
                 break
             vistos.add(token)
         with self._tx() as db:
-            self._poner_cursor(db, 'vitrina.at', str(self.ahora), self.ahora)
-            self._poner_cursor(db, 'vitrina.rev', REV_VITRINA, self.ahora)
-            db.execute("DELETE FROM sync_cursores WHERE clave = 'vitrina.error'")
+            version = db.execute('SELECT valor FROM sync_cursores WHERE clave=?', (VITRINA_MUTACIONES,)).fetchone()
+            if completa and mutaciones == (version[0] if version else None):
+                if mutaciones is not None:
+                    quitados = db.execute('DELETE FROM vitrina WHERE vista_en_sync IS NOT ?', (self.sid,)).rowcount
+                    if quitados:
+                        self.alm.marcar_data_version(db)
+                        cambios_v += quitados
+                self._poner_cursor(db, 'vitrina.at', str(self.ahora), self.ahora)
+                self._poner_cursor(db, 'vitrina.rev', REV_VITRINA, self.ahora)
+                db.execute("DELETE FROM sync_cursores WHERE clave = 'vitrina.error'")
         self.cambios += nuevos_v + cambios_v
         self._avance('vitrina', 1.0, hechos=total)
         return nuevos_v, cambios_v, total

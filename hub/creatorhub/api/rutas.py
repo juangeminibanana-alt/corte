@@ -407,6 +407,11 @@ class DespachadorHub:
             R('GET', 'api/catalogo/videos/{content_id}', lambda p: a().video_catalogo(p.params['content_id']),
               L, 'lectura'),
             R('GET', 'api/catalogo/marketplace', self._marketplace_creator, X),
+            R('GET', 'api/catalogo/vitrina', self._vitrina_creator, X),
+            R('POST', 'api/catalogo/vitrina/agregar', lambda p: self._vitrina_creator(p, 'agregar'), X),
+            R('POST', 'api/catalogo/vitrina/quitar', lambda p: self._vitrina_creator(p, 'quitar'), X),
+            R('POST', 'api/catalogo/vitrina/fijar', lambda p: self._vitrina_creator(p, 'fijar'), X),
+            R('POST', 'api/catalogo/enlaces-afiliado', self._enlaces_afiliado_creator, X),
             R('GET', 'api/productos/{product_id}', lambda p: a().producto_detalle(p.params['product_id']),
               L, 'lectura'),
             R('GET', 'api/productos/{product_id}/evidencia',
@@ -565,6 +570,20 @@ class DespachadorHub:
         if marketplace is None:
             raise ErrorDominio('no_encontrado', MSG_NO_ENCONTRADO, http=404)
         return marketplace.buscar(p.query)
+
+    def _vitrina_creator(self, p: Peticion, accion: str | None = None) -> Json:
+        vitrina = getattr(self.hub, 'showcase', None)
+        if vitrina is None:
+            raise ErrorDominio('no_encontrado', 'La vitrina Creator está disponible en Corte Nube.', http=404)
+        if accion is None:
+            return vitrina.listar(p.query)
+        return vitrina.cambiar(accion, p.objeto({'product_ids'}))
+
+    def _enlaces_afiliado_creator(self, p: Peticion) -> Json:
+        enlaces = getattr(self.hub, 'affiliate_links', None)
+        if enlaces is None:
+            raise ErrorDominio('no_encontrado', 'Los enlaces de afiliado están disponibles en Corte Nube.', http=404)
+        return enlaces.generar(p.objeto())
 
     def _snapshot(self, p: Peticion) -> Json:
         h = self.hub
