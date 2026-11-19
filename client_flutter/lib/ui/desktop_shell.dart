@@ -78,27 +78,9 @@ class DesktopShell extends StatelessWidget {
                                 rail ? 22 : 20,
                                 27,
                               ),
-                              child: Row(
-                                children: [
-                                  const CorteMark(size: 26),
-                                  if (!rail) ...[
-                                    const SizedBox(width: 9),
-                                    const Flexible(
-                                      child: Text(
-                                        'CUTGC',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 22,
-                                          height: 1.2,
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: -.6,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
+                              child: CorteWordmark(
+                                markSize: 26,
+                                showLabel: !rail,
                               ),
                             ),
                             for (

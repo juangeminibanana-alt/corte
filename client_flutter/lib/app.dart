@@ -408,14 +408,7 @@ class CorteAccess extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: CorteColors.chrome,
         foregroundColor: Colors.white,
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CorteMark(),
-            SizedBox(width: 9),
-            Text('CUTGC', style: TextStyle(fontWeight: FontWeight.w800)),
-          ],
-        ),
+        title: const CorteWordmark(),
         centerTitle: true,
         automaticallyImplyLeading: false,
       ),
@@ -433,7 +426,12 @@ class CorteAccess extends StatelessWidget {
                       : pending != null
                       ? 'Conecta este dispositivo'
                       : 'Tu espacio en CUTGC',
-                  style: Theme.of(context).textTheme.headlineLarge,
+                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                    fontSize: 25,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -.5,
+                    height: 1.2,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(

@@ -1,5 +1,5 @@
 .fondo { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: max(100px, calc(80px + var(--inset-top, 0px))) 24px 40px; background: #ffffff; color: #161823; }
-.marca { display: flex; align-items: center; justify-content: center; gap: 10px; position: absolute; top: 0; left: 0; right: 0; min-height: calc(64px + var(--inset-top, 0px)); padding-top: var(--inset-top, 0px); background: #08090b; color: #ffffff; font-size: 28px; font-weight: 750; letter-spacing: -1px; }
+.marca { display: flex; align-items: center; justify-content: center; gap: 10px; position: absolute; top: 0; left: 0; right: 0; min-height: calc(64px + var(--inset-top, 0px)); padding-top: var(--inset-top, 0px); background: #08090b; color: #ffffff; font: var(--font-wordmark); letter-spacing: var(--tracking-wordmark); }
 .panel { width: 100%; max-width: 450px; padding: 36px; background: #fff; border: 1px solid #e4e4e8; border-radius: 10px; }
 .panel h1 { font-size: 26px; line-height: 1.2; font-weight: 700; letter-spacing: -.7px; margin-bottom: 12px; }
 .panel p { color: #62626c; font-size: 15px; line-height: 1.6; }

@@ -110,14 +110,17 @@
   --font-sans: "Mona Sans Variable", "Mona Sans", "Segoe UI Variable Text", "Segoe UI", Roboto, system-ui, sans-serif;
   --font-mono: "Geist Mono Variable", "Geist Mono", "Cascadia Mono", "Roboto Mono", ui-monospace, monospace;
 
-  /* Ancho (eje wdth). Programa de firma: cifras protagonistas y marca a 125 %. */
+  /* Ancho (eje wdth). Las cifras protagonistas pueden usar una variante expandida. */
   --stretch-text:  100%;   /* texto y títulos */
   --stretch-kpi:   112%;   /* valores KPI, cifras de tarjeta, comisión en miniaturas */
-  --stretch-brand: 125%;   /* hero, display, wordmark, total del ticket de corte */
+  --stretch-brand: 125%;   /* hero, display, total del ticket de corte */
 
   /* Escala de texto del sistema (Android). --fs la inyecta Java; 1 si no existe. */
   --fs-lin:  var(--fs, 1);                              /* texto corrido: escala completa */
   --fs-half: calc(1 + (var(--fs, 1) - 1) * 0.5);        /* cifras y títulos grandes: la mitad */
+
+  --font-wordmark: 700 calc(1.25rem * var(--fs-lin))/1.15 var(--font-sans);
+  --tracking-wordmark: -.015em;
 
   /* Escala (tamaño / interlínea sin unidad). Ratio ~1.2 con ajustes ópticos. */
   --text-hero-size:    calc(56px * var(--fs-half)); --text-hero-lh: 1.0714;    /* 56/60: UNA cifra por vista */
@@ -137,7 +140,7 @@
   --weight-body: 430;      /* oscuro; 400 en claro (lo redefine el tema) */
   --weight-medium: 520;
   --weight-semibold: 600;
-  --weight-display: 640;   /* hero, display, KPI, wordmark, insignias, iniciales */
+  --weight-display: 640;   /* hero, display, KPI, insignias, iniciales */
 
   --tracking-hero: -0.03em;
   --tracking-display: -0.02em;

@@ -48,11 +48,11 @@
 }
 .wordmark {
   color: var(--text-1);
-  font-size: 30px;
-  line-height: 1;
-  font-weight: var(--weight-display);
-  font-stretch: var(--stretch-brand);
-  letter-spacing: -0.02em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: var(--font-wordmark);
+  letter-spacing: var(--tracking-wordmark);
 }
 .demo {
   display: inline-flex;

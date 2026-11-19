@@ -155,22 +155,13 @@ class _CorteShellState extends State<CorteShell> {
                         rail ? 20 : 24,
                         34,
                       ),
-                      child: Row(
-                        children: [
-                          const CorteMark(size: 29),
-                          if (!rail) ...[
-                            const SizedBox(width: 10),
-                            const Text(
-                              'CUTGC',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 30,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -1,
-                              ),
-                            ),
-                          ],
-                        ],
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: CorteWordmark(
+                          markSize: 29,
+                          gap: 10,
+                          showLabel: !rail,
+                        ),
                       ),
                     ),
                     for (var i = 0; i < _destinations.length; i++) ...[
@@ -233,21 +224,11 @@ class _CorteShellState extends State<CorteShell> {
                         child: Row(
                           children: [
                             if (mobile)
-                              const Row(
-                                children: [
-                                  CorteMark(size: 25),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'CUTGC',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 25,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            const Spacer(),
+                              const Expanded(
+                                child: CorteWordmark(markSize: 25, gap: 8),
+                              )
+                            else
+                              const Spacer(),
                             IconButton(
                               onPressed: _search,
                               tooltip: 'Buscar en CUTGC',

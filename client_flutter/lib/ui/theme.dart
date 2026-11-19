@@ -174,6 +174,47 @@ ThemeData corteTheme({Brightness brightness = Brightness.light}) {
   );
 }
 
+class CorteWordmark extends StatelessWidget {
+  const CorteWordmark({
+    super.key,
+    this.markSize = 28,
+    this.gap = 9,
+    this.showLabel = true,
+  });
+
+  final double markSize;
+  final double gap;
+  final bool showLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final mark = CorteMark(size: markSize);
+    if (!showLabel) return mark;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ExcludeSemantics(child: mark),
+        SizedBox(width: gap),
+        const Flexible(
+          child: Text(
+            'CUTGC',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white,
+              fontFamily: 'MonaSans',
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -.3,
+              height: 1.15,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class CorteMark extends StatelessWidget {
   const CorteMark({super.key, this.size = 28});
   final double size;
