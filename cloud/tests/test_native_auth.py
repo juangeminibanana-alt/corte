@@ -252,6 +252,42 @@ class NativeWebTests(unittest.TestCase):
         return self.client.post('/api/native/auth/start', json={'platform': 'windows', 'name': 'PC sintética',
                                 'code_challenge': challenge(self.verifier)}, headers=self.headers, base_url=self.base).json
 
+    def test_google_android_issues_one_existing_device_session(self):
+        token = 'synthetic.payload.Signature-for-Test'
+        self.firebase.auth.verify_id_token.return_value = dict(self.claims)
+        route = '/api/native/auth/google'
+        data = {'id_token': token, 'device_name': 'Android de prueba'}
+        approve = self.client.post(route, json=data, headers=self.headers, base_url=self.base)
+        self.assertEqual(approve.status_code, 200)
+        self.assertNotIn('Set-Cookie', approve.headers)
+        self.firebase.auth.verify_id_token.assert_called_once_with(token, check_revoked=True, app=self.firebase.app)
+        grant = approve.json
+        bearer = {'Authorization': 'Bearer ' + grant['token']}
+        session = self.client.get('/api/native/session', headers=bearer, base_url=self.base)
+        self.assertTrue(session.json['authenticated'])
+        self.assertEqual(session.json['device_id'], grant['device_id'])
+        self.assertEqual(session.json['owner']['uid'], self.claims['uid'])
+        self.assertEqual(self.client.post(route, json=data, headers=self.headers, base_url=self.base).status_code, 409)
+        registry = self.app.extensions['corte_native']
+        self.assertEqual([d['platform'] for d in registry.devices(self.claims['uid'])], ['android'])
+        self.assertNotIn(token.encode(), Path(registry.path).read_bytes())
+        self.assertNotIn(grant['token'].encode(), Path(registry.path).read_bytes())
+
+    def test_google_android_requires_origin_recent_login_and_allowed_google_account(self):
+        route = '/api/native/auth/google'
+        data = {'id_token': 'synthetic.payload.Signature-for-Test', 'device_name': 'Android de prueba'}
+        self.assertEqual(self.client.post(route, json=data, base_url=self.base).status_code, 403)
+        self.assertEqual(self.client.post(route, json={**data, 'platform': 'windows'},
+                                         headers=self.headers, base_url=self.base).status_code, 422)
+        self.firebase.auth.verify_id_token.assert_not_called()
+        for forbidden in ({'uid': 'other'}, {'email_verified': False}, {'auth_time': int(time.time()) - 301},
+                          {'firebase': {'sign_in_provider': 'password'}}):
+            self.firebase.auth.verify_id_token.return_value = {**self.claims, **forbidden}
+            response = self.client.post(route, json=data, headers=self.headers, base_url=self.base)
+            self.assertEqual(response.status_code, 401)
+            self.assertNotIn('token', response.json)
+        self.assertEqual(self.app.extensions['corte_native'].devices(self.claims['uid']), [])
+
     def grant(self):
         request = self.start()
         approved = self.owner.post('/api/native/auth/approve', json={'user_code': request['user_code']},

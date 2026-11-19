@@ -91,12 +91,19 @@ class FirebaseServices:
                     and (not self.owner_uid or uid == self.owner_uid)
                     and (not self.owner_email or isinstance(email, str) and email.lower() == self.owner_email))
 
-    def create_session(self, id_token: str) -> str:
+    def verify_recent_google(self, id_token: str) -> dict[str, Any]:
         try:
             claims = self.auth.verify_id_token(id_token, check_revoked=True, app=self.app)
             age = time.time() - float(claims.get('auth_time', 0))
             if not self.allowed(claims) or not -60 <= age <= 300:
                 raise FirebaseAccessError()
+            return claims
+        except Exception:
+            raise FirebaseAccessError('No pudimos autorizar esta cuenta de Google para Corte.') from None
+
+    def create_session(self, id_token: str) -> str:
+        self.verify_recent_google(id_token)
+        try:
             return self.auth.create_session_cookie(id_token, expires_in=timedelta(hours=12), app=self.app)
         except Exception:
             raise FirebaseAccessError('No pudimos autorizar esta cuenta de Google para Corte.') from None

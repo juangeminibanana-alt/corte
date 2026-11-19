@@ -1,4 +1,4 @@
-"""Owner-approved native clients. Public enrollment proves possession with PKCE.
+"""Native clients authorized by Google on Android or by owner approval and PKCE.
 
 No Google/TikTok credential or native bearer is persisted here. A successful
 poll delivers its token exactly once; a lost response requires a new approval.
@@ -28,6 +28,7 @@ CODE_RE = re.compile(r'[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}\Z')
 PENDING_TTL = 600
 DEVICE_TTL = 30 * 86400
 INTERVAL = 3
+GOOGLE_TOKEN_RE = re.compile(r'[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\Z')
 
 
 class NativeAuthError(Exception):
@@ -48,6 +49,11 @@ def body_fields(body: Any, fields: set[str]) -> dict[str, Any]:
 
 def challenge(verifier: str) -> str:
     return base64.urlsafe_b64encode(hashlib.sha256(verifier.encode('ascii')).digest()).rstrip(b'=').decode('ascii')
+
+
+def valid_device_name(value: Any) -> bool:
+    return (isinstance(value, str) and 1 <= len(value.strip()) <= 80
+            and not any(ord(c) < 32 or ord(c) == 127 for c in value))
 
 
 class NativeAuth:
@@ -80,6 +86,9 @@ class NativeAuth:
                     state_hash TEXT PRIMARY KEY, path TEXT NOT NULL,
                     device_id TEXT NOT NULL, expires_at INTEGER NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS google_exchanges (
+                    token_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL
+                );
             ''')
         Path(path).chmod(0o600)
 
@@ -100,7 +109,7 @@ class NativeAuth:
 
     def limit(self, action: str, address: str) -> None:
         # HMAC avoids retaining raw IPs; both keys and buckets have fixed bounds.
-        per_ip, global_cap = {'start': (10, 100), 'poll': (360, 6000), 'owner': (120, 1200)}[action]
+        per_ip, global_cap = {'start': (10, 100), 'google': (10, 100), 'poll': (360, 6000), 'owner': (120, 1200)}[action]
         now = self._clock()
         own_key = action + ':' + self._hash('rate', address)
         with self._lock:
@@ -120,8 +129,7 @@ class NativeAuth:
     def start(self, body: Any) -> dict[str, Any]:
         data = body_fields(body, {'platform', 'name', 'code_challenge'})
         platform, name, proof = data['platform'], data['name'], data['code_challenge']
-        if (platform not in ('windows', 'android') or not isinstance(name, str) or not 1 <= len(name.strip()) <= 80
-                or any(ord(c) < 32 or ord(c) == 127 for c in name)
+        if (platform not in ('windows', 'android') or not valid_device_name(name)
                 or not isinstance(proof, str) or not ID_RE.fullmatch(proof)):
             raise invalid()
         if base64.urlsafe_b64encode(base64.urlsafe_b64decode(proof + '=')).rstrip(b'=').decode() != proof:
@@ -212,19 +220,47 @@ class NativeAuth:
                     raise NativeAuthError('espera_sondeo', 'Espera antes de comprobar la conexión.', 429, INTERVAL)
                 db.execute('UPDATE requests SET last_poll=? WHERE request_hash=?', (now, fingerprint))
                 return {'estado': 'pendiente'}, 202
-            now = int(self._clock())
-            if db.execute('SELECT COUNT(*) FROM devices WHERE owner_uid=? AND revoked_at IS NULL AND expires_at>?',
-                          (row['owner_uid'], now)).fetchone()[0] >= 64:
-                raise NativeAuthError('limite_dispositivos', 'Revoca un dispositivo antes de conectar otro.', 409)
-            token = 'corte_native_v1_' + secrets.token_urlsafe(32)
-            device_id = secrets.token_urlsafe(18)
-            expires = now + DEVICE_TTL
-            db.execute('INSERT INTO devices VALUES(?,?,?,?,?,?,?,?,?,NULL)',
-                       (device_id, hashlib.sha256(token.encode('ascii')).hexdigest(), row['platform'], row['name'],
-                        row['owner_uid'], row['owner_email'], row['auth_time'], now, expires,))
+            grant = self._issue_device(db, row['platform'], row['name'], row['owner_uid'],
+                                       row['owner_email'], row['auth_time'], int(self._clock()))
             db.execute("UPDATE requests SET state='entregado' WHERE request_hash=? AND state='aprobado'", (fingerprint,))
+        grant['owner'] = {'uid': owner['uid'], 'email': owner['email']}
+        return grant, 200
+
+    def _issue_device(self, db, platform: str, name: str, uid: str, email: str,
+                      auth_time: int, now: int) -> dict[str, Any]:
+        if db.execute('SELECT COUNT(*) FROM devices WHERE owner_uid=? AND revoked_at IS NULL AND expires_at>?',
+                      (uid, now)).fetchone()[0] >= 64:
+            raise NativeAuthError('limite_dispositivos', 'Revoca un dispositivo antes de conectar otro.', 409)
+        token = 'corte_native_v1_' + secrets.token_urlsafe(32)
+        device_id = secrets.token_urlsafe(18)
+        expires = now + DEVICE_TTL
+        db.execute('INSERT INTO devices VALUES(?,?,?,?,?,?,?,?,?,NULL)',
+                   (device_id, hashlib.sha256(token.encode('ascii')).hexdigest(), platform, name,
+                    uid, email, auth_time, now, expires))
         return {'estado': 'autorizado', 'device_id': device_id, 'token': token, 'expires_at': expires,
-                'owner': {'uid': owner['uid'], 'email': owner['email']}}, 200
+                'owner': {'uid': uid, 'email': email}}
+
+    def exchange_google(self, body: Any, verify: Callable[[str], dict[str, Any]]) -> dict[str, Any]:
+        data = body_fields(body, {'id_token', 'device_name'})
+        token, name = data['id_token'], data['device_name']
+        if (not isinstance(token, str) or not 20 <= len(token) <= 16384
+                or not GOOGLE_TOKEN_RE.fullmatch(token) or not valid_device_name(name)):
+            raise invalid()
+        claims = verify(token)
+        uid, email = claims.get('uid') or claims.get('sub'), claims.get('email')
+        auth_time = claims.get('auth_time')
+        if not isinstance(uid, str) or not isinstance(email, str) or type(auth_time) is not int:
+            raise NativeAuthError('cuenta_no_autorizada', 'Vuelve a entrar con Google.', 401)
+        now = int(self._clock())
+        fingerprint = self._hash('google-id-token', token)
+        with self._db(True) as db:
+            db.execute('DELETE FROM google_exchanges WHERE expires_at <= ?', (now,))
+            db.execute('DELETE FROM devices WHERE expires_at <= ?', (now - 90 * 86400,))
+            try:
+                db.execute('INSERT INTO google_exchanges VALUES(?,?)', (fingerprint, now + PENDING_TTL))
+            except sqlite3.IntegrityError:
+                raise NativeAuthError('autorizacion_entregada', 'Vuelve a seleccionar tu cuenta de Google.', 409) from None
+            return self._issue_device(db, 'android', name.strip(), uid, email, auth_time, now)
 
     def authenticate(self, token: str) -> dict[str, Any] | None:
         if not re.fullmatch(TOKEN_PATTERN, token):

@@ -40,6 +40,7 @@ from creatorhub.errores import ErrorDominio
 from creatorhub.interfaces import CTX_UI, OpcionesHub
 from creatorhub.tiktok_dev.servicio import pagina_html
 from cloud.native_auth import BEARER_RE, NativeAuth, NativeAuthError
+from cloud.firebase_service import FirebaseAccessError
 
 
 @dataclass(frozen=True)
@@ -222,7 +223,9 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
     @app.before_request
     def protect() -> Any:
         request.max_content_length = 20 * 1024 * 1024 if request.path == '/api/cloud/import' else 256 * 1024
-        if request.path.startswith('/api/native/'):
+        if request.path == '/api/native/auth/google':
+            request.max_content_length = 18 * 1024
+        elif request.path.startswith('/api/native/'):
             request.max_content_length = 4096
         # Private readiness checks use HTTP to the backend with the configured domain Host.
         # This endpoint exposes only readiness; private API routes still require HTTPS/auth.
@@ -250,7 +253,7 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
             if request.data and request.mimetype != 'application/json':
                 return error('formato_invalido', 'Envía los datos en formato JSON.', 415)
         public_paths = ('/api/cloud/session', '/api/cloud/config', '/api/cloud/login', '/api/health',
-                        '/api/native/auth/start', '/api/native/auth/poll')
+                        '/api/native/auth/start', '/api/native/auth/poll', '/api/native/auth/google')
         if (request.path.startswith(('/api/', '/img/', '/oauth/')) and request.path not in public_paths
                 and not authenticated()):
             if (native and request.method == 'GET' and request.path in ('/oauth/shop', '/oauth/tiktok')
@@ -285,6 +288,16 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
         service.limit('poll', request.remote_addr or 'unknown')
         result, status = service.poll(request.get_json())
         return jsonify(result), status
+
+    @app.post('/api/native/auth/google')
+    def native_google() -> Any:
+        service = require_native_service()
+        service.limit('google', request.remote_addr or 'unknown')
+        try:
+            grant = service.exchange_google(request.get_json(silent=True), firebase.verify_recent_google)
+        except FirebaseAccessError:
+            return error('cuenta_no_autorizada', 'Esta cuenta de Google no tiene acceso a Corte.', 401)
+        return jsonify(grant)
 
     @app.get('/api/native/auth/request')
     def native_request() -> Any:
