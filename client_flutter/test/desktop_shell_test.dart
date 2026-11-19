@@ -3,6 +3,7 @@ import 'package:corte/auth/auth_controller.dart';
 import 'package:corte/platform/corte_runtime.dart';
 import 'package:corte/ui/desktop.dart';
 import 'package:corte/ui/desktop_shell.dart';
+import 'package:corte/ui/shell.dart';
 import 'package:corte/ui/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -113,7 +114,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(fixture.ui.location, '/muestras');
 
-      final settings = find.byTooltip('Ajustes');
+      final settings = find.byTooltip('Configuración');
       await tester.ensureVisible(settings);
       await tester.pumpAndSettle();
       expect(scrollable.position.pixels, greaterThan(0));
@@ -127,7 +128,108 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.windows),
   );
 
-  testWidgets('Android keeps its existing interface even on a wide display', (
+  testWidgets(
+    'Android header keeps brand and actions visible at 320dp with 2x text',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final fixture = _Fixture();
+      addTearDown(fixture.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: corteTheme(),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: CorteScope(controller: fixture.ui, child: child!),
+          ),
+          home: const CorteShell(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final brand = find.text('CUTGC');
+      final search = find.byTooltip('Buscar en CUTGC');
+      final refresh = find.byTooltip('Actualizar datos');
+      expect(brand, findsOneWidget);
+      expect(find.bySemanticsLabel('CUTGC'), findsOneWidget);
+      expect(search.hitTestable(), findsOneWidget);
+      expect(refresh.hitTestable(), findsOneWidget);
+      expect(
+        tester.getRect(brand).right,
+        lessThanOrEqualTo(tester.getRect(search).left),
+      );
+      expect(tester.getRect(refresh).right, lessThanOrEqualTo(320));
+      expect(MediaQuery.textScalerOf(tester.element(brand)).scale(20), 40);
+      expect(tester.takeException(), isNull);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
+  testWidgets('mobile sales tabs navigate to the existing catalog routes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final fixture = _Fixture();
+    addTearDown(fixture.dispose);
+    fixture.ui.restoreRoute('/ventas');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: corteTheme(),
+        builder: (context, child) =>
+            CorteScope(controller: fixture.ui, child: child!),
+        home: const CorteShell(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Resumen'), findsOneWidget);
+    await tester.tap(find.text('Videos'));
+    await tester.pumpAndSettle();
+    expect(fixture.ui.location, '/videos');
+    await tester.tap(find.text('Productos'));
+    await tester.pumpAndSettle();
+    expect(fixture.ui.location, '/productos');
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+  testWidgets('TikTok shortcut opens the TikTok Shop section in settings', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final fixture = _Fixture();
+    addTearDown(fixture.dispose);
+    fixture.ui.restoreRoute('/ajustes/tiktok');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: corteTheme(),
+        builder: (context, child) =>
+            CorteScope(controller: fixture.ui, child: child!),
+        home: const CorteShell(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('TikTok Shop').hitTestable(), findsOneWidget);
+    expect(find.text('Apariencia').hitTestable(), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+  testWidgets('Android keeps its typography profile even on a wide display', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1536, 960);

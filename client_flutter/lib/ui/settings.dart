@@ -10,8 +10,28 @@ import 'widgets.dart';
 import 'desktop.dart';
 import 'sales_notifications_settings.dart';
 
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
+class SettingsPage extends StatefulWidget {
+  const SettingsPage({super.key, this.openTikTok = false});
+  final bool openTikTok;
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  final _tikTokHeading = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.openTikTok) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final target = _tikTokHeading.currentContext;
+        if (target != null) Scrollable.ensureVisible(target);
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ui = CorteScope.of(context);
@@ -62,7 +82,7 @@ class SettingsPage extends StatelessWidget {
                   label: const Text('Salir de esta cuenta'),
                 ),
               ),
-              const SectionHeading('TikTok Shop'),
+              SectionHeading('TikTok Shop', key: _tikTokHeading),
               ApiData(
                 path: '/api/session',
                 padding: EdgeInsets.zero,

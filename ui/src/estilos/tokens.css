@@ -119,7 +119,7 @@
   --fs-lin:  var(--fs, 1);                              /* texto corrido: escala completa */
   --fs-half: calc(1 + (var(--fs, 1) - 1) * 0.5);        /* cifras y títulos grandes: la mitad */
 
-  --font-wordmark: 700 calc(1.25rem * var(--fs-lin))/1.15 var(--font-sans);
+  --font-wordmark: 700 calc(20px * var(--fs-lin))/1.15 var(--font-sans);
   --tracking-wordmark: -.015em;
 
   /* Escala (tamaño / interlínea sin unidad). Ratio ~1.2 con ajustes ópticos. */

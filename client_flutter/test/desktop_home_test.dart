@@ -23,7 +23,11 @@ http.Response _response(Object value) => http.Response(
 );
 
 class _HomeFixture {
-  _HomeFixture({this.empty = false}) {
+  _HomeFixture({
+    this.empty = false,
+    this.sessionUnavailable = false,
+    this.disconnected = false,
+  }) {
     auth = CorteAuthController(
       runtime: CorteRuntime(
         platform: 'web',
@@ -36,7 +40,8 @@ class _HomeFixture {
     ui.repo.setScopes(ownerScope: _scope, cacheScope: _scope);
   }
 
-  final bool empty;
+  final bool empty, sessionUnavailable, disconnected;
+  int syncRequests = 0;
   late final CorteAuthController auth;
   late final CorteUiController ui;
 
@@ -44,10 +49,12 @@ class _HomeFixture {
   List<JsonMap> get samples => empty
       ? []
       : [
-          for (var i = 0; i < 4; i++)
+          for (var i = 0; i < 6; i++)
             {
               'application_id': 'synthetic-sample-$i',
-              'grupo': 'vencida',
+              'grupo': i == 0 ? 'por_vencer' : 'vencida',
+              'fecha_limite_at': 1744000000 + (i == 3 ? 1 : i) * 3600,
+              'posicion_cola': 6 - i,
               'etiqueta': 'Vencida sin video',
               'recibida': true,
               'variante': 'Café Marrón muy largo / Extra grande',
@@ -60,12 +67,29 @@ class _HomeFixture {
                 'tienda_key': 'synthetic-store-$i',
                 'nombre': 'Tienda de ropa y accesorios con nombre largo',
               },
-              'avance': {'etapa': 'por_planear'},
+              'avance': {
+                'etapa': i == 4 || i == 5 ? 'publicada' : 'por_planear',
+                if (i == 5) 'vinculo_origen': 'video_previo',
+              },
             },
         ];
 
   Future<http.Response> _handle(http.Request request) async {
     switch (request.url.path) {
+      case '/api/session':
+        if (sessionUnavailable) return http.Response('', 503);
+        return _response({
+          'conexion': {'estado': disconnected ? 'sin_conectar' : 'conectada'},
+          'capacidades': {'sincronizar': true},
+          'datos': {'hay_datos': !empty},
+          'sync': {'en_curso': false},
+        });
+      case '/api/sync':
+        expect(request.method, 'POST');
+        syncRequests++;
+        return _response({
+          'estado': {'en_curso': true},
+        });
       case '/api/dashboard':
         expect(request.url.queryParameters['periodo'], '30d');
         return _response({
@@ -76,10 +100,16 @@ class _HomeFixture {
               'seguidores_cambio_7d': -12,
             },
           'kpis': empty
-              ? <String, dynamic>{}
+              ? {
+                  'ventas_centavos': 0,
+                  'comision_estimada_centavos': 0,
+                  'pedidos': 0,
+                }
               : {
-                  'comision_total_centavos': 1234500,
+                  'comision_estimada_centavos': 1234500,
+                  'comision_total_centavos': 8765400,
                   'ventas_centavos': 9876500,
+                  'pedidos': 67,
                   'pedidos_validos': 41,
                   'unidades': 52,
                 },
@@ -181,85 +211,153 @@ Future<void> _mount(
 }
 
 void main() {
-  testWidgets('móvil muestra seguidores y su cambio real de siete días', (
+  testWidgets('móvil muestra Inicio web y conserva seguidores en el detalle', (
     tester,
   ) async {
     await _mount(tester, _HomeFixture(), contentWidth: 334, mobile: true);
-    expect(find.text('@creadora_demo'), findsOneWidget);
+    expect(find.text('Tu negocio, en orden'), findsOneWidget);
+    expect(find.text('Resultados'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('@creadora_demo'), 300);
     expect(find.text('23,501 seguidores en TikTok'), findsOneWidget);
     expect(find.text('−12 en 7 días'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
-  for (final contentWidth in [1000.0, 850.0, 640.0]) {
+  for (final contentWidth in [1000.0, 850.0, 640.0, 280.0]) {
     for (final textScale in [1.0, 1.44, 2.0]) {
-      testWidgets(
-        'desktop home fits content $contentWidth at text scale $textScale',
-        (tester) async {
-          final fixture = _HomeFixture();
-          await _mount(
-            tester,
-            fixture,
-            contentWidth: contentWidth,
-            textScale: textScale,
-          );
-          expect(tester.takeException(), isNull);
-          expect(find.text('23,501 seguidores en TikTok'), findsOneWidget);
-          expect(find.text('−12 en 7 días'), findsOneWidget);
-          final commission = find.text(r'$12,345');
-          await tester.scrollUntilVisible(commission, 320, maxScrolls: 10);
-          expect(commission, findsOneWidget);
-          expect(find.text(r'$98,765'), findsOneWidget);
-          expect(
-            MediaQuery.textScalerOf(
-              tester.element(find.byType(DesktopHomePage)),
-            ).scale(14),
-            closeTo(14 * textScale, .001),
-          );
-          final stores = find.text('Tiendas');
-          await tester.scrollUntilVisible(stores, 450, maxScrolls: 30);
-          await tester.pumpAndSettle();
-          expect(tester.takeException(), isNull);
-          expect(find.text('Comisión estimada'), findsOneWidget);
-        },
-        variant: TargetPlatformVariant.only(TargetPlatform.windows),
-      );
+      testWidgets('Inicio cabe en $contentWidth dp con texto ${textScale}x', (
+        tester,
+      ) async {
+        await _mount(
+          tester,
+          _HomeFixture(),
+          contentWidth: contentWidth,
+          textScale: textScale,
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.text('Tu negocio, en orden'), findsOneWidget);
+        final commission = find.text(r'$12,345');
+        await tester.scrollUntilVisible(commission, 200, maxScrolls: 15);
+        expect(commission, findsOneWidget);
+        expect(find.text(r'$98,765'), findsOneWidget);
+        expect(find.text('67'), findsOneWidget);
+        expect(find.text(r'$87,654'), findsNothing);
+        expect(find.text('41'), findsNothing);
+        expect(
+          MediaQuery.textScalerOf(
+            tester.element(find.byType(DesktopHomePage)),
+          ).scale(14),
+          closeTo(14 * textScale, .001),
+        );
+        await tester.scrollUntilVisible(
+          find.text('Comisión estimada por día'),
+          350,
+          maxScrolls: 30,
+        );
+        final error = tester.takeException();
+        expect(
+          error,
+          isNull,
+          reason: error is FlutterError
+              ? error.diagnostics.map((node) => node.toStringDeep()).join()
+              : null,
+        );
+      }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
     }
   }
 
-  testWidgets('view samples navigates to the actual samples route', (
-    tester,
-  ) async {
+  testWidgets('Ver muestras abre la pantalla de Muestras', (tester) async {
     final fixture = _HomeFixture();
     await _mount(tester, fixture, textScale: 1.44);
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Ver muestras'));
+    await tester.tap(find.text('Ver muestras'));
     await tester.pumpAndSettle();
     expect(fixture.ui.location, '/muestras');
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
+  testWidgets('El KPI abre Ventas con el periodo de 30 días', (tester) async {
+    final fixture = _HomeFixture();
+    await _mount(tester, fixture);
+    await tester.tap(find.text('Pedidos'));
+    await tester.pumpAndSettle();
+    expect(fixture.ui.location, '/ventas?periodo=30d');
+  });
+
   testWidgets(
-    'absent metrics stay unknown instead of becoming invented zeroes',
+    'Prioriza vencidas, fecha y posición. El detalle abre la muestra elegida',
     (tester) async {
-      final fixture = _HomeFixture(empty: true);
-      await _mount(tester, fixture, textScale: 1.44);
+      final fixture = _HomeFixture();
+      await _mount(tester, fixture);
+      Finder sample(int i) =>
+          find.text('Chaqueta de invierno con un nombre largo y completo $i');
       expect(
-        find.descendant(
-          of: find.byKey(const ValueKey('home-history-metrics')),
-          matching: find.text('—'),
-        ),
-        findsNWidgets(4),
+        tester.getTopLeft(sample(3)).dy,
+        lessThan(tester.getTopLeft(sample(1)).dy),
       );
-      expect(find.text(r'$0'), findsNothing);
-      expect(find.text('0'), findsNothing);
-      expect(find.text('Seguidores de TikTok no disponibles'), findsOneWidget);
-      await tester.scrollUntilVisible(
-        find.text('Estás al día'),
-        450,
-        maxScrolls: 30,
+      expect(
+        tester.getTopLeft(sample(2)).dy,
+        lessThan(tester.getTopLeft(sample(0)).dy),
       );
-      expect(find.text('Estás al día'), findsOneWidget);
-      expect(tester.takeException(), isNull);
+      expect(sample(4), findsNothing);
+      expect(sample(5), findsOneWidget);
+      await tester.tap(sample(3));
+      await tester.pumpAndSettle();
+      expect(fixture.ui.location, '/muestras/m/synthetic-sample-3');
     },
-    variant: TargetPlatformVariant.only(TargetPlatform.windows),
   );
+
+  testWidgets('Actualizar usa la sincronización existente de TikTok', (
+    tester,
+  ) async {
+    final fixture = _HomeFixture();
+    await _mount(tester, fixture);
+    await tester.tap(find.text('Actualizar'));
+    await tester.pumpAndSettle();
+    expect(fixture.syncRequests, 1);
+    expect(find.textContaining('Actualización solicitada'), findsOneWidget);
+  });
+
+  testWidgets('Una sesión sin conexión shop ofrece Ajustes de TikTok', (
+    tester,
+  ) async {
+    final fixture = _HomeFixture(disconnected: true);
+    await _mount(tester, fixture);
+    expect(find.text('Conecta tu cuenta de TikTok Shop'), findsOneWidget);
+    await tester.tap(find.text('Conectar cuenta'));
+    await tester.pumpAndSettle();
+    expect(fixture.ui.location, '/ajustes/tiktok');
+    expect(fixture.syncRequests, 0);
+  });
+
+  testWidgets('La sesión no disponible conserva resultados y prioridades', (
+    tester,
+  ) async {
+    await _mount(tester, _HomeFixture(sessionUnavailable: true));
+    expect(find.textContaining('No pudimos cargar tu cuenta.'), findsOneWidget);
+    expect(find.text(r'$12,345'), findsOneWidget);
+    expect(find.text('Tus prioridades'), findsOneWidget);
+    expect(find.text('Conectar cuenta'), findsNothing);
+  });
+
+  testWidgets('No muestra ceros inventados cuando no hay datos', (
+    tester,
+  ) async {
+    await _mount(tester, _HomeFixture(empty: true), textScale: 1.44);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('home-history-metrics')),
+        matching: find.text('—'),
+      ),
+      findsNWidgets(3),
+    );
+    expect(find.text(r'$0'), findsNothing);
+    expect(find.text('0'), findsNothing);
+    expect(find.text('Todo empieza con tus muestras'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Seguidores de TikTok no disponibles'),
+      350,
+      maxScrolls: 30,
+    );
+    expect(tester.takeException(), isNull);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 }

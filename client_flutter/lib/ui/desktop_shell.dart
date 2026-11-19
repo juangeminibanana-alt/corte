@@ -4,7 +4,7 @@ import '../app.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
-const _desktopDestinations = <(String, String, IconData)>[
+const corteDestinations = <(String, String, IconData)>[
   ('/inicio', 'Inicio', Icons.home_outlined),
   ('/muestras', 'Muestras', Icons.inventory_2_outlined),
   ('/tiendas', 'Tiendas', Icons.storefront_outlined),
@@ -34,28 +34,23 @@ class DesktopShell extends StatelessWidget {
     final uri = Uri.parse(ui.location);
     final root = uri.pathSegments.isEmpty ? 'inicio' : uri.pathSegments.first;
     final selected = root == 'ordenes' ? 'ventas' : root;
-    final title =
-        const {
-          'inicio': 'Inicio',
-          'muestras': 'Muestras',
-          'tiendas': 'Tiendas',
-          'ventas': 'Ventas',
-          'ordenes': 'Pedidos',
-          'videos': 'Videos',
-          'productos': 'Productos',
-          'ajustes': 'Ajustes',
-          'notas': 'Notas',
-          'recordatorios': 'Recordatorios',
-        }[root] ??
-        'CUTGC';
-    final rail = MediaQuery.sizeOf(context).width < 1120;
+    final title = const {
+      'tiendas': 'Tiendas',
+      'ordenes': 'Pedidos',
+      'videos': 'Videos',
+      'productos': 'Productos',
+      'ajustes': 'Configuración',
+      'notas': 'Notas',
+      'recordatorios': 'Recordatorios',
+    }[root];
+    final rail = MediaQuery.sizeOf(context).width < 1180;
     return Scaffold(
       backgroundColor: context.corte.surface,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            width: rail ? 72 : 196,
+            width: rail ? 80 : 248,
             child: DecoratedBox(
               decoration: const BoxDecoration(
                 color: CorteColors.chrome,
@@ -73,19 +68,19 @@ class DesktopShell extends StatelessWidget {
                           children: [
                             Padding(
                               padding: EdgeInsets.fromLTRB(
-                                rail ? 22 : 20,
-                                23,
-                                rail ? 22 : 20,
-                                27,
+                                rail ? 24 : 22,
+                                rail ? 15 : 26,
+                                rail ? 24 : 22,
+                                rail ? 18 : 30,
                               ),
                               child: CorteWordmark(
-                                markSize: 26,
+                                markSize: 30,
                                 showLabel: !rail,
                               ),
                             ),
                             for (
                               var i = 0;
-                              i < _desktopDestinations.length;
+                              i < corteDestinations.length;
                               i++
                             ) ...[
                               if (i == 3)
@@ -97,12 +92,12 @@ class DesktopShell extends StatelessWidget {
                                   child: Divider(color: Color(0xFF292B32)),
                                 ),
                               _DesktopDestination(
-                                destination: _desktopDestinations[i],
+                                destination: corteDestinations[i],
                                 selected:
                                     selected ==
-                                    _desktopDestinations[i].$1.substring(1),
+                                    corteDestinations[i].$1.substring(1),
                                 rail: rail,
-                                onTap: () => ui.go(_desktopDestinations[i].$1),
+                                onTap: () => ui.go(corteDestinations[i].$1),
                               ),
                             ],
                             const SizedBox(height: 24),
@@ -114,7 +109,7 @@ class DesktopShell extends StatelessWidget {
                             _DesktopDestination(
                               destination: (
                                 '/ajustes',
-                                'Ajustes',
+                                'Configuración',
                                 Icons.settings_outlined,
                               ),
                               selected: const {
@@ -191,48 +186,50 @@ class _DesktopDestination extends StatelessWidget {
         selected: selected,
         label: destination.$2,
         child: Material(
-          color: selected
-              ? CorteColors.coral.withValues(alpha: .12)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+          color: selected ? CorteColors.action : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(6),
-            hoverColor: Colors.white.withValues(alpha: .045),
-            focusColor: CorteColors.cyan.withValues(alpha: .12),
-            child: Stack(
-              children: [
-                if (selected)
-                  Positioned(
-                    left: 0,
-                    top: 8,
-                    bottom: 8,
-                    child: Container(
-                      width: 3,
-                      decoration: BoxDecoration(
-                        color: CorteColors.coral,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
+            borderRadius: BorderRadius.circular(8),
+            hoverColor: Colors.white.withValues(alpha: .07),
+            focusColor: CorteColors.cyan.withValues(alpha: .14),
+            child: ExcludeSemantics(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: rail ? 48 : 42),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: rail ? 4 : 13,
+                    vertical: rail ? 6 : 10,
                   ),
-                ExcludeSemantics(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 42),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: rail ? 18 : 15,
-                        vertical: 10,
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            destination.$3,
-                            size: 20,
-                            color: selected
-                                ? Colors.white
-                                : CorteColors.chromeMuted,
-                          ),
-                          if (!rail) ...[
+                  child: rail
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(destination.$3, size: 20, color: Colors.white),
+                            const SizedBox(height: 4),
+                            Text(
+                              destination.$2,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 10,
+                                height: 1.1,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Icon(
+                              destination.$3,
+                              size: 20,
+                              color: selected
+                                  ? Colors.white
+                                  : CorteColors.chromeMuted,
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
@@ -240,24 +237,21 @@ class _DesktopDestination extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontSize: 13,
-                                  height: 1.4,
-                                  fontWeight: selected
-                                      ? FontWeight.w600
-                                      : FontWeight.w500,
                                   color: selected
                                       ? Colors.white
                                       : CorteColors.chromeMuted,
+                                  fontSize: 14,
+                                  height: 1.35,
+                                  fontWeight: selected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
                                 ),
                               ),
                             ),
                           ],
-                        ],
-                      ),
-                    ),
-                  ),
+                        ),
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -274,7 +268,7 @@ class _DesktopConnection extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = offline ? 'Copia sin conexión' : 'Conectado a Google';
     return Padding(
-      padding: EdgeInsets.fromLTRB(rail ? 31 : 23, 13, rail ? 31 : 18, 20),
+      padding: EdgeInsets.fromLTRB(rail ? 36 : 23, 13, rail ? 36 : 18, 20),
       child: Tooltip(
         message: label,
         excludeFromSemantics: true,
@@ -320,7 +314,7 @@ class _DesktopToolbar extends StatelessWidget {
     required this.onSync,
     required this.syncing,
   });
-  final String title;
+  final String? title;
   final VoidCallback onSearch, onSync;
   final bool syncing;
 
@@ -329,10 +323,10 @@ class _DesktopToolbar extends StatelessWidget {
     bottom: false,
     left: false,
     child: Container(
-      constraints: const BoxConstraints(minHeight: 52),
-      decoration: BoxDecoration(
-        color: context.corte.surface,
-        border: Border(bottom: BorderSide(color: context.corte.line)),
+      constraints: const BoxConstraints(minHeight: 56),
+      decoration: const BoxDecoration(
+        color: CorteColors.chrome,
+        border: Border(bottom: BorderSide(color: Color(0xFF24262D))),
       ),
       child: LayoutBuilder(
         builder: (context, limits) => Padding(
@@ -341,40 +335,69 @@ class _DesktopToolbar extends StatelessWidget {
             vertical: 4,
           ),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
               Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.4,
-                    fontWeight: FontWeight.w600,
-                    color: context.corte.muted,
-                  ),
-                ),
+                child: title == null
+                    ? const SizedBox.shrink()
+                    : Text(
+                        title!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: CorteColors.chromeMuted,
+                        ),
+                      ),
               ),
               const SizedBox(width: 8),
-              IconButton(
-                onPressed: onSearch,
-                tooltip: 'Buscar en CUTGC',
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                icon: Icon(
-                  Icons.search_rounded,
-                  size: 20,
-                  color: context.corte.muted,
+              if (limits.maxWidth >= 550)
+                Tooltip(
+                  message: 'Buscar en CUTGC',
+                  child: SizedBox(
+                    width: 180,
+                    child: OutlinedButton.icon(
+                      onPressed: onSearch,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        backgroundColor: const Color(0xFF202229),
+                        side: const BorderSide(color: Color(0xFF363842)),
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                      ),
+                      icon: const Icon(Icons.search_rounded, size: 20),
+                      label: const Text(
+                        'Buscar',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                IconButton(
+                  onPressed: onSearch,
+                  tooltip: 'Buscar en CUTGC',
+                  color: Colors.white,
+                  constraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 44,
+                  ),
+                  icon: const Icon(Icons.search_rounded, size: 20),
                 ),
-              ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 8),
               if (limits.maxWidth >= 700)
                 TextButton.icon(
                   onPressed: syncing ? null : onSync,
                   style: TextButton.styleFrom(
-                    foregroundColor: context.corte.muted,
+                    foregroundColor: CorteColors.chromeMuted,
                     textStyle: const TextStyle(
                       fontSize: 13,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   icon: _SyncIcon(syncing: syncing),
@@ -383,10 +406,11 @@ class _DesktopToolbar extends StatelessWidget {
               else
                 IconButton(
                   onPressed: syncing ? null : onSync,
+                  color: CorteColors.chromeMuted,
                   tooltip: syncing ? 'Sincronizando' : 'Actualizar datos',
                   constraints: const BoxConstraints(
-                    minWidth: 40,
-                    minHeight: 40,
+                    minWidth: 44,
+                    minHeight: 44,
                   ),
                   icon: _SyncIcon(syncing: syncing),
                 ),
@@ -408,7 +432,7 @@ class _SyncIcon extends StatelessWidget {
           dimension: 18,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: context.corte.cyanInk,
+            color: CorteColors.cyan,
           ),
         )
       : Icon(Icons.sync_rounded, size: 20, color: context.corte.muted);

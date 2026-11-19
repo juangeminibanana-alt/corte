@@ -14,6 +14,8 @@ import 'video_catalog.dart';
 import 'marketplace.dart';
 import 'showcase.dart';
 
+part 'sales_dashboard.dart';
+
 Future<void> openPublicLink(BuildContext context, String? value) async {
   final url = Uri.tryParse(value ?? '');
   final host = url?.host.toLowerCase() ?? '';
@@ -1148,106 +1150,30 @@ class SalesNavigation extends StatelessWidget {
   const SalesNavigation({super.key, required this.selected});
   final String selected;
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: Row(
-      children: [
-        for (final item in [
-          ('ventas', 'Resumen'),
-          ('ordenes', 'Pedidos'),
-          ('videos', 'Videos'),
-          ('productos', 'Productos'),
-        ])
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(item.$2),
-              selected: selected == item.$1,
-              onSelected: (_) => CorteScope.of(context).go('/${item.$1}'),
-            ),
-          ),
-      ],
-    ),
-  );
-}
-
-class SalesPage extends StatefulWidget {
-  const SalesPage({super.key});
-  @override
-  State<SalesPage> createState() => _SalesPageState();
-}
-
-class _SalesPageState extends State<SalesPage> {
-  String _period = '30d';
-  @override
-  Widget build(BuildContext context) => ApiData(
-    path: '/api/dashboard',
-    query: {'periodo': _period},
-    builder: (context, data) {
-      final k = mapOf(data['kpis']), period = mapOf(data['periodo']);
-      return ListView(
-        padding: pagePadding(context),
+  Widget build(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width < 600) return const SizedBox.shrink();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
         children: [
-          PageTitle(
-            'Ventas',
-            subtitle: '${textOf(period['desde'])} – ${textOf(period['hasta'])}',
-          ),
-          const SalesNavigation(selected: 'ventas'),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final p in [
-                ('7d', '7 días'),
-                ('30d', '30 días'),
-                ('90d', '90 días'),
-                ('12m', '12 meses'),
-                ('todo', 'Todo'),
-              ])
-                ChoiceChip(
-                  label: Text(p.$2),
-                  selected: _period == p.$1,
-                  onSelected: (_) => setState(() => _period = p.$1),
-                ),
-            ],
-          ),
-          const SizedBox(height: 30),
-          MetricStrip([
-            ('Comisión total', money(k['comision_total_centavos'])),
-            ('Ventas generadas', money(k['ventas_centavos'])),
-            ('Pedidos válidos', integer(k['pedidos_validos'])),
-            ('Unidades', integer(k['unidades'])),
-          ]),
-          const SizedBox(height: 24),
-          DefinitionRow(
-            'Comisión liquidada',
-            money(k['comision_liquidada_centavos'], decimals: true),
-          ),
-          DefinitionRow(
-            'Por liquidar',
-            money(k['comision_por_liquidar_centavos'], decimals: true),
-          ),
-          DefinitionRow(
-            'Comisión retenida',
-            money(k['comision_retenida_centavos'], decimals: true),
-          ),
-          const SectionHeading(
-            'Comisión estimada',
-            subtitle:
-                'Estimación por fecha de venta; la comisión liquidada puede cambiar.',
-          ),
-          MiniBars(rowsOf(mapOf(data['serie'])['puntos'])),
-          const SectionHeading('Videos con mayor comisión'),
-          for (final v in rowsOf(data['top_videos']).take(5))
-            VideoRow(video: v),
-          const SectionHeading('Productos con mayor comisión'),
-          for (final p in rowsOf(data['top_productos']).take(5))
-            ProductRow(product: p),
+          for (final item in [
+            ('ventas', 'Resumen'),
+            ('ordenes', 'Pedidos'),
+            ('videos', 'Videos'),
+            ('productos', 'Productos'),
+          ])
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(item.$2),
+                selected: selected == item.$1,
+                onSelected: (_) => CorteScope.of(context).go('/${item.$1}'),
+              ),
+            ),
         ],
-      );
-    },
-  );
+      ),
+    );
+  }
 }
 
 class OrdersPage extends StatefulWidget {
@@ -1346,57 +1272,85 @@ class _OrdersPageState extends State<OrdersPage> {
 }
 
 class _OrderTile extends StatelessWidget {
-  const _OrderTile({required this.order});
+  const _OrderTile({
+    super.key,
+    required this.order,
+    this.embedded = false,
+    this.initiallyExpanded = false,
+  });
+
   final Map<String, dynamic> order;
+  final bool embedded, initiallyExpanded;
+
   @override
-  Widget build(BuildContext context) => ExpansionTile(
-    tilePadding: EdgeInsets.zero,
-    childrenPadding: const EdgeInsets.only(bottom: 20),
-    title: Text(
-      'Pedido ${textOf(order['order_id'])}',
-      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-    ),
-    subtitle: Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Text(
-        '${textOf(order['estado_etiqueta'])} · ${textOf(order['fecha'])}',
+  Widget build(BuildContext context) {
+    final lines = rowsOf(order['lineas']);
+    final product = lines.isEmpty
+        ? 'Producto sin nombre'
+        : textOf(lines.first['producto'], 'Producto sin nombre');
+    final status = textOf(order['estado_etiqueta'], textOf(order['estado']));
+    final date = textOf(order['fecha']);
+    final commission = order['estado'] == 'SETTLED'
+        ? order['comision_real_centavos']
+        : order['comision_estimada_centavos'];
+    return ExpansionTile(
+      initiallyExpanded: initiallyExpanded,
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(bottom: 20),
+      title: Text(
+        embedded ? product : 'Pedido ${textOf(order['order_id'])}',
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
       ),
-    ),
-    children: [
-      DefinitionRow('Total', money(order['total_centavos'], decimals: true)),
-      DefinitionRow(
-        'Comisión estimada',
-        money(order['comision_estimada_centavos'], decimals: true),
-      ),
-      DefinitionRow(
-        'Comisión real',
-        money(order['comision_real_centavos'], decimals: true),
-      ),
-      for (final l in rowsOf(order['lineas']))
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  CortePhoto(textOf(l['imagen']), width: 52, height: 58),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(textOf(l['producto'], 'Producto'))),
-                  Text('× ${integer(l['cantidad'])}'),
-                ],
-              ),
-              if (l['isr_centavos'] != null)
-                DefinitionRow('ISR', money(l['isr_centavos'], decimals: true)),
-              if (l['iva_centavos'] != null)
-                DefinitionRow('IVA', money(l['iva_centavos'], decimals: true)),
-              if (l['es_carrusel'] == true)
-                const InlineNotice(
-                  text: 'Video carrusel: puede tener una comisión menor.',
-                ),
-            ],
-          ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text(
+          embedded
+              ? '${_salesDate(date)} · $status · ${money(commission, decimals: true)}'
+              : '$status · $date',
         ),
-      NotesPanel(entidad: 'orden', entidadId: textOf(order['order_id'])),
-    ],
-  );
+      ),
+      children: [
+        DefinitionRow('Total', money(order['total_centavos'], decimals: true)),
+        DefinitionRow(
+          'Comisión estimada',
+          money(order['comision_estimada_centavos'], decimals: true),
+        ),
+        DefinitionRow(
+          'Comisión real',
+          money(order['comision_real_centavos'], decimals: true),
+        ),
+        for (final l in rowsOf(order['lineas']))
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    CortePhoto(textOf(l['imagen']), width: 52, height: 58),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(textOf(l['producto'], 'Producto'))),
+                    Text('× ${integer(l['cantidad'])}'),
+                  ],
+                ),
+                if (l['isr_centavos'] != null)
+                  DefinitionRow(
+                    'ISR',
+                    money(l['isr_centavos'], decimals: true),
+                  ),
+                if (l['iva_centavos'] != null)
+                  DefinitionRow(
+                    'IVA',
+                    money(l['iva_centavos'], decimals: true),
+                  ),
+                if (l['es_carrusel'] == true)
+                  const InlineNotice(
+                    text: 'Video carrusel: puede tener una comisión menor.',
+                  ),
+              ],
+            ),
+          ),
+        NotesPanel(entidad: 'orden', entidadId: textOf(order['order_id'])),
+      ],
+    );
+  }
 }

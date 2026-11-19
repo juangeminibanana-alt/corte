@@ -6,16 +6,12 @@ import 'work.dart';
 import 'catalog.dart';
 import 'settings.dart';
 import 'planner.dart';
-import 'desktop.dart';
 import 'desktop_shell.dart';
 
-const _destinations = <(String, String, IconData)>[
-  ('/inicio', 'Inicio', Icons.home_outlined),
-  ('/muestras', 'Muestras', Icons.inventory_2_outlined),
-  ('/tiendas', 'Tiendas', Icons.storefront_outlined),
-  ('/ventas', 'Ventas', Icons.bar_chart_rounded),
-  ('/videos', 'Videos', Icons.smart_display_outlined),
-  ('/productos', 'Productos', Icons.sell_outlined),
+const _salesDestinations = <(String, String)>[
+  ('ventas', 'Resumen'),
+  ('videos', 'Videos'),
+  ('productos', 'Productos'),
 ];
 
 class CorteShell extends StatefulWidget {
@@ -35,6 +31,14 @@ class _CorteShellState extends State<CorteShell> {
       if (parts.length > 1 && parts[1] == 'plan')
         return const BatchPlannerPage();
       if (parts.length > 1 && parts[1] == 'agenda') return const AgendaPage();
+      if (parts.length > 1 && parts[1] == 'avisos') {
+        return SampleStoreNoticesPage(
+          storeKeys: uri.queryParameters['tiendas']
+              ?.split(',')
+              .where((key) => key.isNotEmpty)
+              .toSet(),
+        );
+      }
       return SamplesPage(
         all: parts.length > 1 && parts[1] == 'todas',
         initialSearch: uri.queryParameters['q'] ?? '',
@@ -57,7 +61,9 @@ class _CorteShellState extends State<CorteShell> {
           : VideosPage(todos: uri.queryParameters['segmento'] == 'todos');
     if (parts[0] == 'ventas') return const SalesPage();
     if (parts[0] == 'ordenes') return const OrdersPage();
-    if (parts[0] == 'ajustes') return const SettingsPage();
+    if (parts[0] == 'ajustes') {
+      return SettingsPage(openTikTok: parts.length > 1 && parts[1] == 'tiktok');
+    }
     if (parts[0] == 'notas') return const NotesPage();
     if (parts[0] == 'recordatorios') return const RemindersPage();
     return EmptyState(
@@ -122,15 +128,13 @@ class _CorteShellState extends State<CorteShell> {
   @override
   Widget build(BuildContext context) {
     final ui = CorteScope.of(context);
-    final size = MediaQuery.sizeOf(context);
-    final mobile = size.width < 700;
-    final rail = size.width >= 700 && size.width < 1180;
+    final mobile = MediaQuery.sizeOf(context).width < 600;
     final uri = Uri.parse(ui.location);
     final root = uri.pathSegments.isEmpty ? 'inicio' : uri.pathSegments.first;
-    final active = mobile && {'videos', 'productos', 'ordenes'}.contains(root)
+    final active = {'videos', 'productos', 'ordenes'}.contains(root)
         ? 'ventas'
         : root;
-    if (useDesktopWorkspace(context)) {
+    if (!mobile) {
       return DesktopShell(
         body: KeyedSubtree(key: ValueKey(ui.location), child: _screen(uri)),
         onSearch: _search,
@@ -139,288 +143,199 @@ class _CorteShellState extends State<CorteShell> {
       );
     }
     return Scaffold(
-      body: Row(
+      body: Column(
         children: [
-          if (!mobile)
-            Container(
-              width: rail ? 82 : 224,
-              color: CorteColors.chrome,
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        rail ? 20 : 24,
-                        27,
-                        rail ? 20 : 24,
-                        34,
+          ColoredBox(
+            color: CorteColors.chrome,
+            child: SafeArea(
+              bottom: false,
+              child: SizedBox(
+                height: 56,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: CorteWordmark(markSize: 25, gap: 8),
                       ),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: CorteWordmark(
-                          markSize: 29,
-                          gap: 10,
-                          showLabel: !rail,
+                      IconButton(
+                        onPressed: _search,
+                        tooltip: 'Buscar en CUTGC',
+                        icon: const Icon(
+                          Icons.search_rounded,
+                          color: Colors.white,
+                          size: 22,
                         ),
                       ),
-                    ),
-                    for (var i = 0; i < _destinations.length; i++) ...[
-                      if (i == 3)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 17,
-                          ),
-                          child: Divider(color: Color(0xFF292A30)),
-                        ),
-                      _SidebarItem(
-                        destination: _destinations[i],
-                        active: root == _destinations[i].$1.substring(1),
-                        rail: rail,
-                        onTap: () => ui.go(_destinations[i].$1),
+                      IconButton(
+                        onPressed: _syncing ? null : _sync,
+                        tooltip: _syncing
+                            ? 'Sincronizando'
+                            : 'Actualizar datos',
+                        icon: _syncing
+                            ? const SizedBox.square(
+                                dimension: 19,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: CorteColors.cyan,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.sync_rounded,
+                                color: CorteColors.chromeMuted,
+                                size: 22,
+                              ),
                       ),
                     ],
-                    const Spacer(),
-                    _SidebarItem(
-                      destination: (
-                        '/ajustes',
-                        'Ajustes',
-                        Icons.settings_outlined,
-                      ),
-                      active: root == 'ajustes',
-                      rail: rail,
-                      onTap: () => ui.go('/ajustes'),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Text(
-                        ui.auth.state.offline
-                            ? 'Copia sin conexión'
-                            : 'Conectado a Google',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: CorteColors.chromeMuted,
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
+          ),
+          if (ui.auth.state.offline)
+            const InlineNotice(
+              text:
+                  'Sin conexión. CUTGC mostrará la información que ya esté guardada en este dispositivo.',
+            ),
+          if (!ui.storageAvailable)
+            const InlineNotice(
+              text:
+                  'No está disponible la copia local. Mantén conexión para guardar cambios.',
+            ),
+          if (active == 'ventas')
+            _MobileSalesTabs(
+              selected: root == 'ordenes' ? 'ventas' : root,
+              onSelect: (id) => ui.go('/$id'),
+            ),
           Expanded(
-            child: Column(
-              children: [
-                ColoredBox(
-                  color: CorteColors.chrome,
-                  child: SafeArea(
-                    bottom: false,
-                    child: SizedBox(
-                      height: 56,
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: mobile ? 20 : 28,
-                        ),
-                        child: Row(
-                          children: [
-                            if (mobile)
-                              const Expanded(
-                                child: CorteWordmark(markSize: 25, gap: 8),
-                              )
-                            else
-                              const Spacer(),
-                            IconButton(
-                              onPressed: _search,
-                              tooltip: 'Buscar en CUTGC',
-                              icon: const Icon(
-                                Icons.search_rounded,
-                                color: Colors.white,
-                                size: 22,
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: _syncing ? null : _sync,
-                              tooltip: _syncing
-                                  ? 'Sincronizando'
-                                  : 'Actualizar datos',
-                              icon: _syncing
-                                  ? const SizedBox.square(
-                                      dimension: 19,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: CorteColors.cyan,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.sync_rounded,
-                                      color: CorteColors.chromeMuted,
-                                      size: 22,
-                                    ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                if (ui.auth.state.offline)
-                  const InlineNotice(
-                    text:
-                        'Sin conexión. CUTGC mostrará la información que ya esté guardada en este dispositivo.',
-                  ),
-                if (!ui.storageAvailable)
-                  const InlineNotice(
-                    text:
-                        'No está disponible la copia local. Mantén conexión para guardar cambios.',
-                  ),
-                Expanded(
-                  child: KeyedSubtree(
-                    key: ValueKey(ui.location),
-                    child: _screen(uri),
-                  ),
-                ),
-              ],
+            child: KeyedSubtree(
+              key: ValueKey(ui.location),
+              child: _screen(uri),
             ),
           ),
         ],
       ),
-      bottomNavigationBar: mobile
-          ? ColoredBox(
-              color: CorteColors.chrome,
-              child: SafeArea(
-                top: false,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 68),
-                  child: IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (final item in [
-                          _destinations[0],
-                          _destinations[1],
-                          _destinations[2],
-                          _destinations[3],
-                          ('/ajustes', 'Más', Icons.more_horiz_rounded),
-                        ])
-                          Expanded(
-                            child: Semantics(
-                              selected: active == item.$1.substring(1),
-                              child: InkWell(
-                                onTap: () => ui.go(item.$1),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      item.$3,
-                                      size: 24,
-                                      color: active == item.$1.substring(1)
-                                          ? CorteColors.coral
-                                          : Colors.white,
-                                    ),
-                                    const SizedBox(height: 5),
-                                    Text(
-                                      item.$2,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: active == item.$1.substring(1)
-                                            ? const Color(0xFFFF5275)
-                                            : Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 5),
-                                    Container(
-                                      height: 3,
-                                      width: 26,
-                                      decoration: BoxDecoration(
-                                        color: active == item.$1.substring(1)
-                                            ? CorteColors.coral
-                                            : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
-                                    ),
-                                  ],
+      bottomNavigationBar: ColoredBox(
+        color: CorteColors.chrome,
+        child: SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 68),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final item in [
+                    corteDestinations[0],
+                    corteDestinations[1],
+                    corteDestinations[2],
+                    corteDestinations[3],
+                    ('/ajustes', 'Más', Icons.more_horiz_rounded),
+                  ])
+                    Expanded(
+                      child: Semantics(
+                        selected: active == item.$1.substring(1),
+                        child: InkWell(
+                          onTap: () => ui.go(item.$1),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                item.$3,
+                                size: 24,
+                                color: active == item.$1.substring(1)
+                                    ? CorteColors.coral
+                                    : Colors.white,
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                item.$2,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: active == item.$1.substring(1)
+                                      ? const Color(0xFFFF5275)
+                                      : Colors.white,
                                 ),
                               ),
-                            ),
+                              const SizedBox(height: 5),
+                              Container(
+                                height: 3,
+                                width: 26,
+                                decoration: BoxDecoration(
+                                  color: active == item.$1.substring(1)
+                                      ? CorteColors.coral
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ],
                           ),
-                      ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                ],
               ),
-            )
-          : null,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
-class _SidebarItem extends StatelessWidget {
-  const _SidebarItem({
-    required this.destination,
-    required this.active,
-    required this.rail,
-    required this.onTap,
-  });
-  final (String, String, IconData) destination;
-  final bool active, rail;
-  final VoidCallback onTap;
+class _MobileSalesTabs extends StatelessWidget {
+  const _MobileSalesTabs({required this.selected, required this.onSelect});
+
+  final String selected;
+  final ValueChanged<String> onSelect;
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-    child: Material(
-      color: active ? CorteColors.action : Colors.transparent,
-      borderRadius: BorderRadius.circular(8),
-      child: Semantics(
-        selected: active,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: rail ? 4 : 12,
-              vertical: 13,
-            ),
-            child: rail
-                ? Tooltip(
-                    message: destination.$2,
-                    child: Column(
-                      children: [
-                        Icon(destination.$3, size: 22, color: Colors.white),
-                        const SizedBox(height: 6),
-                        Text(
-                          destination.$2,
-                          maxLines: 1,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : Row(
-                    children: [
-                      Icon(destination.$3, size: 22, color: Colors.white),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          destination.$2,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
+  Widget build(BuildContext context) => Material(
+    color: CorteColors.chrome,
+    child: Row(
+      children: [
+        for (final (id, label) in _salesDestinations)
+          Expanded(
+            child: Semantics(
+              button: true,
+              selected: selected == id,
+              child: InkWell(
+                onTap: () => onSelect(id),
+                child: Container(
+                  alignment: Alignment.center,
+                  constraints: const BoxConstraints(minHeight: 44),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 8,
                   ),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        width: 2,
+                        color: selected == id
+                            ? CorteColors.coral
+                            : Colors.transparent,
+                      ),
+                    ),
+                  ),
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: selected == id
+                          ? Colors.white
+                          : CorteColors.chromeMuted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+      ],
     ),
   );
 }

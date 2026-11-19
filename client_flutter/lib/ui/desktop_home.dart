@@ -5,217 +5,815 @@ import 'package:flutter/material.dart';
 import '../app.dart';
 import '../domain/domain.dart';
 import 'format.dart';
-import 'theme.dart';
-import 'widgets.dart';
-import 'work.dart' show SampleTile, samplePending;
 import 'home_sales.dart';
 import 'home_tiktok.dart';
+import 'theme.dart';
+import 'widgets.dart';
+import 'work.dart' show productName, samplePending;
 
-/// Desktop uses the same scoped API data and actions as the phone home screen.
-/// Only the composition and information density differ.
-class DesktopHomePage extends StatelessWidget {
+const _sectionStyle = TextStyle(
+  fontSize: 21,
+  height: 1.35,
+  fontWeight: FontWeight.w700,
+  letterSpacing: -.4,
+);
+typedef _HomeScope = (CorteUiController, String?, String?);
+
+/// The hierarchy of the web home, backed by the native scoped repository.
+class DesktopHomePage extends StatefulWidget {
   const DesktopHomePage({super.key});
 
   @override
-  Widget build(BuildContext context) => ApiData(
-    path: '/api/dashboard',
-    query: const {'periodo': '30d'},
-    builder: (context, data) {
-      final ui = CorteScope.of(context);
-      final kpis = mapOf(data['kpis']);
-      final points = rowsOf(mapOf(data['serie'])['puntos']);
-      final stores = rowsOf(data['top_tiendas']);
-      return RefreshIndicator(
-        onRefresh: () async => ui.refresh(),
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(28, 24, 28, 32),
-          children: [
-            PageTitle(
-              'Inicio',
-              subtitle: 'Tus resultados y próximos pasos',
-              action: OutlinedButton.icon(
-                onPressed: () => ui.go('/muestras'),
-                icon: const Icon(Icons.inventory_2_outlined, size: 18),
-                label: const Text('Ver muestras'),
-              ),
-            ),
-            HomeTikTokProfile(profile: DashboardDto(data).perfilTikTok),
-            HomeSalesOverview(actualidad: mapOf(data['actualidad'])),
-            const SizedBox(height: 24),
-            const SectionHeading('Últimos 30 días'),
-            _DesktopMetrics([
-              (
-                'Comisión · últimos 30 días',
-                money(kpis['comision_total_centavos']),
-              ),
-              ('Ventas', money(kpis['ventas_centavos'])),
-              (
-                'Pedidos válidos',
-                kpis['pedidos_validos'] == null
-                    ? '—'
-                    : integer(kpis['pedidos_validos']),
-              ),
-              (
-                'Unidades',
-                kpis['unidades'] == null ? '—' : integer(kpis['unidades']),
-              ),
-            ], key: const ValueKey('home-history-metrics')),
-            const SizedBox(height: 24),
-            LayoutBuilder(
-              builder: (context, limits) {
-                final twoColumns =
-                    limits.maxWidth >= 850 &&
-                    MediaQuery.textScalerOf(context).scale(14) / 14 <= 1.6;
-                final pending = _DesktopPanel(
-                  title: 'Tu próximo video',
-                  action: TextButton(
-                    onPressed: () => ui.go('/muestras'),
-                    child: const Text('Ver todas'),
-                  ),
-                  child: ApiData(
-                    path: '/api/muestras',
-                    padding: EdgeInsets.zero,
-                    builder: (context, response) {
-                      final items = rowsOf(
-                        response['items'],
-                      ).where(samplePending).take(4).toList();
-                      if (items.isEmpty) {
-                        return const EmptyState(
-                          'Estás al día',
-                          text: 'Tus muestras pendientes aparecerán aquí.',
-                        );
-                      }
-                      return Column(
-                        children: [
-                          for (final sample in items)
-                            SampleTile(muestra: sample, compact: true),
-                        ],
-                      );
-                    },
-                  ),
-                );
-                final results = Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _DesktopPanel(
-                      title: 'Comisión estimada',
-                      subtitle: 'Últimos 30 días',
-                      child: _DesktopCommissionChart(points),
-                    ),
-                    const SizedBox(height: 20),
-                    _DesktopPanel(
-                      // The server orders this shortlist by attention, not by
-                      // earnings. Do not imply an unsupported sales ranking.
-                      title: 'Tiendas',
-                      action: TextButton(
-                        onPressed: () => ui.go('/tiendas'),
-                        child: const Text('Ver tiendas'),
-                      ),
-                      child: stores.isEmpty
-                          ? const EmptyState(
-                              'Todavía no hay tiendas en este periodo',
-                            )
-                          : Column(
-                              children: [
-                                for (final shop in stores.take(3))
-                                  _DesktopStoreRow(shop),
-                              ],
-                            ),
-                    ),
-                  ],
-                );
-                if (!twoColumns) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [pending, const SizedBox(height: 24), results],
-                  );
-                }
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 165, child: pending),
-                    const SizedBox(width: 24),
-                    Expanded(flex: 100, child: results),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
-      );
-    },
-  );
+  State<DesktopHomePage> createState() => _HomeState();
 }
 
-class _DesktopMetrics extends StatelessWidget {
-  const _DesktopMetrics(this.metrics, {super.key});
-  final List<(String, String)> metrics;
+class _HomeState extends State<DesktopHomePage> {
+  _HomeScope? _scope;
+  int? _revision;
+  late Future<SesionDto> _session;
+  late Future<DashboardDto> _dashboard;
+  late Future<MuestrasDto> _samples;
+  bool _updating = false;
+  String? _notice;
+
+  _HomeScope _scopeFor(CorteUiController ui) =>
+      (ui, ui.repo.ownerScope, ui.repo.cacheScope);
+
+  void _load(CorteUiController ui) {
+    final scope = _scopeFor(ui);
+    if (_scope != scope) {
+      _scope = scope;
+      _revision = null;
+      _updating = false;
+      _notice = null;
+    }
+    if (_revision == ui.revision) return;
+    _revision = ui.revision;
+    _session = ui.repo.sesion();
+    _dashboard = ui.repo.dashboard();
+    _samples = ui.repo.muestras();
+  }
+
+  Future<void> _update(CorteUiController ui, SesionDto? session) async {
+    if (_updating || session?.sync?.enCurso == true) return;
+    final scope = _scopeFor(ui);
+    setState(() {
+      _updating = true;
+      _notice = null;
+    });
+    try {
+      if (session?.conectada == true &&
+          session?.capacidades?['sincronizar'] == true) {
+        await ui.synchronize();
+      } else {
+        ui.refresh();
+      }
+      if (!mounted || scope != _scopeFor(ui)) return;
+      _load(ui);
+      await Future.wait<Object>([_session, _dashboard, _samples]);
+      if (!mounted || scope != _scopeFor(ui)) return;
+      setState(() {
+        _notice = session?.conectada == true
+            ? 'Actualización solicitada. Tus datos aparecerán al terminar la sincronización.'
+            : 'Actualización solicitada.';
+      });
+    } catch (_) {
+      if (mounted && scope == _scopeFor(ui)) {
+        setState(() {
+          _notice =
+              'No pudimos actualizar. Revisa tu conexión e inténtalo de nuevo.';
+        });
+      }
+    } finally {
+      if (mounted && scope == _scopeFor(ui)) {
+        setState(() => _updating = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ui = CorteScope.of(context);
+    _load(ui);
+    // The session request is not cached. An offline failure here must not
+    // prevent cached sample work or results from rendering.
+    return FutureBuilder<SesionDto>(
+      key: ValueKey(_scope),
+      future: _session,
+      builder: (context, session) => FutureBuilder<DashboardDto>(
+        future: _dashboard,
+        builder: (context, dashboard) => FutureBuilder<MuestrasDto>(
+          future: _samples,
+          builder: (context, samples) =>
+              _body(context, ui, session, dashboard, samples),
+        ),
+      ),
+    );
+  }
+
+  Widget _body(
+    BuildContext context,
+    CorteUiController ui,
+    AsyncSnapshot<SesionDto> session,
+    AsyncSnapshot<DashboardDto> dashboard,
+    AsyncSnapshot<MuestrasDto> samples,
+  ) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final updating = _updating || session.data?.sync?.enCurso == true;
+    final sessionData = session.data?.datos;
+    final showKpis =
+        sessionData == null ||
+        sessionData['hay_datos'] == true ||
+        sessionData['ultima_sync_ok_at'] != null;
+    return RefreshIndicator(
+      onRefresh: () => _update(ui, session.data),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(
+          compact ? 20 : 28,
+          compact ? 24 : 32,
+          compact ? 20 : 28,
+          36,
+        ),
+        children: [
+          _HomeHeader(
+            updating: updating,
+            onRefresh: () => _update(ui, session.data),
+          ),
+          if (_notice case final notice?) ...[
+            const SizedBox(height: 12),
+            Semantics(
+              liveRegion: true,
+              child: Text(
+                notice,
+                style: TextStyle(fontSize: 13, color: context.corte.muted),
+              ),
+            ),
+          ],
+          if (session.data?.conexion != null &&
+              session.data?.conectada == false) ...[
+            const SizedBox(height: 24),
+            const _ConnectShop(),
+          ] else if (session.hasError) ...[
+            const SizedBox(height: 24),
+            const InlineNotice(
+              text:
+                  'No pudimos cargar tu cuenta. Usa Actualizar para volver a intentarlo.',
+              error: true,
+            ),
+          ],
+          const SizedBox(height: 28),
+          _HomeResults(dashboard: dashboard, showKpis: showKpis),
+          const SizedBox(height: 28),
+          LayoutBuilder(
+            builder: (context, limits) {
+              final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+              final priorities = _HomePriorities(
+                samples: samples,
+                retry: () => setState(() => _samples = ui.repo.muestras()),
+              );
+              const shortcuts = _HomeShortcuts();
+              if (limits.maxWidth < 640 * scale) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [priorities, const SizedBox(height: 20), shortcuts],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 14, child: priorities),
+                  const SizedBox(width: 20),
+                  const Expanded(flex: 10, child: shortcuts),
+                ],
+              );
+            },
+          ),
+          if (dashboard.data case final data?) ...[
+            const SizedBox(height: 32),
+            _NativeResults(dashboard: data),
+          ],
+          const SizedBox(height: 26),
+          Text(
+            'CUTGC · Tu espacio para crear y crecer',
+            style: TextStyle(fontSize: 13, color: context.corte.muted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader({required this.updating, required this.onRefresh});
+  final bool updating;
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, limits) {
-      final scale = MediaQuery.textScalerOf(context).scale(12) / 12;
-      final columns = limits.maxWidth >= 700 * scale
-          ? 4
-          : limits.maxWidth >= 340 * scale
-          ? 2
-          : 1;
-      return Column(
+      final wide =
+          limits.maxWidth >= 600 &&
+          MediaQuery.textScalerOf(context).scale(14) <= 22;
+      final heading = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (var start = 0; start < metrics.length; start += columns) ...[
-            if (start > 0) const SizedBox(height: 12),
-            IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (
-                    var index = start;
-                    index < math.min(start + columns, metrics.length);
-                    index++
-                  ) ...[
-                    if (index > start) const SizedBox(width: 14),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: context.corte.soft,
-                          border: Border.all(color: context.corte.line),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              metrics[index].$1,
-                              style: TextStyle(
-                                fontSize: 12,
-                                height: 1.4,
-                                color: context.corte.muted,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              metrics[index].$2,
-                              style: const TextStyle(
-                                fontSize: 24,
-                                height: 1.25,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: -.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+          Semantics(
+            header: true,
+            child: Text(
+              'Tu negocio, en orden',
+              style: TextStyle(
+                fontSize: (MediaQuery.sizeOf(context).width * .028)
+                    .clamp(30, 40)
+                    .toDouble(),
+                height: 1.2,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -1.1,
+              ),
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            'Tus resultados y próximos pasos, en un solo lugar.',
+            style: TextStyle(
+              fontSize: wide ? 17 : 15,
+              height: 1.5,
+              color: context.corte.muted,
+            ),
+          ),
+        ],
+      );
+      final action = OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: context.corte.ink,
+          backgroundColor: context.corte.soft,
+          side: BorderSide(color: context.corte.line),
+          minimumSize: Size(wide ? 120 : 105, 44),
+        ),
+        onPressed: updating ? null : onRefresh,
+        child: Text(updating ? 'Actualizando…' : 'Actualizar'),
+      );
+      return wide
+          ? Row(
+              children: [
+                Expanded(child: heading),
+                const SizedBox(width: 24),
+                action,
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [heading, const SizedBox(height: 14), action],
+            );
+    },
+  );
+}
+
+class _ConnectShop extends StatelessWidget {
+  const _ConnectShop();
+
+  @override
+  Widget build(BuildContext context) => _HomePanel(
+    child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: LayoutBuilder(
+        builder: (context, limits) {
+          final wide =
+              limits.maxWidth >= 700 &&
+              MediaQuery.textScalerOf(context).scale(14) <= 20;
+          final details = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Semantics(
+                header: true,
+                child: const Text(
+                  'Conecta tu cuenta de TikTok Shop',
+                  style: _sectionStyle,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Consulta tus comisiones y organiza tus muestras.\nTus datos aparecerán después de la primera sincronización.',
+                style: TextStyle(
+                  fontSize: 15,
+                  height: 1.5,
+                  color: context.corte.muted,
+                ),
+              ),
+            ],
+          );
+          final button = FilledButton(
+            onPressed: () => CorteScope.of(context).go('/ajustes/tiktok'),
+            child: const Text('Conectar cuenta'),
+          );
+          return wide
+              ? Row(
+                  children: [
+                    const Icon(Icons.storefront_outlined, size: 40),
+                    const SizedBox(width: 20),
+                    Expanded(child: details),
+                    const SizedBox(width: 20),
+                    button,
                   ],
-                ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [details, const SizedBox(height: 16), button],
+                );
+        },
+      ),
+    ),
+  );
+}
+
+class _HomeResults extends StatelessWidget {
+  const _HomeResults({required this.dashboard, required this.showKpis});
+  final AsyncSnapshot<DashboardDto> dashboard;
+  final bool showKpis;
+
+  @override
+  Widget build(BuildContext context) {
+    final kpis = showKpis ? dashboard.data?.kpis : null;
+    final orders = kpis?['pedidos'];
+    final unavailable = dashboard.hasError
+        ? 'No disponible'
+        : dashboard.connectionState == ConnectionState.waiting
+        ? 'Cargando resultados…'
+        : 'Sin datos todavía';
+    final metrics = [
+      (
+        'Ventas generadas',
+        money(kpis?['ventas_centavos']),
+        'Ventas atribuidas a tu contenido',
+      ),
+      (
+        'Comisión estimada',
+        money(kpis?['comision_estimada_centavos']),
+        'Estimación de TikTok Shop',
+      ),
+      (
+        'Pedidos',
+        orders is num ? integer(orders) : '—',
+        'Pedidos de los últimos 30 días',
+      ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Semantics(
+                header: true,
+                child: const Text(
+                  'Resultados',
+                  style: TextStyle(
+                    fontSize: 24,
+                    height: 1.3,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                'Últimos 30 días',
+                textAlign: TextAlign.end,
+                style: TextStyle(fontSize: 14, color: context.corte.muted),
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 14),
+        _HomePanel(
+          key: const ValueKey('home-history-metrics'),
+          child: LayoutBuilder(
+            builder: (context, limits) {
+              final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+              final wide = limits.maxWidth > 720 * scale;
+              final amountSize = wide
+                  ? (limits.maxWidth * .036).clamp(24, 36).toDouble()
+                  : (limits.maxWidth * .06).clamp(24, 32).toDouble();
+              final tiles = [
+                for (final (label, value, subtitle) in metrics)
+                  _HomeMetric(
+                    label: label,
+                    value: value,
+                    detail: value == '—' ? unavailable : subtitle,
+                    amountSize: amountSize,
+                    sideBySide: !wide && limits.maxWidth > 360 * scale,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: wide ? 28 : 20,
+                      vertical: wide ? 4 : 17,
+                    ),
+                  ),
+              ];
+              if (wide) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var i = 0; i < tiles.length; i++) ...[
+                          if (i > 0) const VerticalDivider(width: 1),
+                          Expanded(child: tiles[i]),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < tiles.length; i++) ...[
+                    if (i > 0) const Divider(indent: 20, endIndent: 20),
+                    tiles[i],
+                  ],
+                ],
+              );
+            },
+          ),
+        ),
+        if (dashboard.hasError) ...[
+          const SizedBox(height: 10),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              'No pudimos cargar tus resultados. Usa Actualizar para volver a intentarlo.',
+              style: TextStyle(fontSize: 13, color: context.corte.danger),
+            ),
+          ),
         ],
-      );
-    },
+      ],
+    );
+  }
+}
+
+class _HomeMetric extends StatelessWidget {
+  const _HomeMetric({
+    required this.label,
+    required this.value,
+    required this.detail,
+    required this.amountSize,
+    required this.sideBySide,
+    required this.padding,
+  });
+  final String label, value, detail;
+  final double amountSize;
+  final bool sideBySide;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = Text(
+      label,
+      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+    );
+    final amount = Text(
+      value,
+      style: TextStyle(
+        fontSize: amountSize,
+        fontWeight: FontWeight.w700,
+        height: 1.2,
+        letterSpacing: -.9,
+      ),
+    );
+    final description = Text(
+      detail,
+      style: TextStyle(fontSize: 13, height: 1.5, color: context.corte.muted),
+    );
+    return InkWell(
+      onTap: () => CorteScope.of(context).go('/ventas?periodo=30d'),
+      child: Padding(
+        padding: padding,
+        child: sideBySide
+            ? Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [title, const SizedBox(height: 4), description],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(child: amount),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  title,
+                  const SizedBox(height: 7),
+                  amount,
+                  const SizedBox(height: 7),
+                  description,
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _HomePanel extends StatelessWidget {
+  const _HomePanel({super.key, this.title, this.action, required this.child});
+  final String? title;
+  final Widget? action;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: context.corte.isDark ? context.corte.soft : context.corte.surface,
+    clipBehavior: Clip.antiAlias,
+    shape: RoundedRectangleBorder(
+      side: BorderSide(color: context.corte.line),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: title == null
+        ? child
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Semantics(
+                        header: true,
+                        child: Text(title!, style: _sectionStyle),
+                      ),
+                    ),
+                    if (action case final link?) ...[
+                      const SizedBox(width: 8),
+                      Flexible(child: link),
+                    ],
+                  ],
+                ),
+              ),
+              const Divider(),
+              child,
+            ],
+          ),
   );
+}
+
+class _HomePriorities extends StatelessWidget {
+  const _HomePriorities({required this.samples, required this.retry});
+  final AsyncSnapshot<MuestrasDto> samples;
+  final VoidCallback retry;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = samples.data?.items ?? const <MuestraDto>[];
+    final priorities = data.where((m) => samplePending(m.raw)).toList()
+      ..sort(_priorityOrder);
+    void openSamples() => CorteScope.of(context).go('/muestras');
+    return _HomePanel(
+      title: 'Tus prioridades',
+      action: TextButton(
+        onPressed: openSamples,
+        child: const Text('Ver muestras', textAlign: TextAlign.center),
+      ),
+      child: samples.hasError
+          ? EmptyState(
+              'No pudimos cargar tus muestras',
+              text: 'Revisa tu conexión y vuelve a intentarlo.',
+              icon: Icons.error_outline_rounded,
+              action: OutlinedButton(
+                onPressed: retry,
+                child: const Text('Reintentar'),
+              ),
+            )
+          : samples.connectionState == ConnectionState.waiting &&
+                !samples.hasData
+          ? Padding(
+              padding: const EdgeInsets.all(24),
+              child: Semantics(
+                liveRegion: true,
+                child: const Text('Cargando tus muestras…'),
+              ),
+            )
+          : priorities.isEmpty
+          ? EmptyState(
+              data.isEmpty
+                  ? 'Todo empieza con tus muestras'
+                  : 'Tus muestras están al día',
+              text: data.isEmpty
+                  ? 'Aquí verás qué productos necesitas grabar y cuándo publicarlos.'
+                  : 'No tienes muestras pendientes de publicar. Puedes revisar todas en Muestras.',
+              icon: data.isEmpty
+                  ? Icons.inventory_2_outlined
+                  : Icons.check_circle_outline_rounded,
+              action: OutlinedButton(
+                onPressed: openSamples,
+                child: const Text('Ir a muestras'),
+              ),
+            )
+          : Column(
+              children: [
+                for (final (index, item) in priorities.take(5).indexed) ...[
+                  if (index > 0) const Divider(indent: 16, endIndent: 16),
+                  _PriorityRow(item.raw),
+                ],
+              ],
+            ),
+    );
+  }
+}
+
+int _priorityOrder(MuestraDto a, MuestraDto b) {
+  final overdue = (b.grupo == 'vencida' ? 1 : 0).compareTo(
+    a.grupo == 'vencida' ? 1 : 0,
+  );
+  if (overdue != 0) return overdue;
+  const last = 9007199254740991;
+  final deadline = (a.fechaLimiteAt ?? last).compareTo(b.fechaLimiteAt ?? last);
+  if (deadline != 0) return deadline;
+  final position = intOf(
+    a.raw['posicion_cola'],
+    last,
+  ).compareTo(intOf(b.raw['posicion_cola'], last));
+  return position == 0 ? a.applicationId.compareTo(b.applicationId) : position;
+}
+
+class _PriorityRow extends StatelessWidget {
+  const _PriorityRow(this.sample);
+  final JsonMap sample;
+
+  @override
+  Widget build(BuildContext context) {
+    final product = mapOf(sample['producto']);
+    final name = textOf(mapOf(sample['tienda'])['nombre']);
+    final limit = sample['fecha_limite_at'];
+    final overdue = sample['grupo'] == 'vencida';
+    final now = DateTime.now();
+    final urgent =
+        overdue ||
+        (limit is int && limit * 1000 - now.millisecondsSinceEpoch < 172800000);
+    final deadline = overdue
+        ? 'Plazo vencido'
+        : limit is int
+        ? 'Vence ${_dayLabel(limit, now)}'
+        : sample['grupo'] == 'pausada'
+        ? 'Muestra pausada'
+        : 'Por organizar';
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      leading: ExcludeSemantics(
+        child: CortePhoto(
+          product['imagen'] is String ? product['imagen'] as String : null,
+          width: 48,
+          height: 48,
+          radius: 6,
+        ),
+      ),
+      title: Text(
+        productName(product),
+        style: const TextStyle(
+          fontSize: 14,
+          height: 1.4,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (name.isNotEmpty) Text(name),
+          Text(
+            deadline,
+            style: TextStyle(
+              color: urgent ? context.corte.danger : context.corte.muted,
+              fontWeight: urgent ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+      trailing: const Icon(Icons.chevron_right_rounded, size: 18),
+      onTap: () => CorteScope.of(context).go(
+        '/muestras/m/${Uri.encodeComponent(textOf(sample['application_id']))}',
+      ),
+    );
+  }
+}
+
+String _dayLabel(int seconds, DateTime now) {
+  const weekdays = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
+  const offset = Duration(hours: 6);
+  final local = DateTime.fromMillisecondsSinceEpoch(
+    seconds * 1000,
+    isUtc: true,
+  ).subtract(offset);
+  final label =
+      '${weekdays[local.weekday - 1]} ${date(seconds - offset.inSeconds, utc: true)}';
+  return now.toUtc().subtract(offset).year == local.year
+      ? label
+      : '$label ${local.year}';
+}
+
+class _HomeShortcuts extends StatelessWidget {
+  const _HomeShortcuts();
+
+  static const _links = [
+    (
+      'Organizar muestras',
+      'Planea tus próximas publicaciones',
+      '/muestras',
+      Icons.inventory_2_outlined,
+    ),
+    (
+      'Revisar ventas',
+      'Consulta ingresos y comisiones',
+      '/ventas',
+      Icons.bar_chart_rounded,
+    ),
+    (
+      'Ver tus tiendas',
+      'Da seguimiento a cada colaboración',
+      '/tiendas',
+      Icons.storefront_outlined,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final ui = CorteScope.of(context);
+    return _HomePanel(
+      title: 'Accesos rápidos',
+      child: Column(
+        children: [
+          for (final (index, (title, detail, route, icon))
+              in _links.indexed) ...[
+            if (index > 0) const Divider(indent: 16, endIndent: 16),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              leading: Icon(icon, size: 24),
+              title: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(detail),
+              trailing: const Icon(Icons.chevron_right_rounded, size: 18),
+              onTap: () => ui.go(route),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _NativeResults extends StatelessWidget {
+  const _NativeResults({required this.dashboard});
+  final DashboardDto dashboard;
+
+  @override
+  Widget build(BuildContext context) {
+    final ui = CorteScope.of(context);
+    final points = rowsOf(dashboard.serie?['puntos']);
+    final stores = rowsOf(dashboard.raw['top_tiendas']);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Divider(),
+        const SizedBox(height: 20),
+        HomeTikTokProfile(profile: dashboard.perfilTikTok),
+        HomeSalesOverview(actualidad: dashboard.actualidad ?? const {}),
+        const SizedBox(height: 20),
+        _DesktopPanel(
+          title: 'Comisión estimada por día',
+          subtitle: 'Últimos 30 días',
+          child: _DesktopCommissionChart(points),
+        ),
+        const SizedBox(height: 20),
+        _DesktopPanel(
+          title: 'Tiendas',
+          action: TextButton(
+            onPressed: () => ui.go('/tiendas'),
+            child: const Text('Ver tiendas'),
+          ),
+          child: stores.isEmpty
+              ? const EmptyState('Todavía no hay tiendas en este periodo')
+              : Column(
+                  children: [
+                    for (final store in stores.take(3)) _DesktopStoreRow(store),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
 }
 
 class _DesktopPanel extends StatelessWidget {
@@ -252,7 +850,10 @@ class _DesktopPanel extends StatelessWidget {
                 ),
               ),
             ),
-            if (action != null) ...[const SizedBox(width: 8), action!],
+            if (action case final button?) ...[
+              const SizedBox(width: 8),
+              Flexible(child: button),
+            ],
           ],
         ),
         if (subtitle != null) ...[
