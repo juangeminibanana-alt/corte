@@ -64,6 +64,13 @@ class _ShopPublisherPageState extends State<ShopPublisherPage> {
     if (id != null && RegExp(r'^[0-9]{1,25}$').hasMatch(id)) _loadProduct(id);
   }
 
+  void _checkPermissions() {
+    final pending = CorteScope.of(context).repo.get('$shopBase/capacidades');
+    setState(() {
+      _capabilities = pending;
+    });
+  }
+
   Future<void> _loadProduct(String id) async {
     try {
       final data = await CorteScope.of(context).repo.get('/api/productos/$id');
@@ -383,11 +390,7 @@ class _ShopPublisherPageState extends State<ShopPublisherPage> {
                     children: [
                       InlineNotice(text: _message(snapshot.error!)),
                       TextButton(
-                        onPressed: () => setState(
-                          () => _capabilities = ui.repo.get(
-                            '$shopBase/capacidades',
-                          ),
-                        ),
+                        onPressed: _checkPermissions,
                         child: const Text('Volver a comprobar'),
                       ),
                     ],
@@ -417,11 +420,7 @@ class _ShopPublisherPageState extends State<ShopPublisherPage> {
                           child: const Text('Abrir conexión de TikTok Shop'),
                         ),
                         TextButton(
-                          onPressed: () => setState(
-                            () => _capabilities = ui.repo.get(
-                              '$shopBase/capacidades',
-                            ),
-                          ),
+                          onPressed: _checkPermissions,
                           child: const Text('Comprobar permiso'),
                         ),
                       ],
@@ -730,9 +729,13 @@ class _ShopAgendaState extends State<_ShopAgenda> {
     }
   }
 
-  void _reload() => setState(
-    () => _data = CorteScope.of(context).repo.get('$shopBase/agenda'),
-  );
+  void _reload() {
+    final pending = CorteScope.of(context).repo.get('$shopBase/agenda');
+    setState(() {
+      _data = pending;
+    });
+  }
+
   Future<void> _cancel(JsonMap item) async {
     final id = textOf(item['id']);
     final repo = CorteScope.of(context).repo, scope = repo.cacheScope;

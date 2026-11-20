@@ -1,5 +1,4 @@
 """Agenda real en SQLite temporal, reloj controlado y transporte sintético."""
-import json
 from pathlib import Path
 import sqlite3
 import sys
