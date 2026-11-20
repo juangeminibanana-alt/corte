@@ -6,7 +6,6 @@ import '../app.dart';
 import '../domain/domain.dart';
 import '../platform/android_startup.dart';
 import 'corte_icons.dart';
-import 'desktop.dart';
 import 'format.dart';
 import 'home_sales.dart';
 import 'home_tiktok.dart';
@@ -608,7 +607,7 @@ class _HomeRecentOrders extends StatelessWidget {
 }
 
 class _HomePanel extends StatelessWidget {
-  const _HomePanel({super.key, this.title, this.action, required this.child});
+  const _HomePanel({this.title, this.action, required this.child});
   final String? title;
   final Widget? action;
   final Widget child;
