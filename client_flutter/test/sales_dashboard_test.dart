@@ -80,10 +80,10 @@ class _SalesFixture {
     'kpis': {
       'comision_total_centavos': 841300,
       'comision_estimada_centavos': 883900,
-      'comision_liquidada_centavos': 261300,
-      'comision_por_liquidar_centavos': 580000,
-      'comision_perdida_reembolsos_centavos': 205800,
-      'comision_retenida_centavos': 0,
+      'comision_liquidada_centavos': 261325,
+      'comision_por_liquidar_centavos': 579975,
+      'comision_perdida_reembolsos_centavos': 205851,
+      'comision_retenida_centavos': 2451,
       'pedidos': 358,
       'pedidos_validos': 301,
       'pedidos_reembolsados': 95,
@@ -171,9 +171,14 @@ void main() {
         desktop: true,
       );
       expect(find.text('Tu dinero · últimos 30 días'), findsOneWidget);
+      expect(find.text('Comisión del período'), findsOneWidget);
       expect(find.textContaining('21 oct – 19 nov'), findsOneWidget);
-      expect(find.text(r'$8,413'), findsWidgets);
-      expect(find.text(r'$8,839'), findsNothing);
+      expect(find.text(r'$8,413.00 MXN'), findsOneWidget);
+      expect(find.text(r'$8,839.00 MXN'), findsNothing);
+      expect(find.text(r'$2,613.25'), findsOneWidget);
+      expect(find.text(r'$5,799.75'), findsOneWidget);
+      expect(find.text(r'$2,058.51'), findsOneWidget);
+      expect(find.text(r'$24.51'), findsOneWidget);
       expect(find.text('358'), findsOneWidget);
       expect(find.text('301'), findsNothing);
       expect(find.text('26.5 %'), findsOneWidget);

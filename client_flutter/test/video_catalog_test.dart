@@ -404,6 +404,8 @@ void main() {
       '/api/notas': {'items': <Object>[], 'total': 0, 'data_version': 1},
     });
     expect(find.text('Probador de vestidos'), findsOneWidget);
+    await tester.drag(find.byType(ListView).first, const Offset(0, -480));
+    await tester.pumpAndSettle();
     expect(
       find.text('Este video aún no tiene ventas desde que se publicó.'),
       findsOneWidget,
@@ -425,6 +427,8 @@ void main() {
       },
       '/api/notas': {'items': <Object>[], 'total': 0, 'data_version': 1},
     });
+    await tester.drag(find.byType(ListView).first, const Offset(0, -480));
+    await tester.pumpAndSettle();
     expect(find.text('Este video no tiene ventas registradas en CUTGC.'), findsOneWidget);
     expect(find.textContaining('todavía no tiene pedidos guardados'), findsNothing);
   });

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app.dart';
+import 'corte_icons.dart';
 import 'editors.dart';
 import 'format.dart';
 import 'theme.dart';
@@ -10,12 +11,21 @@ import 'desktop.dart';
 import 'desktop_home.dart';
 
 EdgeInsets pagePadding(BuildContext context) => useDesktopWorkspace(context)
-    ? const EdgeInsets.fromLTRB(24, 20, 24, 32)
+    ? const EdgeInsets.fromLTRB(
+        CorteSpace.xl,
+        CorteSpace.large,
+        CorteSpace.xl,
+        CorteSpace.xxl,
+      )
     : EdgeInsets.fromLTRB(
-        MediaQuery.sizeOf(context).width < 700 ? 20 : 32,
-        24,
-        MediaQuery.sizeOf(context).width < 700 ? 20 : 32,
-        40,
+        MediaQuery.sizeOf(context).width < 700
+            ? CorteSpace.large
+            : CorteSpace.xxl,
+        CorteSpace.xl,
+        MediaQuery.sizeOf(context).width < 700
+            ? CorteSpace.large
+            : CorteSpace.xxl,
+        CorteSpace.block,
       );
 String productName(Map<String, dynamic> p) =>
     textOf(p['titulo_corto'], textOf(p['titulo'], 'Producto'));
@@ -262,11 +272,9 @@ class _SamplesPageState extends State<SamplesPage> {
   });
 
   List<_SampleRow> _visibleSamples(List<_SampleRow> source) {
-    final terms = _sampleSearchText(_query.text)
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((term) => term.isNotEmpty)
-        .toList();
+    final terms = _sampleSearchText(
+      _query.text,
+    ).trim().split(RegExp(r'\s+')).where((term) => term.isNotEmpty).toList();
     final filtered = source
         .where((sample) {
           final product = mapOf(sample['producto']);
@@ -553,221 +561,247 @@ class _SamplesPageState extends State<SamplesPage> {
   }
 
   @override
-  Widget build(BuildContext context) => ApiData(
-    path: '/api/muestras',
-    query: const {'orden': 'prioridad'},
-    builder: (context, data) {
-      final ui = CorteScope.of(context);
-      final desktop = useDesktopWorkspace(context);
-      final all = rowsOf(data['items']);
-      final queue = all
-          .where((sample) => _sampleGroups.contains(sample['grupo']))
-          .toList();
-      final pending = queue.where(samplePending).toList();
-      final source = widget.all
-          ? all
-          : queue
-                .where((sample) => _samplePrioritySection(sample) != null)
-                .toList();
-      final shops = <String, String>{};
-      final groups = <String>{};
-      for (final sample in source) {
-        final shop = mapOf(sample['tienda']);
-        final key = textOf(shop['tienda_key']);
-        final group = textOf(sample['grupo']);
-        if (key.isNotEmpty) shops[key] = textOf(shop['nombre'], 'Tienda');
-        if (group.isNotEmpty) groups.add(group);
-      }
-      final stores = _pendingSamplesByStore(pending);
-      final announced = stores.values
-          .where((items) => items.every(_sampleNoticeSent))
-          .length;
-      final plan =
-          pending
-              .map(
-                (sample) =>
-                    _sampleLocalDate(mapOf(sample['avance'])['fecha_planeada']),
-              )
-              .nonNulls
-              .toList()
-            ..sort();
-      final hasPlan = pending.any(
-        (sample) =>
-            textOf(mapOf(sample['avance'])['etapa'], 'por_planear') !=
-            'por_planear',
-      );
-      final notices = hasPlan && announced < stores.length;
-      final filtered = _visibleSamples(source);
-      final board = !widget.all && _view == 'tablero';
-      final table = desktop && _view == 'tabla';
-      final sections = board
-          ? const <_SampleSection>[]
-          : widget.all
-          ? <_SampleSection>[_SampleSection('todas', '', filtered)]
-          : _groupSamples(filtered, _grouping);
-      final rows = <(Widget?, _SampleRow?, String?)>[];
-      if (board && filtered.isNotEmpty) {
-        rows.add((
-          _SampleBoard(
-            samples: filtered,
-            buildTile: (sample) =>
-                _tile(sample, _samplePrioritySection(sample), table: false),
-          ),
-          null,
-          null,
-        ));
-      }
-      for (final section in sections) {
-        final collapsed = _collapsed[section.key] ?? section.key == 'no_hacer';
-        if (!widget.all) {
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, viewport) => ApiData(
+      path: '/api/muestras',
+      query: const {'orden': 'prioridad'},
+      builder: (context, data) {
+        final ui = CorteScope.of(context);
+        final desktop = useDesktopWorkspace(context);
+        final all = rowsOf(data['items']);
+        final queue = all
+            .where((sample) => _sampleGroups.contains(sample['grupo']))
+            .toList();
+        final pending = queue.where(samplePending).toList();
+        final source = widget.all
+            ? all
+            : queue
+                  .where((sample) => _samplePrioritySection(sample) != null)
+                  .toList();
+        final shops = <String, String>{};
+        final groups = <String>{};
+        for (final sample in source) {
+          final shop = mapOf(sample['tienda']);
+          final key = textOf(shop['tienda_key']);
+          final group = textOf(sample['grupo']);
+          if (key.isNotEmpty) shops[key] = textOf(shop['nombre'], 'Tienda');
+          if (group.isNotEmpty) groups.add(group);
+        }
+        final stores = _pendingSamplesByStore(pending);
+        final announced = stores.values
+            .where((items) => items.every(_sampleNoticeSent))
+            .length;
+        final plan =
+            pending
+                .map(
+                  (sample) => _sampleLocalDate(
+                    mapOf(sample['avance'])['fecha_planeada'],
+                  ),
+                )
+                .nonNulls
+                .toList()
+              ..sort();
+        final hasPlan = pending.any(
+          (sample) =>
+              textOf(mapOf(sample['avance'])['etapa'], 'por_planear') !=
+              'por_planear',
+        );
+        final notices = hasPlan && announced < stores.length;
+        final filtered = _visibleSamples(source);
+        final board = !widget.all && _view == 'tablero';
+        final table = desktop && _view == 'tabla';
+        final sections = board
+            ? const <_SampleSection>[]
+            : widget.all
+            ? <_SampleSection>[_SampleSection('todas', '', filtered)]
+            : _groupSamples(filtered, _grouping);
+        final paired =
+            desktop &&
+            !board &&
+            !table &&
+            viewport.maxWidth >=
+                850 * MediaQuery.textScalerOf(context).scale(1);
+        final rows = <(Widget?, _SampleRow?, _SampleRow?)>[];
+        if (board && filtered.isNotEmpty) {
           rows.add((
-            _SampleQueueHeading(
-              title: section.title,
-              count: section.samples.length,
-              collapsed: collapsed,
-              onPressed: () =>
-                  setState(() => _collapsed[section.key] = !collapsed),
+            _SampleBoard(
+              samples: filtered,
+              buildTile: (sample) =>
+                  _tile(sample, _samplePrioritySection(sample), table: false),
             ),
             null,
             null,
           ));
         }
-        if (collapsed || section.samples.isEmpty) continue;
-        if (table) {
-          rows.add((const _SampleTableHeader(), null, null));
+        for (final section in sections) {
+          final collapsed =
+              _collapsed[section.key] ?? section.key == 'no_hacer';
+          if (!widget.all) {
+            rows.add((
+              _SampleQueueHeading(
+                title: section.title,
+                count: section.samples.length,
+                collapsed: collapsed,
+                onPressed: () =>
+                    setState(() => _collapsed[section.key] = !collapsed),
+              ),
+              null,
+              null,
+            ));
+          }
+          if (collapsed || section.samples.isEmpty) continue;
+          if (table) {
+            rows.add((const _SampleTableHeader(), null, null));
+          }
+          for (var i = 0; i < section.samples.length; i += paired ? 2 : 1) {
+            final second = paired && i + 1 < section.samples.length
+                ? section.samples[i + 1]
+                : null;
+            rows.add((null, section.samples[i], second));
+          }
         }
-        for (final sample in section.samples) {
-          rows.add((
-            null,
-            sample,
-            widget.all ? null : _samplePrioritySection(sample),
-          ));
-        }
-      }
-      final count = widget.all
-          ? intOf(data['total'], all.length)
-          : pending.length;
-      final titleCount = integer(count);
-      final subtitle = widget.all
-          ? '$titleCount ${count == 1 ? 'muestra' : 'muestras'}'
-          : '$titleCount ${count == 1 ? 'pendiente' : 'pendientes'}';
-      final planLabel = hasPlan ? 'Rehacer mi plan' : 'Armar mi plan';
+        final count = widget.all
+            ? intOf(data['total'], all.length)
+            : pending.length;
+        final titleCount = integer(count);
+        final subtitle = widget.all
+            ? '$titleCount ${count == 1 ? 'muestra' : 'muestras'}'
+            : '$titleCount ${count == 1 ? 'pendiente' : 'pendientes'}';
+        final planLabel = hasPlan ? 'Rehacer mi plan' : 'Armar mi plan';
 
-      final list = RefreshIndicator(
-        onRefresh: () async => ui.refresh(),
-        child: ListView.builder(
-          key: PageStorageKey(widget.all ? 'todas' : 'pendientes'),
-          padding: pagePadding(context),
-          itemCount: rows.length + 1,
-          itemBuilder: (context, index) {
-            if (index > 0) {
-              final row = rows[index - 1];
-              if (row.$1 case final heading?) return heading;
-              return _tile(row.$2!, row.$3, table: table);
-            }
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                PageTitle(
-                  'Muestras',
-                  subtitle: subtitle,
-                  action: Wrap(
-                    spacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      if (pending.isNotEmpty)
-                        FilledButton.icon(
-                          onPressed: () => ui.go(
-                            notices ? '/muestras/avisos' : '/muestras/plan',
-                          ),
-                          icon: Icon(
-                            notices
-                                ? Icons.chat_bubble_outline_rounded
-                                : Icons.calendar_month_outlined,
-                            size: 18,
-                          ),
-                          label: Text(
-                            notices ? 'Avisar a mis tiendas' : planLabel,
-                          ),
-                        ),
-                      PopupMenuButton<String>(
-                        tooltip: 'Más acciones de muestras',
-                        onSelected: ui.go,
-                        itemBuilder: (_) => [
-                          if (notices)
-                            PopupMenuItem(
-                              value: '/muestras/plan',
-                              child: Text(planLabel),
-                            )
-                          else
-                            const PopupMenuItem(
-                              value: '/muestras/avisos',
-                              child: Text('Avisar a mis tiendas'),
+        final list = RefreshIndicator(
+          onRefresh: () async => ui.refresh(),
+          child: ListView.builder(
+            key: PageStorageKey(widget.all ? 'todas' : 'pendientes'),
+            padding: pagePadding(context),
+            itemCount: rows.length + 1,
+            itemBuilder: (context, index) {
+              if (index > 0) {
+                final row = rows[index - 1];
+                if (row.$1 case final heading?) return heading;
+                Widget sampleTile(_SampleRow sample) => _tile(
+                  sample,
+                  widget.all ? null : _samplePrioritySection(sample),
+                  table: table,
+                );
+                if (!paired) return sampleTile(row.$2!);
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: sampleTile(row.$2!)),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: row.$3 == null
+                          ? const SizedBox.shrink()
+                          : sampleTile(row.$3!),
+                    ),
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  PageTitle(
+                    'Prendas',
+                    subtitle: subtitle,
+                    action: Wrap(
+                      spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (pending.isNotEmpty)
+                          FilledButton.icon(
+                            onPressed: () => ui.go(
+                              notices ? '/muestras/avisos' : '/muestras/plan',
                             ),
-                        ],
-                      ),
-                    ],
+                            icon: Icon(
+                              notices
+                                  ? Icons.chat_bubble_outline_rounded
+                                  : Icons.calendar_month_outlined,
+                              size: 18,
+                            ),
+                            label: Text(
+                              notices ? 'Avisar a mis tiendas' : planLabel,
+                            ),
+                          ),
+                        PopupMenuButton<String>(
+                          tooltip: 'Más acciones de muestras',
+                          onSelected: ui.go,
+                          itemBuilder: (_) => [
+                            if (notices)
+                              PopupMenuItem(
+                                value: '/muestras/plan',
+                                child: Text(planLabel),
+                              )
+                            else
+                              const PopupMenuItem(
+                                value: '/muestras/avisos',
+                                child: Text('Avisar a mis tiendas'),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                _SampleTabs(
-                  current: widget.all ? '/muestras/todas' : '/muestras',
-                  total: intOf(data['total'], all.length),
-                  pending: pending.length,
-                ),
-                if (!widget.all && pending.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _SampleProgress(
-                    queue: queue,
-                    pending: pending,
-                    storeCount: stores.length,
-                    announced: announced,
-                    finish: plan.lastOrNull,
+                  _SampleTabs(
+                    current: widget.all ? '/muestras/todas' : '/muestras',
+                    total: intOf(data['total'], all.length),
+                    pending: pending.length,
                   ),
+                  if (!widget.all && pending.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _SampleProgress(
+                      queue: queue,
+                      pending: pending,
+                      storeCount: stores.length,
+                      announced: announced,
+                      finish: plan.lastOrNull,
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  if (source.isNotEmpty || _filterCount > 0)
+                    _tools(shops, groups, desktop),
+                  if (_filterCount > 0)
+                    Wrap(
+                      spacing: 16,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          '${integer(filtered.length)} '
+                          '${filtered.length == 1 ? 'resultado' : 'resultados'}',
+                        ),
+                        TextButton(
+                          onPressed: _clearFilters,
+                          child: const Text('Limpiar filtros'),
+                        ),
+                      ],
+                    ),
+                  if (filtered.isEmpty)
+                    EmptyState(
+                      source.isEmpty
+                          ? (widget.all
+                                ? 'Todavía no hay muestras'
+                                : 'No hay muestras pendientes')
+                          : 'Ninguna muestra coincide con estos filtros',
+                      text: source.isEmpty
+                          ? 'Las solicitudes de tu cuenta aparecerán aquí al sincronizar.'
+                          : 'Cambia la búsqueda o los filtros.',
+                    )
+                  else
+                    const SizedBox(height: 14),
                 ],
-                const SizedBox(height: 16),
-                if (source.isNotEmpty || _filterCount > 0)
-                  _tools(shops, groups, desktop),
-                if (_filterCount > 0)
-                  Wrap(
-                    spacing: 16,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        '${integer(filtered.length)} '
-                        '${filtered.length == 1 ? 'resultado' : 'resultados'}',
-                      ),
-                      TextButton(
-                        onPressed: _clearFilters,
-                        child: const Text('Limpiar filtros'),
-                      ),
-                    ],
-                  ),
-                if (filtered.isEmpty)
-                  EmptyState(
-                    source.isEmpty
-                        ? (widget.all
-                              ? 'Todavía no hay muestras'
-                              : 'No hay muestras pendientes')
-                        : 'Ninguna muestra coincide con estos filtros',
-                    text: source.isEmpty
-                        ? 'Las solicitudes de tu cuenta aparecerán aquí al sincronizar.'
-                        : 'Cambia la búsqueda o los filtros.',
-                  )
-                else
-                  const SizedBox(height: 14),
-              ],
-            );
-          },
-        ),
-      );
-      if (!_selecting) return list;
-      return Column(
-        children: [
-          Expanded(child: list),
-          _selectionBar(context, pending),
-        ],
-      );
-    },
+              );
+            },
+          ),
+        );
+        if (!_selecting) return list;
+        return Column(
+          children: [
+            Expanded(child: list),
+            _selectionBar(context, pending),
+          ],
+        );
+      },
+    ),
   );
 }
 
@@ -828,9 +862,9 @@ class _SampleBoard extends StatelessWidget {
                                 header: true,
                                 child: Text(
                                   stageLabel(stage),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
                                 ),
                               ),
                               Text(
@@ -1065,75 +1099,24 @@ class _SampleTabs extends StatelessWidget {
   final int? total, pending;
 
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      border: Border(bottom: BorderSide(color: context.corte.line)),
-    ),
-    child: LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        key: const PageStorageKey('muestras-pestanas'),
-        scrollDirection: Axis.horizontal,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minWidth: constraints.maxWidth),
-          child: Row(
-            mainAxisAlignment: useDesktopWorkspace(context)
-                ? MainAxisAlignment.start
-                : MainAxisAlignment.spaceBetween,
-            children: [
-              for (final tab in [
-                ('/muestras', 'Pendientes', pending),
-                ('/muestras/agenda', 'Agenda', null),
-                ('/muestras/todas', 'Todas', total),
-              ])
-                Semantics(
-                  selected: tab.$1 == current,
-                  child: InkWell(
-                    onTap: () => CorteScope.of(context).go(tab.$1),
-                    child: Container(
-                      constraints: const BoxConstraints(minHeight: 44),
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: tab.$1 == current
-                                ? CorteColors.coral
-                                : Colors.transparent,
-                            width: 3,
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Text(
-                            tab.$2,
-                            style: TextStyle(
-                              fontWeight: tab.$1 == current
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                            ),
-                          ),
-                          if (tab.$3 case final count?) ...[
-                            const SizedBox(width: 6),
-                            Text(
-                              integer(count),
-                              style: TextStyle(color: context.corte.muted),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+  Widget build(BuildContext context) {
+    final ui = CorteScope.of(context);
+    return CorteRouteTabs(
+      children: [
+        for (final (path, label, count) in [
+          ('/muestras', 'Pendientes', pending),
+          ('/muestras/agenda', 'Agenda', null),
+          ('/muestras/todas', 'Todas', total),
+        ])
+          CorteRouteTab(
+            label,
+            count: count,
+            selected: current == path,
+            onPressed: current == path ? null : () => ui.go(path),
           ),
-        ),
-      ),
-    ),
-  );
+      ],
+    );
+  }
 }
 
 bool _sampleColumnsFit(BuildContext context, double width) {
@@ -1246,6 +1229,12 @@ class _CompactSampleTile extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, limits) {
         final wide = table && _sampleColumnsFit(context, limits.maxWidth);
+        final editorial = !table && limits.maxWidth >= 235;
+        final photoWidth = !editorial
+            ? 52.0
+            : limits.maxWidth < 340
+            ? 76.0
+            : 96.0;
         final columns = _SampleColumnWidths(context);
         final stackAction = !wide && limits.maxWidth < 560 * columns.scale;
         final button = canAct
@@ -1280,9 +1269,9 @@ class _CompactSampleTile extends StatelessWidget {
             textOf(product['imagen']).isEmpty
                 ? null
                 : textOf(product['imagen']),
-            width: 52,
-            height: 58,
-            radius: 5,
+            width: photoWidth,
+            height: editorial ? photoWidth * 1.25 : 58,
+            radius: 6,
             label: productName(product),
           ),
         );
@@ -1302,10 +1291,11 @@ class _CompactSampleTile extends StatelessWidget {
                 productName(product),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 14,
-                  height: 1.3,
-                  fontWeight: FontWeight.w600,
+                style: TextStyle(
+                  fontFamily: editorial ? 'CUTGCDisplay' : null,
+                  fontSize: editorial ? 23 : 14,
+                  height: editorial ? 1.05 : 1.3,
+                  fontWeight: editorial ? FontWeight.w700 : FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 4),
@@ -1376,8 +1366,12 @@ class _CompactSampleTile extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   border: Border(
-                    left: BorderSide(color: context.corte.line),
-                    right: BorderSide(color: context.corte.line),
+                    left: wide
+                        ? BorderSide(color: context.corte.line)
+                        : BorderSide.none,
+                    right: wide
+                        ? BorderSide(color: context.corte.line)
+                        : BorderSide.none,
                     bottom: BorderSide(color: context.corte.line),
                   ),
                 ),
@@ -1904,40 +1898,50 @@ class AgendaPage extends StatelessWidget {
           if (plans.isEmpty)
             EmptyState(
               'Tu siguiente video empieza aquí',
-              text: 'Elige una muestra y asígnale una fecha para armar tu agenda.',
+              text:
+                  'Elige una muestra y asígnale una fecha para armar tu agenda.',
               action: OutlinedButton(
                 onPressed: () => ui.go('/muestras'),
                 child: const Text('Ver muestras'),
               ),
             ),
           for (final p in plans)
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(vertical: 8),
-              leading: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: context.corte.rose,
-                  borderRadius: BorderRadius.circular(9),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: context.corte.line)),
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: CorteSpace.small,
                 ),
-                child: Icon(
-                  Icons.movie_creation_outlined,
-                  color: context.corte.action,
-                ),
-              ),
-              title: Text(
-                textOf(p['titulo']),
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              subtitle: Text(
-                '${textOf(p['fecha_plan'], 'Sin fecha')} · ${stageLabel(p['estado'])}',
-              ),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: p['application_id'] == null
-                  ? () => showPlanEditor(context, const {}, plan: p)
-                  : () => ui.go(
-                      '/muestras/m/${Uri.encodeComponent(textOf(p['application_id']))}',
+                leading: SizedBox.square(
+                  dimension: CorteSpace.block,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: context.corte.selected,
+                      borderRadius: BorderRadius.circular(CorteRadius.control),
                     ),
+                    child: CorteIcon(
+                      CorteIconName.squarePlay,
+                      color: context.corte.action,
+                    ),
+                  ),
+                ),
+                title: Text(
+                  textOf(p['titulo']),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                subtitle: Text(
+                  '${textOf(p['fecha_plan'], 'Sin fecha')} · ${stageLabel(p['estado'])}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                trailing: const CorteIcon(CorteIconName.chevronRight),
+                onTap: p['application_id'] == null
+                    ? () => showPlanEditor(context, const {}, plan: p)
+                    : () => ui.go(
+                        '/muestras/m/${Uri.encodeComponent(textOf(p['application_id']))}',
+                      ),
+              ),
             ),
         ],
       );
@@ -2077,13 +2081,14 @@ class _StoresPageState extends State<StoresPage> {
           TextField(
             decoration: const InputDecoration(
               labelText: 'Buscar tienda',
-              prefixIcon: Icon(Icons.search_rounded),
+              prefixIcon: CorteIcon(CorteIconName.search),
             ),
             onChanged: (v) => setState(() => _search = v),
           ),
           const SizedBox(height: 14),
           Wrap(
-            spacing: 8,
+            spacing: CorteSpace.small,
+            runSpacing: CorteSpace.small,
             children: [
               for (final order in [
                 ('atencion', 'Por atender'),
@@ -2147,7 +2152,7 @@ class _StoresPageState extends State<StoresPage> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Icon(Icons.chevron_right_rounded),
+                    const CorteIcon(CorteIconName.chevronRight),
                   ],
                 ),
               ),

@@ -228,13 +228,21 @@ class _EvidenceStatus extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: context.corte.soft,
-        borderRadius: BorderRadius.circular(8),
+        color: state == 'error' ? context.corte.rose : context.corte.soft,
+        border: Border.all(color: context.corte.line),
+        borderRadius: BorderRadius.circular(CorteRadius.control),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(message, style: TextStyle(color: context.corte.muted)),
+          Text(
+            message,
+            style: TextStyle(
+              color: state == 'error'
+                  ? context.corte.danger
+                  : context.corte.muted,
+            ),
+          ),
           if (openOriginal != null && state != 'no_aplica') ...[
             const SizedBox(height: 8),
             TextButton.icon(
@@ -401,7 +409,7 @@ class _EvidencePhoto extends StatelessWidget {
       label: 'Ampliar $label',
       child: InkWell(
         onTap: () => _enlarge(context),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(CorteRadius.control),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -567,9 +575,11 @@ class _ProductReviewsState extends State<_ProductReviews> {
                     color: context.corte.action,
                   ),
                   const SizedBox(width: 5),
-                  Text(
-                    '${_summary.promedio} / 5',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  Flexible(
+                    child: Text(
+                      '${_summary.promedio} / 5',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                   ),
                 ],
               ),

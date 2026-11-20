@@ -6,6 +6,7 @@ import 'package:corte/platform/corte_runtime.dart';
 import 'package:corte/platform/data_store.dart';
 import 'package:corte/ui/shell.dart';
 import 'package:corte/ui/theme.dart';
+import 'package:corte/ui/widgets.dart' show CorteRouteTab;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -160,7 +161,7 @@ void main() {
     await _tap(tester, find.text('Cargar más'));
     expect(find.text('Segunda página LIVE'), findsOneWidget);
     expect(find.textContaining('Pendiente de agregar'), findsOneWidget);
-    await _tap(tester, find.widgetWithText(ChoiceChip, 'Vitrina'));
+    await _tap(tester, find.widgetWithText(CorteRouteTab, 'Vitrina'));
     expect(find.text('Primer producto LIVE'), findsNothing);
     expect(find.text('Producto de vitrina'), findsOneWidget);
     expect(find.text('Agregar productos'), findsOneWidget);

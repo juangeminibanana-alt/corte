@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 
 import '../app.dart';
 import '../data/corte_repository.dart';
+import '../platform/native_bridge.dart';
+import 'corte_icons.dart';
 import 'editors.dart';
 import 'format.dart';
 import 'theme.dart';
 import 'widgets.dart';
-import 'desktop.dart';
 import 'sales_notifications_settings.dart';
+import 'work.dart' show pagePadding;
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, this.openTikTok = false});
@@ -20,6 +22,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final _tikTokHeading = GlobalKey();
+  late final _lastAndroidExit = const CorteNativeBridge().lastAndroidExit();
 
   @override
   void initState() {
@@ -37,7 +40,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final ui = CorteScope.of(context);
     final auth = ui.auth.state;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: pagePadding(context),
       child: Align(
         alignment: Alignment.topLeft,
         child: ConstrainedBox(
@@ -49,6 +52,33 @@ class _SettingsPageState extends State<SettingsPage> {
                 'Ajustes',
                 subtitle: 'Tu cuenta y tu forma de trabajar.',
               ),
+              if (ui.auth.runtime.platform == 'android')
+                FutureBuilder<CorteAndroidExit?>(
+                  future: _lastAndroidExit,
+                  builder: (context, snapshot) {
+                    final exit = snapshot.data;
+                    if (exit == null) return const SizedBox.shrink();
+                    final reason = switch (exit.reason) {
+                      'crash' => 'Error interno',
+                      'native_crash' => 'Error de procesamiento en Android',
+                      'unresponsive' => 'La aplicación dejó de responder',
+                      'low_memory' => 'Memoria insuficiente',
+                      'startup_failure' => 'Fallo al iniciar',
+                      'resource_limit' => 'Límite de recursos de Android',
+                      _ => null,
+                    };
+                    if (reason == null) return const SizedBox.shrink();
+                    final status = exit.status == 0
+                        ? ''
+                        : ' · código ${exit.status}';
+                    return _SettingLine(
+                      label: 'Último cierre',
+                      value:
+                          '$reason · ${date(exit.time, time: true)}\n'
+                          'Android API ${exit.sdk}$status',
+                    );
+                  },
+                ),
               const SectionHeading('Apariencia'),
               const _AppearanceSettings(),
               if (ui.textSize.available)
@@ -80,20 +110,25 @@ class _SettingsPageState extends State<SettingsPage> {
               const SectionHeading('Avisos de ventas'),
               const SalesNotificationsSettings(),
               const SectionHeading('Tu cuenta de Google'),
-              _SettingLine(
-                label: 'Sesión',
-                value: auth.ownerEmail ?? 'Cuenta conectada',
-              ),
-              _SettingLine(
-                label: 'Conexión',
-                value: auth.connected ? 'En línea' : 'Sin conexión',
-              ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
-                  onPressed: () => confirmCorteSignOut(context),
-                  icon: const Icon(Icons.logout_rounded, size: 19),
-                  label: const Text('Salir de esta cuenta'),
+              CortePanel(
+                padding: const EdgeInsets.all(CorteSpace.large),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SettingLine(
+                      label: 'Sesión',
+                      value: auth.ownerEmail ?? 'Cuenta conectada',
+                    ),
+                    _SettingLine(
+                      label: 'Conexión',
+                      value: auth.connected ? 'En línea' : 'Sin conexión',
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => confirmCorteSignOut(context),
+                      icon: const CorteIcon(CorteIconName.logOut, size: 18),
+                      label: const Text('Salir de esta cuenta'),
+                    ),
+                  ],
                 ),
               ),
               SectionHeading('TikTok Shop', key: _tikTokHeading),
@@ -422,12 +457,12 @@ class _SettingLine extends StatelessWidget {
   final String label, value;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.only(bottom: useDesktopWorkspace(context) ? 10 : 15),
+    padding: const EdgeInsets.only(bottom: CorteSpace.medium),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(color: context.corte.muted, fontSize: 13)),
-        const SizedBox(height: 3),
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: CorteSpace.xs),
         SelectableText(
           value,
           style: const TextStyle(fontWeight: FontWeight.w600),
@@ -449,11 +484,11 @@ class _NavigationLine extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => ListTile(
-    contentPadding: const EdgeInsets.symmetric(vertical: 7),
+    contentPadding: const EdgeInsets.symmetric(vertical: CorteSpace.xs),
     leading: Icon(icon, color: context.corte.cyanInk),
     title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
     subtitle: Text(subtitle),
-    trailing: const Icon(Icons.chevron_right_rounded),
+    trailing: const CorteIcon(CorteIconName.chevronRight),
     onTap: onTap,
   );
 }

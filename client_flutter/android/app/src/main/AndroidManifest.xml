@@ -32,6 +32,21 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <activity
+            android:name="app.creatorhub.DiagnosticActivity"
+            android:exported="true"
+            android:label="@string/diagnostics_title"
+            android:launchMode="singleTask"
+            android:process=":diagnostico"
+            android:taskAffinity="${applicationId}.diagnostico"
+            android:theme="@android:style/Theme.Material.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- Use the compatibility renderer across Android devices. -->
+        <meta-data android:name="io.flutter.embedding.android.EnableImpeller" android:value="false" />
         <!-- Keep the exact legacy component names so existing alarms survive the update. -->
         <receiver android:name="app.creatorhub.sistema.Recordatorios$Alarma" android:exported="false" />
         <service android:name="app.creatorhub.sales.CorteMessagingService" android:exported="false">

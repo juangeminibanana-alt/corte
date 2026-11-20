@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../app.dart';
 import '../domain/domain.dart';
 import 'editors.dart';
+import 'corte_icons.dart';
 import 'format.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -12,7 +14,10 @@ import 'product_evidence.dart';
 import 'sales_origin.dart';
 import 'video_catalog.dart';
 import 'marketplace.dart';
+import 'order_tile.dart';
+import 'studio_earnings.dart';
 import 'showcase.dart';
+import 'shop_publisher.dart';
 
 part 'sales_dashboard.dart';
 
@@ -96,12 +101,15 @@ class _ProductGalleryState extends State<ProductGallery> {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: CorteColors.ink,
-                      borderRadius: BorderRadius.circular(30),
+                      color: CorteColors.chrome,
+                      borderRadius: BorderRadius.circular(CorteRadius.control),
                     ),
                     child: Text(
                       '${_index + 1} / ${widget.photos.length}',
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      style: const TextStyle(
+                        color: CorteColors.chromeInk,
+                        fontSize: CorteType.meta,
+                      ),
                     ),
                   ),
                 ),
@@ -121,7 +129,7 @@ class _ProductGalleryState extends State<ProductGallery> {
                   label: 'Ver foto ${i + 1} de ${widget.photos.length}',
                   child: InkWell(
                     onTap: () => setState(() => _index = i),
-                    borderRadius: BorderRadius.circular(7),
+                    borderRadius: BorderRadius.circular(CorteRadius.control),
                     child: Container(
                       padding: const EdgeInsets.all(3),
                       decoration: BoxDecoration(
@@ -131,7 +139,9 @@ class _ProductGalleryState extends State<ProductGallery> {
                               : context.corte.line,
                           width: _index == i ? 2 : 1,
                         ),
-                        borderRadius: BorderRadius.circular(7),
+                        borderRadius: BorderRadius.circular(
+                          CorteRadius.control,
+                        ),
                       ),
                       child: ExcludeSemantics(
                         child: CortePhoto(
@@ -310,12 +320,10 @@ class _ProductsPageState extends State<ProductsPage> {
                         ],
                       ),
               ),
-              const SalesNavigation(selected: 'productos'),
-              const SizedBox(height: 20),
               TextField(
                 decoration: const InputDecoration(
                   labelText: 'Buscar producto o tienda',
-                  prefixIcon: Icon(Icons.search_rounded),
+                  prefixIcon: CorteIcon(CorteIconName.search),
                 ),
                 onChanged: (v) => setState(() => _search = v),
               ),
@@ -361,71 +369,80 @@ class ProductRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ui = CorteScope.of(context);
+    final desktop = useDesktopWorkspace(context);
+    final meta = Theme.of(context).textTheme.bodySmall;
     return InkWell(
       onTap: () => ui.go(
         '/productos/${Uri.encodeComponent(textOf(product['product_id']))}',
       ),
+      borderRadius: BorderRadius.circular(CorteRadius.control),
       child: Container(
         padding: EdgeInsets.symmetric(
-          vertical: useDesktopWorkspace(context) ? 12 : 17,
+          vertical: desktop ? CorteSpace.medium : CorteSpace.large,
         ),
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: context.corte.line)),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            CortePhoto(
-              textOf(product['imagen']),
-              width: useDesktopWorkspace(context) ? 56 : 76,
-              height: useDesktopWorkspace(context) ? 64 : 82,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    productName(product),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontWeight: useDesktopWorkspace(context)
-                          ? FontWeight.w600
-                          : FontWeight.w700,
-                      fontSize: useDesktopWorkspace(context) ? 14 : 15,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    textOf(product['tienda_nombre']),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: context.corte.muted, fontSize: 12),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    '${integer(product['pedidos_validos'])} pedidos · ${integer(product['unidades'])} unidades',
-                    style: TextStyle(color: context.corte.muted, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+        child: LayoutBuilder(
+          builder: (context, limits) {
+            final stackAmount =
+                limits.maxWidth < 350 ||
+                (limits.maxWidth < 640 &&
+                    MediaQuery.textScalerOf(context).scale(CorteType.label) >
+                        20);
+            final amount = Column(
+              crossAxisAlignment: stackAmount
+                  ? CrossAxisAlignment.start
+                  : CrossAxisAlignment.end,
               children: [
                 Text(
                   money(product['comision_estimada_centavos']),
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-                Text(
-                  'Comisión est.',
-                  style: TextStyle(color: context.corte.muted, fontSize: 11),
-                ),
+                Text('Comisión est.', style: meta),
               ],
-            ),
-          ],
+            );
+            return Row(
+              crossAxisAlignment: stackAmount
+                  ? CrossAxisAlignment.start
+                  : CrossAxisAlignment.center,
+              children: [
+                CortePhoto(
+                  textOf(product['imagen']),
+                  width: desktop ? 56 : 72,
+                  height: desktop ? 64 : 80,
+                ),
+                const SizedBox(width: CorteSpace.large),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        productName(product),
+                        maxLines: stackAmount ? null : 2,
+                        overflow: stackAmount ? null : TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: CorteSpace.xs),
+                      Text(textOf(product['tienda_nombre']), style: meta),
+                      Text(
+                        '${integer(product['pedidos_validos'])} pedidos · ${integer(product['unidades'])} unidades',
+                        style: meta,
+                      ),
+                      if (stackAmount) ...[
+                        const SizedBox(height: CorteSpace.small),
+                        amount,
+                      ],
+                    ],
+                  ),
+                ),
+                if (!stackAmount) ...[
+                  const SizedBox(width: CorteSpace.medium),
+                  amount,
+                ],
+              ],
+            );
+          },
         ),
       ),
     );
@@ -435,6 +452,87 @@ class ProductRow extends StatelessWidget {
 class ProductDetailPage extends StatelessWidget {
   const ProductDetailPage({super.key, required this.id});
   final String id;
+
+  static final _sampleDetailId = RegExp(r'^[A-Za-z0-9_-]{1,64}$');
+  static final _samplePlanId = RegExp(r'^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$');
+  static final _productId = RegExp(r'^[0-9]{1,25}$');
+
+  Widget _sampleRow(BuildContext context, JsonMap sample) {
+    final ui = CorteScope.of(context);
+    final advance = mapOf(sample['avance']);
+    final stage = stageLabel(advance['etapa']);
+    final status = textOf(sample['etiqueta']);
+    final sampleId = sample['application_id'];
+    final productId = mapOf(sample['producto'])['product_id'];
+    final canOpen = sampleId is String && _sampleDetailId.hasMatch(sampleId);
+    final canPlan =
+        sampleId is String &&
+        _samplePlanId.hasMatch(sampleId) &&
+        productId is String &&
+        productId == id &&
+        _productId.hasMatch(productId);
+    final hasPlan = textOf(advance['plan_id']).isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.corte.line)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            textOf(sample['variante'], 'Variante no informada'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 4),
+          StatusTag(
+            stage.isEmpty ? textOf(status, 'Estado sin informar') : stage,
+          ),
+          if (stage.isNotEmpty && status.isNotEmpty && stage != status)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(status, style: TextStyle(color: context.corte.muted)),
+            ),
+          if (canOpen) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                if (canPlan)
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      final shop = mapOf(sample['tienda']);
+                      if (shop['tienda_key'] == '') shop['tienda_key'] = null;
+                      showPlanEditor(context, {...sample, 'tienda': shop});
+                    },
+                    icon: const Icon(Icons.calendar_month_outlined, size: 18),
+                    label: Text(hasPlan ? 'Gestionar avance' : 'Planear video'),
+                  ),
+                TextButton.icon(
+                  onPressed: () =>
+                      ui.go('/muestras/m/${Uri.encodeComponent(sampleId)}'),
+                  icon: const Icon(Icons.chevron_right_rounded),
+                  iconAlignment: IconAlignment.end,
+                  label: const Text('Ver muestra y mensaje'),
+                ),
+              ],
+            ),
+          ] else
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'No se pudo identificar esta muestra.',
+                style: TextStyle(color: context.corte.muted),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ApiData(
     path: '/api/productos/${Uri.encodeComponent(id)}',
@@ -445,26 +543,33 @@ class ProductDetailPage extends StatelessWidget {
           extended = mapOf(data['extendido']);
       final samples = rowsOf(data['muestras']),
           eligibility = mapOf(extended['muestra']);
+      final product = p.isNotEmpty
+          ? p
+          : row.isNotEmpty
+          ? row
+          : samples.isEmpty
+          ? p
+          : mapOf(samples.first['producto']);
+      final storeName = textOf(row['tienda_nombre']);
+      final storeKey = textOf(row['tienda_key']);
       final info = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            productName(p.isEmpty ? row : p),
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 14),
-          if (textOf(row['tienda_nombre']).isNotEmpty)
-            TextButton.icon(
-              onPressed: textOf(row['tienda_key']).isEmpty
-                  ? null
-                  : () => ui.go(
-                      '/tiendas/${Uri.encodeComponent(textOf(row['tienda_key']))}',
-                    ),
-              icon: const Icon(Icons.storefront_outlined, size: 18),
-              label: Text(textOf(row['tienda_nombre'])),
-            ),
+          if (storeName.isNotEmpty)
+            if (storeKey.isEmpty)
+              Text(storeName)
+            else
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () =>
+                      ui.go('/tiendas/${Uri.encodeComponent(storeKey)}'),
+                  icon: const Icon(Icons.storefront_outlined, size: 18),
+                  label: Text(storeName),
+                ),
+              ),
           if (p.isNotEmpty) ...[
-            const SizedBox(height: 15),
+            if (storeName.isNotEmpty) const SizedBox(height: 12),
             Text(
               salePrice(p),
               style: TextStyle(
@@ -492,42 +597,6 @@ class ProductDetailPage extends StatelessWidget {
                   : money(p['comision_por_venta_centavos'], decimals: true),
             ),
           ],
-          if (samples.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: context.corte.rose,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'TU MUESTRA',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: context.corte.action,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    textOf(samples.first['variante'], 'Variante no informada'),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () => ui.go(
-                      '/muestras/m/${Uri.encodeComponent(textOf(samples.first['application_id']))}',
-                    ),
-                    child: const Text('Ver muestra y avance'),
-                  ),
-                ],
-              ),
-            ),
-          ],
           if (textOf(data['categoria_ruta']).isNotEmpty) ...[
             const SizedBox(height: 18),
             Text(
@@ -549,7 +618,8 @@ class ProductDetailPage extends StatelessWidget {
         padding: pagePadding(context),
         children: [
           PageTitle(
-            'Ficha del producto',
+            productName(product),
+            action: _productId.hasMatch(id) ? ShopPublishButton(productId: id) : null,
             back: () {
               if (!ui.back()) ui.go('/productos');
             },
@@ -565,16 +635,33 @@ class ProductDetailPage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(flex: 5, child: gallery),
-                        const SizedBox(width: 40),
-                        Expanded(flex: 5, child: info),
+                        const SizedBox(width: CorteSpace.xl),
+                        Expanded(
+                          flex: 5,
+                          child: CortePanel(
+                            padding: const EdgeInsets.all(CorteSpace.xl),
+                            child: info,
+                          ),
+                        ),
                       ],
                     )
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [gallery, const SizedBox(height: 24), info],
+                      children: [
+                        gallery,
+                        const SizedBox(height: CorteSpace.large),
+                        CortePanel(
+                          padding: const EdgeInsets.all(CorteSpace.large),
+                          child: info,
+                        ),
+                      ],
                     );
             },
           ),
+          if (samples.isNotEmpty) ...[
+            SectionHeading(samples.length == 1 ? 'Tu muestra' : 'Tus muestras'),
+            for (final sample in samples) _sampleRow(context, sample),
+          ],
           if (eligibility.isNotEmpty) ...[
             const SectionHeading(
               'Colores y tallas',
@@ -964,16 +1051,16 @@ class _VideosPageState extends State<VideosPage> {
                 children: [
                   PageTitle(
                     'Videos',
+                    action: const ShopPublishButton(),
                     subtitle:
                         '${data['total'] ?? rowsOf(data['items']).length} videos de tu cuenta',
                   ),
-                  const SalesNavigation(selected: 'videos'),
                   if (pestanas) const VideoTabsSiHayCatalogo(),
                   const SizedBox(height: 20),
                   TextField(
                     decoration: const InputDecoration(
                       labelText: 'Buscar video',
-                      prefixIcon: Icon(Icons.search_rounded),
+                      prefixIcon: CorteIcon(CorteIconName.search),
                     ),
                     onChanged: (v) => setState(() => _search = v),
                   ),
@@ -1096,13 +1183,7 @@ class VideoSalesDetail extends StatelessWidget {
                 const SizedBox(height: 20),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: FilledButton.icon(
-                    onPressed: textOf(v['enlace']).isEmpty
-                        ? null
-                        : () => openPublicLink(context, textOf(v['enlace'])),
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('Ver video en TikTok'),
-                  ),
+                  child: PublishedVideoActions(link: textOf(v['enlace'])),
                 ),
               ],
             );
@@ -1146,36 +1227,6 @@ class VideoSalesDetail extends StatelessWidget {
   }
 }
 
-class SalesNavigation extends StatelessWidget {
-  const SalesNavigation({super.key, required this.selected});
-  final String selected;
-  @override
-  Widget build(BuildContext context) {
-    if (MediaQuery.sizeOf(context).width < 600) return const SizedBox.shrink();
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (final item in [
-            ('ventas', 'Resumen'),
-            ('ordenes', 'Pedidos'),
-            ('videos', 'Videos'),
-            ('productos', 'Productos'),
-          ])
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(item.$2),
-                selected: selected == item.$1,
-                onSelected: (_) => CorteScope.of(context).go('/${item.$1}'),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
 class OrdersPage extends StatefulWidget {
   const OrdersPage({super.key});
   @override
@@ -1183,174 +1234,179 @@ class OrdersPage extends StatefulWidget {
 }
 
 class _OrdersPageState extends State<OrdersPage> {
+  static const _pageSize = 30;
+  final _searchInput = TextEditingController();
   int _page = 1;
   String _state = '', _search = '';
+  (String?, String?, int)? _catalogScope;
+  Future<Map<String, Map<String, dynamic>>>? _catalog;
+
   late final String _since = DateTime.now()
       .subtract(const Duration(days: 29))
       .toIso8601String()
       .substring(0, 10);
+
+  @override
+  void dispose() {
+    _searchInput.dispose();
+    super.dispose();
+  }
+
+  void _submit() => setState(() {
+    _search = _searchInput.text.trim();
+    _page = 1;
+  });
+
+  Widget _filters(BuildContext context) {
+    final controls = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _searchInput,
+          decoration: InputDecoration(
+            labelText: 'Buscar pedido o producto',
+            prefixIcon: const CorteIcon(CorteIconName.search),
+            suffixIcon: IconButton(
+              tooltip: 'Buscar pedidos',
+              onPressed: _submit,
+              icon: const CorteIcon(CorteIconName.arrowRight),
+            ),
+          ),
+          onSubmitted: (_) => _submit(),
+        ),
+        const SizedBox(height: CorteSpace.medium),
+        Wrap(
+          spacing: CorteSpace.small,
+          runSpacing: CorteSpace.small,
+          children: [
+            for (final (code, label) in [
+              ('', 'Todos'),
+              ('SETTLED', 'Liquidados'),
+              ('To-SETTLE', 'Por liquidar'),
+              ('REFUNDED', 'Reembolsados'),
+            ])
+              ChoiceChip(
+                label: Text(label),
+                selected: _state == code,
+                onSelected: (_) => setState(() {
+                  _state = code;
+                  _page = 1;
+                }),
+              ),
+          ],
+        ),
+      ],
+    );
+    if (MediaQuery.sizeOf(context).width >= 600) return controls;
+    return CortePanel(
+      child: ExpansionTile(
+        initiallyExpanded: _state.isNotEmpty || _search.isNotEmpty,
+        maintainState: true,
+        leading: const Icon(Icons.filter_alt_outlined, size: 20),
+        title: const Text('Filtrar pedidos'),
+        shape: const Border(),
+        collapsedShape: const Border(),
+        childrenPadding: const EdgeInsets.fromLTRB(
+          CorteSpace.large,
+          0,
+          CorteSpace.large,
+          CorteSpace.large,
+        ),
+        children: [controls],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ApiData(
     path: '/api/ordenes',
     query: {
       'desde': _since,
       'pagina': _page,
-      'por_pagina': 30,
+      'por_pagina': _pageSize,
       if (_state.isNotEmpty) 'estado': _state,
       if (_search.isNotEmpty) 'q': _search,
     },
     builder: (context, data) {
       final orders = rowsOf(data['items']), total = intOf(data['total']);
-      return ListView(
-        padding: pagePadding(context),
-        children: [
-          PageTitle(
-            'Pedidos',
-            subtitle: 'Últimos 30 días · ${integer(total)} pedidos',
-          ),
-          const SalesNavigation(selected: 'ordenes'),
-          const SizedBox(height: 20),
-          TextField(
-            decoration: const InputDecoration(
-              labelText: 'Buscar pedido o producto',
-              prefixIcon: Icon(Icons.search_rounded),
-              hintText: 'Escribe y presiona Enter',
-            ),
-            onSubmitted: (v) => setState(() {
-              _search = v.trim();
-              _page = 1;
-            }),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final s in [
-                ('', 'Todos'),
-                ('SETTLED', 'Liquidados'),
-                ('To-SETTLE', 'Por liquidar'),
-                ('REFUNDED', 'Reembolsados'),
-              ])
-                ChoiceChip(
-                  label: Text(s.$2),
-                  selected: _state == s.$1,
-                  onSelected: (_) => setState(() {
-                    _state = s.$1;
-                    _page = 1;
-                  }),
-                ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          for (final order in orders) _OrderTile(order: order),
-          if (orders.isEmpty)
-            const EmptyState('No hay pedidos con estos filtros'),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _page > 1 ? () => setState(() => _page--) : null,
-                icon: const Icon(Icons.chevron_left),
-                label: const Text('Anterior'),
-              ),
-              Text('Página $_page'),
-              OutlinedButton.icon(
-                onPressed: _page * 30 < total
-                    ? () => setState(() => _page++)
-                    : null,
-                icon: const Icon(Icons.chevron_right),
-                label: const Text('Siguiente'),
-              ),
-            ],
-          ),
-        ],
+      if (!needsOrderCatalog(orders)) {
+        return _results(context, orders, total, const {});
+      }
+      final ui = CorteScope.of(context);
+      final scope = (ui.repo.ownerScope, ui.repo.cacheScope, ui.revision);
+      if (scope != _catalogScope) {
+        _catalogScope = scope;
+        _catalog = ui.repo
+            .get('/api/analitica/productos', query: const {'limite': 1000})
+            .then((data) => orderCatalog(rowsOf(data['items'])));
+      }
+      return FutureBuilder<Map<String, Map<String, dynamic>>>(
+        key: ValueKey(scope),
+        future: _catalog,
+        builder: (context, snapshot) =>
+            _results(context, orders, total, snapshot.data ?? const {}),
       );
     },
   );
-}
 
-class _OrderTile extends StatelessWidget {
-  const _OrderTile({
-    super.key,
-    required this.order,
-    this.embedded = false,
-    this.initiallyExpanded = false,
-  });
-
-  final Map<String, dynamic> order;
-  final bool embedded, initiallyExpanded;
-
-  @override
-  Widget build(BuildContext context) {
-    final lines = rowsOf(order['lineas']);
-    final product = lines.isEmpty
-        ? 'Producto sin nombre'
-        : textOf(lines.first['producto'], 'Producto sin nombre');
-    final status = textOf(order['estado_etiqueta'], textOf(order['estado']));
-    final date = textOf(order['fecha']);
-    final commission = order['estado'] == 'SETTLED'
-        ? order['comision_real_centavos']
-        : order['comision_estimada_centavos'];
-    return ExpansionTile(
-      initiallyExpanded: initiallyExpanded,
-      tilePadding: EdgeInsets.zero,
-      childrenPadding: const EdgeInsets.only(bottom: 20),
-      title: Text(
-        embedded ? product : 'Pedido ${textOf(order['order_id'])}',
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+  Widget _results(
+    BuildContext context,
+    List<Map<String, dynamic>> orders,
+    int total,
+    Map<String, Map<String, dynamic>> catalog,
+  ) => ListView(
+    padding: pagePadding(context),
+    children: [
+      Semantics(
+        header: true,
+        child: Text('Pedidos', style: studioDisplay(context, size: 46)),
       ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 6),
-        child: Text(
-          embedded
-              ? '${_salesDate(date)} · $status · ${money(commission, decimals: true)}'
-              : '$status · $date',
-        ),
+      const SizedBox(height: CorteSpace.small),
+      Text(
+        'Últimos 30 días · ${integer(total)} pedidos',
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: context.corte.muted),
       ),
-      children: [
-        DefinitionRow('Total', money(order['total_centavos'], decimals: true)),
-        DefinitionRow(
-          'Comisión estimada',
-          money(order['comision_estimada_centavos'], decimals: true),
+      const SizedBox(height: CorteSpace.xl),
+      _filters(context),
+      const SizedBox(height: CorteSpace.medium),
+      for (final order in orders)
+        OrderTile(
+          key: ValueKey(order['order_id']),
+          order: order,
+          catalog: catalog,
         ),
-        DefinitionRow(
-          'Comisión real',
-          money(order['comision_real_centavos'], decimals: true),
+      if (orders.isEmpty)
+        const EmptyState(
+          'No hay pedidos con estos filtros',
+          text: 'Cambia el estado o prueba con otro producto.',
         ),
-        for (final l in rowsOf(order['lineas']))
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    CortePhoto(textOf(l['imagen']), width: 52, height: 58),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text(textOf(l['producto'], 'Producto'))),
-                    Text('× ${integer(l['cantidad'])}'),
-                  ],
-                ),
-                if (l['isr_centavos'] != null)
-                  DefinitionRow(
-                    'ISR',
-                    money(l['isr_centavos'], decimals: true),
-                  ),
-                if (l['iva_centavos'] != null)
-                  DefinitionRow(
-                    'IVA',
-                    money(l['iva_centavos'], decimals: true),
-                  ),
-                if (l['es_carrusel'] == true)
-                  const InlineNotice(
-                    text: 'Video carrusel: puede tener una comisión menor.',
-                  ),
-              ],
+      if (total > _pageSize || _page > 1) ...[
+        const SizedBox(height: CorteSpace.large),
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: CorteSpace.small,
+          runSpacing: CorteSpace.small,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _page > 1 ? () => setState(() => _page--) : null,
+              icon: const CorteIcon(CorteIconName.chevronLeft, size: 18),
+              label: const Text('Anterior'),
             ),
-          ),
-        NotesPanel(entidad: 'orden', entidadId: textOf(order['order_id'])),
+            Text('Página $_page'),
+            OutlinedButton.icon(
+              onPressed: _page * _pageSize < total
+                  ? () => setState(() => _page++)
+                  : null,
+              icon: const CorteIcon(CorteIconName.chevronRight, size: 18),
+              label: const Text('Siguiente'),
+              iconAlignment: IconAlignment.end,
+            ),
+          ],
+        ),
       ],
-    );
-  }
+    ],
+  );
 }

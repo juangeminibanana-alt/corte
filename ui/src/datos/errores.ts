@@ -44,6 +44,9 @@ export const MENSAJES: Readonly<Record<CodigoErrorUi, string>> = {
   cuerpo_demasiado_grande: 'Es demasiado grande para guardarlo de una vez.',
   sesion_invalida: 'Tu sesión en CUTGC se cerró. Cierra y vuelve a abrir CUTGC.',
   prohibido: 'No tienes permiso para hacer este cambio.',
+  origen_invalido: 'Abre la aplicación de CUTGC para realizar esta operación.',
+  cuenta_cambio_sin_aplicar: 'Cambió la cuenta conectada. Revisa la cuenta activa antes de continuar.',
+  publicacion_sin_confirmar: 'TikTok Shop no confirmó el envío. Revisa tus videos en TikTok antes de volver a publicar.',
   solo_local: 'Esto solo se puede hacer desde CUTGC en tu PC.',
   conflicto: TEXTO_CONFLICTO,
   demasiadas_solicitudes: 'Vamos muy rápido. Espera un momento e inténtalo de nuevo.',
@@ -77,6 +80,7 @@ export const MENSAJES: Readonly<Record<CodigoErrorUi, string>> = {
 const CODIGOS_HUB: ReadonlySet<string> = new Set<C.CodigoError>([
   'no_encontrado', 'parametros_invalidos', 'cuerpo_demasiado_grande', 'sesion_invalida', 'prohibido', 'solo_local',
   'conflicto', 'demasiadas_solicitudes', 'sin_credenciales', 'reautorizar', 'sin_permiso_tiktok', 'tiktok_no_disponible',
+  'origen_invalido', 'cuenta_cambio_sin_aplicar', 'publicacion_sin_confirmar',
   'sin_internet', 'state_invalido', 'codigo_vencido', 'cuenta_distinta', 'no_es_creador', 'archivo_no_encontrado',
   'archivo_invalido', 'app_secret_invalido', 'firma_invalida', 'reloj_desfasado', 'repetida', 'dispositivo_revocado',
   'dispositivo_desconocido', 'emparejamiento_vencido', 'emparejamiento_rechazado', 'emparejamiento_ocupado',

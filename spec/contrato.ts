@@ -109,6 +109,7 @@ export type CodigoError =
   | 'no_encontrado' | 'parametros_invalidos' | 'cuerpo_demasiado_grande'
   | 'sesion_invalida' | 'prohibido' | 'solo_local' | 'conflicto' | 'demasiadas_solicitudes'
   | 'sin_credenciales' | 'reautorizar' | 'sin_permiso_tiktok' | 'tiktok_no_disponible' | 'sin_internet'
+  | 'cuenta_cambio_sin_aplicar' | 'publicacion_sin_confirmar' | 'origen_invalido'
   | 'state_invalido' | 'codigo_vencido' | 'cuenta_distinta' | 'no_es_creador'
   | 'archivo_no_encontrado' | 'archivo_invalido' | 'app_secret_invalido'
   | 'firma_invalida' | 'reloj_desfasado' | 'repetida' | 'dispositivo_revocado' | 'dispositivo_desconocido'
@@ -333,6 +334,72 @@ export interface PortapapelesResponse { detectado: boolean; vista_previa: string
 export interface AuthEstadoResponse { conexion: Conexion }
 /** Desconectar borra SOLO la autorización (tokens); la clave de la app se conserva para poder volver a conectar. */
 export interface DesconectarRequest { borrar_datos?: boolean }
+
+// ============================================================================ publicación de videos de TikTok Shop
+/** GET /api/publicaciones/shop/capacidades */
+export interface CapacidadesPublicacionShop {
+  scope_requerido: 'creator.video.write';
+  scope_concedido: boolean;
+  cuenta_creator_conectada: boolean;
+}
+
+/** POST /api/publicaciones/shop/preparar */
+export interface PrepararPublicacionShopRequest {
+  /** Identificador de archivo devuelto por TikTok Shop al subir el video. */
+  file_id: string;
+  titulo: string;
+  product_id: string;
+  titulo_ancla: string;
+  is_ai_generated?: boolean;
+}
+
+export interface PrepararPublicacionShopResponse {
+  payload: {
+    video_info: { file_id: string; title: string; is_ai_generated?: boolean };
+    product_link_info: { product_id: string; title: string };
+  };
+  autorizacion: CapacidadesPublicacionShop;
+}
+
+/** POST /api/publicaciones/shop/publicar */
+export interface PublicarVideoShopRequest extends PrepararPublicacionShopRequest {
+  confirmar: true;
+}
+
+export interface PublicarVideoShopResponse {
+  video_id: string;
+  estado: 'aceptada';
+  cuota?: string;
+}
+
+/** GET /api/publicaciones/shop/{video_id}/estado */
+export interface EstadoPublicacionShopResponse {
+  video_id: string;
+  estado: 'procesando' | 'publicada' | 'fallida';
+  /** Tiempo de publicación comunicado por TikTok, en segundos desde la época Unix. */
+  publicado_en?: EpochS;
+}
+
+/** POST /api/publicaciones/shop/agenda. Fecha elegida para el envío, en segundos Unix. */
+export interface ProgramarVideoShopRequest extends PublicarVideoShopRequest {
+  programada_at: EpochS;
+}
+
+/** Resultado de programar o cancelar. GET /api/publicaciones/shop/agenda devuelve la lista de la cuenta. */
+export interface VideoEnAgendaShop {
+  id: string;
+  estado: 'programada' | 'enviando' | 'aceptada' | 'cancelada' | 'fallida' | 'por_verificar';
+  programada_at: EpochS;
+  titulo: string;
+  titulo_ancla: string;
+  product_id: string;
+  video_id?: string;
+  mensaje?: string;
+}
+
+export interface AgendaPublicacionesShopResponse {
+  items: VideoEnAgendaShop[];
+}
 
 // ============================================================================ credenciales (solo Windows)
 export interface CredencialesEstado {

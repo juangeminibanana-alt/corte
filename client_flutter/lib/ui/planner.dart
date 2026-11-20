@@ -179,7 +179,11 @@ class _PlannerFormState extends State<_PlannerForm> {
     final ui = CorteScope.of(context);
     if (saved != null) {
       return ListView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(
+          MediaQuery.sizeOf(context).width < 600
+              ? CorteSpace.large
+              : CorteSpace.xl,
+        ),
         children: [
           const PageTitle('Tu plan está guardado'),
           InlineNotice(text: saved!),
@@ -196,7 +200,11 @@ class _PlannerFormState extends State<_PlannerForm> {
     }
     final result = preview;
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(
+        MediaQuery.sizeOf(context).width < 600
+            ? CorteSpace.large
+            : CorteSpace.xl,
+      ),
       children: [
         PageTitle(
           reviewing ? 'Revisa tu plan' : 'Armar mi plan',
@@ -253,8 +261,8 @@ class _PlannerFormState extends State<_PlannerForm> {
           ),
           const SizedBox(height: 16),
           Wrap(
-            spacing: 7,
-            runSpacing: 6,
+            spacing: CorteSpace.small,
+            runSpacing: CorteSpace.small,
             children: [
               for (var i = 0; i < 7; i++)
                 FilterChip(
@@ -393,10 +401,13 @@ class _PlannerFormState extends State<_PlannerForm> {
           for (var i = 0; i < result.items.length; i++) ...[
             if (i == 0 || result.items[i - 1].date != result.items[i].date)
               Padding(
-                padding: const EdgeInsets.only(top: 18, bottom: 9),
+                padding: const EdgeInsets.only(
+                  top: CorteSpace.xl,
+                  bottom: CorteSpace.small,
+                ),
                 child: Text(
                   '${result.items[i].date} · ${result.items.where((e) => e.date == result.items[i].date).length} nuevos + ${result.occupied[result.items[i].date] ?? 0} ya planeados',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
             _PreviewRow(item: result.items[i]),
@@ -430,48 +441,62 @@ class _CandidateRow extends StatelessWidget {
     final product = mapOf(sample['producto']);
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Checkbox(
-                value: selected,
-                onChanged: (value) => onChanged(value ?? false),
-                semanticLabel:
-                    'Incluir ${textOf(product['titulo_corto'], textOf(product['titulo']))}',
+        Material(
+          color: selected ? context.corte.rose : Colors.transparent,
+          borderRadius: BorderRadius.circular(CorteRadius.control),
+          child: InkWell(
+            excludeFromSemantics: true,
+            canRequestFocus: false,
+            borderRadius: BorderRadius.circular(CorteRadius.control),
+            onTap: () => onChanged(!selected),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: CorteSpace.medium,
+                horizontal: CorteSpace.small,
               ),
-              CortePhoto(product['imagen'] as String?, width: 62, height: 68),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      textOf(
-                        product['titulo_corto'],
-                        textOf(product['titulo'], 'Producto'),
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    Text(
-                      textOf(mapOf(sample['tienda'])['nombre']),
-                      style: TextStyle(color: context.corte.cyanInk),
-                    ),
-                    if (sample['fecha_limite_at'] != null)
-                      Text(
-                        'Fecha límite: ${date(sample['fecha_limite_at'])}',
-                        style: TextStyle(
-                          color: context.corte.muted,
-                          fontSize: 12,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Checkbox(
+                    value: selected,
+                    onChanged: (value) => onChanged(value ?? false),
+                    semanticLabel:
+                        'Incluir ${textOf(product['titulo_corto'], textOf(product['titulo']))}',
+                  ),
+                  CortePhoto(
+                    product['imagen'] as String?,
+                    width: 62,
+                    height: 68,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          textOf(
+                            product['titulo_corto'],
+                            textOf(product['titulo'], 'Producto'),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                      ),
-                  ],
-                ),
+                        Text(
+                          textOf(mapOf(sample['tienda'])['nombre']),
+                          style: TextStyle(color: context.corte.muted),
+                        ),
+                        if (sample['fecha_limite_at'] != null)
+                          Text(
+                            'Fecha límite: ${date(sample['fecha_limite_at'])}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
         const Divider(),
@@ -509,7 +534,9 @@ class _PreviewRow extends StatelessWidget {
                     item.late
                         ? 'Después de la fecha límite'
                         : 'Necesita una nueva fecha con la tienda',
-                    style: TextStyle(color: context.corte.action, fontSize: 12),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.corte.warning,
+                    ),
                   ),
               ],
             ),

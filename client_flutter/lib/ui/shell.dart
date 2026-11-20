@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../app.dart';
 import 'corte_icons.dart';
 import 'theme.dart';
@@ -9,14 +10,8 @@ import 'catalog.dart';
 import 'settings.dart';
 import 'planner.dart';
 import 'desktop_shell.dart';
-
-const _enterCurve = Cubic(.05, .7, .1, 1);
-
-const _salesDestinations = <(String, String)>[
-  ('ventas', 'Resumen'),
-  ('videos', 'Videos'),
-  ('productos', 'Productos'),
-];
+import 'navigation.dart';
+import 'shop_publisher.dart';
 
 class CorteShell extends StatefulWidget {
   const CorteShell({super.key});
@@ -56,6 +51,15 @@ class _CorteShellState extends State<CorteShell> {
       return parts.length > 1
           ? ProductDetailPage(id: parts[1])
           : const ProductsPage();
+    if (uri.path == shopPublisherRoute) {
+      final ui = CorteScope.of(context);
+      return ShopPublisherPage(
+        key: ValueKey(
+          '${ui.repo.ownerScope}:${ui.repo.cacheScope}:${uri.query}',
+        ),
+        initialProduct: uri.queryParameters['producto'],
+      );
+    }
     if (parts[0] == 'videos')
       return parts.length > 1
           ? VideoDetailPage(
@@ -92,7 +96,7 @@ class _CorteShellState extends State<CorteShell> {
             autofocus: true,
             decoration: const InputDecoration(
               labelText: 'Producto, tienda o variante',
-              prefixIcon: Icon(Icons.search_rounded),
+              prefixIcon: CorteIcon(CorteIconName.search),
             ),
             onSubmitted: (v) => Navigator.pop(context, v),
           ),
@@ -135,19 +139,17 @@ class _CorteShellState extends State<CorteShell> {
     final mobile = MediaQuery.sizeOf(context).width < 600;
     final uri = Uri.parse(ui.location);
     final root = uri.pathSegments.isEmpty ? 'inicio' : uri.pathSegments.first;
-    final active = {'videos', 'productos', 'ordenes'}.contains(root)
-        ? 'ventas'
-        : root;
-    final reducedMotion = MediaQuery.disableAnimationsOf(context);
+    final active = sectionFor(root);
+    final reducedMotion = CorteMotion.reducedOf(context) || ui.androidRecovery;
     final screen = TweenAnimationBuilder<double>(
       key: ValueKey(ui.location),
-      tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: reducedMotion ? 120 : 200),
-      curve: _enterCurve,
+      tween: Tween(begin: reducedMotion ? 1 : .72, end: 1),
+      duration: reducedMotion ? Duration.zero : CorteMotion.view,
+      curve: CorteMotion.enter,
       builder: (context, progress, child) => Opacity(
         opacity: progress,
         child: Transform.translate(
-          offset: Offset(0, reducedMotion ? 0 : 8 * (1 - progress)),
+          offset: Offset(0, reducedMotion ? 0 : 6 * (1 - progress) / .28),
           child: child,
         ),
       ),
@@ -173,14 +175,16 @@ class _CorteShellState extends State<CorteShell> {
     return Scaffold(
       body: Column(
         children: [
-          ColoredBox(
+          Material(
             color: CorteColors.chrome,
             child: SafeArea(
               bottom: false,
               child: SizedBox(
                 height: 56,
                 child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: CorteSpace.medium,
+                  ),
                   child: Row(
                     children: [
                       const Expanded(
@@ -191,7 +195,7 @@ class _CorteShellState extends State<CorteShell> {
                         tooltip: 'Buscar en CUTGC',
                         icon: const CorteIcon(
                           CorteIconName.search,
-                          color: Colors.white,
+                          color: CorteColors.chromeInk,
                           size: 22,
                         ),
                       ),
@@ -214,6 +218,15 @@ class _CorteShellState extends State<CorteShell> {
                                 size: 22,
                               ),
                       ),
+                      IconButton(
+                        onPressed: () => ui.go('/ajustes'),
+                        tooltip: 'Ajustes',
+                        icon: const CorteIcon(
+                          CorteIconName.settings,
+                          color: CorteColors.chromeInk,
+                          size: 22,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -230,16 +243,13 @@ class _CorteShellState extends State<CorteShell> {
               text:
                   'No está disponible la copia local. Mantén conexión para guardar cambios.',
             ),
-          if (active == 'ventas')
-            _MobileSalesTabs(
-              selected: root == 'ordenes' ? 'ventas' : root,
-              onSelect: (id) => ui.go('/$id'),
-            ),
+          CorteSectionLinks(uri: uri),
           Expanded(child: screen),
         ],
       ),
-      bottomNavigationBar: ColoredBox(
+      bottomNavigationBar: Material(
         color: CorteColors.chrome,
+        shape: const Border(top: BorderSide(color: CorteColors.chromeLine)),
         child: SafeArea(
           top: false,
           child: ConstrainedBox(
@@ -248,61 +258,56 @@ class _CorteShellState extends State<CorteShell> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (final item in [
-                    corteDestinations[0],
-                    corteDestinations[1],
-                    corteDestinations[2],
-                    corteDestinations[3],
-                    ('/ajustes', 'Más', CorteIconName.ellipsis),
-                  ])
+                  for (final item in CorteSection.values)
                     Expanded(
                       child: Semantics(
-                        selected: active == item.$1.substring(1),
+                        selected: active == item,
+                        button: true,
                         child: InkWell(
-                          onTap: () => ui.go(item.$1),
+                          onTap: () => ui.go(item.path),
+                          focusColor: CorteColors.cyan.withValues(alpha: .22),
+                          hoverColor: CorteColors.chromeSoft,
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               TweenAnimationBuilder<double>(
-                                key: ValueKey(active == item.$1.substring(1)),
-                                duration: Duration(
-                                  milliseconds: reducedMotion ? 0 : 200,
-                                ),
-                                curve: _enterCurve,
+                                key: ValueKey(active == item),
+                                duration: reducedMotion
+                                    ? Duration.zero
+                                    : CorteMotion.micro,
+                                curve: CorteMotion.enter,
                                 tween: Tween(
-                                  begin: active == item.$1.substring(1)
-                                      ? .9
-                                      : 1,
+                                  begin: active == item ? .9 : 1,
                                   end: 1,
                                 ),
                                 builder: (context, scale, child) =>
                                     Transform.scale(scale: scale, child: child),
                                 child: CorteIcon(
-                                  item.$3,
+                                  item.icon,
                                   size: 22,
-                                  color: active == item.$1.substring(1)
+                                  color: active == item
                                       ? CorteColors.coral
-                                      : const Color(0xFFE0E0E6),
+                                      : CorteColors.chromeMuted,
                                 ),
                               ),
-                              const SizedBox(height: 5),
+                              const SizedBox(height: CorteSpace.xs),
                               Text(
-                                item.$2,
+                                item.label,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: CorteType.meta,
                                   fontWeight: FontWeight.w600,
-                                  color: active == item.$1.substring(1)
-                                      ? const Color(0xFFFF5275)
-                                      : Colors.white,
+                                  color: active == item
+                                      ? CorteColors.actionOnChrome
+                                      : CorteColors.chromeInk,
                                 ),
                               ),
-                              const SizedBox(height: 5),
+                              const SizedBox(height: CorteSpace.xs),
                               Container(
                                 height: 3,
                                 width: 30,
                                 decoration: BoxDecoration(
-                                  color: active == item.$1.substring(1)
+                                  color: active == item
                                       ? CorteColors.coral
                                       : Colors.transparent,
                                   borderRadius: BorderRadius.circular(2),
@@ -321,59 +326,4 @@ class _CorteShellState extends State<CorteShell> {
       ),
     );
   }
-}
-
-class _MobileSalesTabs extends StatelessWidget {
-  const _MobileSalesTabs({required this.selected, required this.onSelect});
-
-  final String selected;
-  final ValueChanged<String> onSelect;
-
-  @override
-  Widget build(BuildContext context) => Material(
-    color: CorteColors.chrome,
-    child: Row(
-      children: [
-        for (final (id, label) in _salesDestinations)
-          Expanded(
-            child: Semantics(
-              button: true,
-              selected: selected == id,
-              child: InkWell(
-                onTap: () => onSelect(id),
-                child: Container(
-                  alignment: Alignment.center,
-                  constraints: const BoxConstraints(minHeight: 44),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        width: 2,
-                        color: selected == id
-                            ? CorteColors.coral
-                            : Colors.transparent,
-                      ),
-                    ),
-                  ),
-                  child: Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: selected == id
-                          ? Colors.white
-                          : CorteColors.chromeMuted,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    ),
-  );
 }

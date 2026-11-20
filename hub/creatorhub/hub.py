@@ -64,8 +64,12 @@ from .planificador import crear_planificador
 from .productos_evidencia import ServicioEvidencia
 from .reloj import crear_reloj
 from .sincronizador import crear_sincronizador
+from .tiktok.carga_video import CargaVideosShop
+from .tiktok.agenda_publicaciones import AgendaPublicaciones
 from .tiktok.cliente import crear_cliente
 from .tiktok.marketplace import MarketplaceCreator
+from .tiktok.publicaciones import PublicacionesShop
+from .tiktok.registro_publicacion import RegistroPublicacion
 from .tiktok.showcase import ShowcaseCreator
 from .tiktok.affiliate_links import AffiliateLinksCreator
 from .tiktok.transporte import crear_transporte_real
@@ -203,6 +207,13 @@ class Hub:
                          if op.nube and op.modo == 'real' and cliente is not None else None)
         self.affiliate_links = (AffiliateLinksCreator(cliente, boveda, lambda: self.auth.conexion())
                                 if op.nube and op.modo == 'real' and cliente is not None else None)
+        self.publicaciones_shop = (PublicacionesShop(cliente, boveda, lambda: self.auth.conexion(), almacen,
+                                                     RegistroPublicacion(almacen, reloj.ahora))
+                                   if op.nube and op.modo == 'real' and cliente is not None else None)
+        self.carga_videos_shop = (CargaVideosShop(cliente, self.publicaciones_shop)
+                                  if cliente is not None and self.publicaciones_shop is not None else None)
+        self.agenda_shop = (AgendaPublicaciones(self.publicaciones_shop, almacen, reloj.ahora)
+                            if self.publicaciones_shop is not None else None)
         self.sincronizador: Any = None
         self.planificador: Any = None
         self.lan: Any = None
@@ -539,6 +550,13 @@ class Hub:
             p.registrar_tarea('enlaces_cortos', ENLACES_S, self._tarea_enlaces_cortos)
         p.registrar_tarea('retencion', RETENCION_S, self._tarea_retencion)
         p.registrar_tarea('purga_states', TIC_S, self._tarea_purga_states)
+        if self.agenda_shop is not None:
+            p.registrar_tarea('publicar_videos_programados', TIC_S, self._tarea_publicar_video)
+
+    def _tarea_publicar_video(self) -> None:
+        with self._candado_mutacion:
+            if not self._parar.is_set() and self.agenda_shop is not None:
+                self.agenda_shop.ejecutar_siguiente()
 
     def _tarea_recordatorios(self) -> None:
         """C44: publica recordatorio.vencido (marca notificado_at) y hace parpadear la ventana. Nunca un globo."""

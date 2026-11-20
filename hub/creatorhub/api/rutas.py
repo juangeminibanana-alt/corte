@@ -29,12 +29,16 @@ import logging
 import secrets
 import urllib.parse
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Literal, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Literal, Mapping
 
 from .. import comun, config
 from ..errores import ErrorApi, ErrorDominio, ErrorRed
 from ..interfaces import Contexto, Despachador, Json, RespuestaHttp
 from . import archivos, seguridad
+
+if TYPE_CHECKING:
+    from ..tiktok.agenda_publicaciones import AgendaPublicaciones
+    from ..tiktok.publicaciones import PublicacionesShop
 
 _log = logging.getLogger('creatorhub.api.rutas')
 
@@ -412,6 +416,15 @@ class DespachadorHub:
             R('POST', 'api/catalogo/vitrina/quitar', lambda p: self._vitrina_creator(p, 'quitar'), X),
             R('POST', 'api/catalogo/vitrina/fijar', lambda p: self._vitrina_creator(p, 'fijar'), X),
             R('POST', 'api/catalogo/enlaces-afiliado', self._enlaces_afiliado_creator, X),
+            R('GET', 'api/publicaciones/shop/capacidades', lambda p: self._publicaciones_shop(p).capacidades(), X),
+            R('POST', 'api/publicaciones/shop/preparar', lambda p: self._publicaciones_shop(p).preparar(p.objeto()), X),
+            R('POST', 'api/publicaciones/shop/publicar', lambda p: self._publicaciones_shop(p).publicar(p.objeto()), X),
+            R('GET', 'api/publicaciones/shop/agenda', lambda p: self._agenda_shop(p).listar(), X),
+            R('POST', 'api/publicaciones/shop/agenda', lambda p: self._agenda_shop(p).programar(p.objeto()), X),
+            R('POST', 'api/publicaciones/shop/agenda/{id}/cancelar',
+              lambda p: self._agenda_shop(p).cancelar(p.params['id'], p.objeto()), X),
+            R('GET', 'api/publicaciones/shop/{video_id}/estado',
+              lambda p: self._publicaciones_shop(p).estado(p.params['video_id']), X),
             R('GET', 'api/productos/{product_id}', lambda p: a().producto_detalle(p.params['product_id']),
               L, 'lectura'),
             R('GET', 'api/productos/{product_id}/evidencia',
@@ -584,6 +597,22 @@ class DespachadorHub:
         if enlaces is None:
             raise ErrorDominio('no_encontrado', 'Los enlaces de afiliado están disponibles en Corte Nube.', http=404)
         return enlaces.generar(p.objeto())
+
+    def _publicaciones_shop(self, p: Peticion) -> PublicacionesShop:
+        servicio = getattr(self.hub, 'publicaciones_shop', None)
+        if servicio is None:
+            raise ErrorDominio('no_encontrado', MSG_NO_ENCONTRADO, http=404)
+        if p.query or (p.metodo == 'GET' and p.cuerpo):
+            raise ErrorDominio('parametros_invalidos', MSG_CAMPOS, http=400)
+        return servicio
+
+    def _agenda_shop(self, p: Peticion) -> AgendaPublicaciones:
+        servicio = getattr(self.hub, 'agenda_shop', None)
+        if servicio is None:
+            raise ErrorDominio('no_encontrado', MSG_NO_ENCONTRADO, http=404)
+        if p.query or (p.metodo == 'GET' and p.cuerpo):
+            raise ErrorDominio('parametros_invalidos', MSG_CAMPOS, http=400)
+        return servicio
 
     def _snapshot(self, p: Peticion) -> Json:
         h = self.hub

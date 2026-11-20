@@ -1,7 +1,7 @@
 name: corte
 description: CUTGC para Android, Windows y web, conectado a Google Cloud.
 publish_to: none
-version: 2.4.9+20409
+version: 2.4.17+20417
 
 environment:
   sdk: '>=3.10.0 <4.0.0'
@@ -16,6 +16,7 @@ dependencies:
   url_launcher: 6.3.3
   web: 1.1.2
   path_provider: 2.1.6
+  file_selector: 1.1.0
 
 dev_dependencies:
   flutter_test:
@@ -29,8 +30,13 @@ flutter:
   assets:
     - assets/fonts/OFL-MonaSans.txt
     - assets/fonts/OFL-CUTGCWebSans.txt
+    - assets/fonts/OFL-BarlowCondensed.txt
     - assets/icons/LICENSE-Lucide.txt
   fonts:
+    - family: CUTGCDisplay
+      fonts:
+        - asset: assets/fonts/BarlowCondensed-Bold.ttf
+          weight: 700
     - family: MonaSans
       fonts:
         - asset: assets/fonts/CUTGCWebSans.ttf

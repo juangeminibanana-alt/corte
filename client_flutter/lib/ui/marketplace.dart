@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app.dart';
 import '../domain/domain.dart';
 import 'catalog.dart' show openPublicLink;
+import 'corte_icons.dart';
 import 'format.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -222,6 +223,7 @@ class _MarketplacePageState extends State<MarketplacePage> {
           else
             EmptyState(
               'Búsqueda de TikTok Shop no disponible',
+              error: widget.error != null,
               icon: Icons.storefront_outlined,
               text: widget.error == null
                   ? 'Revisa la conexión y el permiso de colaboraciones de creador en Ajustes.'
@@ -247,24 +249,32 @@ class _MarketplacePageState extends State<MarketplacePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               title,
-              _filtrosVista(),
-              if (_categoria case final categoria?) ...[
-                const SizedBox(height: 12),
-                InputChip(
-                  label: Text('Categoría: ${categoria.nombre}'),
-                  deleteButtonTooltipMessage: 'Quitar categoría',
-                  onDeleted: _cargando
-                      ? null
-                      : () => setState(() => _categoria = null),
+              CortePanel(
+                padding: const EdgeInsets.all(CorteSpace.large),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _filtrosVista(),
+                    if (_categoria case final categoria?) ...[
+                      const SizedBox(height: CorteSpace.medium),
+                      InputChip(
+                        label: Text('Categoría: ${categoria.nombre}'),
+                        deleteButtonTooltipMessage: 'Quitar categoría',
+                        onDeleted: _cargando
+                            ? null
+                            : () => setState(() => _categoria = null),
+                      ),
+                    ],
+                    const SizedBox(height: CorteSpace.large),
+                    FilledButton.icon(
+                      onPressed: _cargando ? null : _buscar,
+                      icon: const CorteIcon(CorteIconName.search, size: 18),
+                      label: const Text('Buscar'),
+                    ),
+                  ],
                 ),
-              ],
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: _cargando ? null : _buscar,
-                icon: const Icon(Icons.search_rounded),
-                label: const Text('Buscar'),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: CorteSpace.large),
               if (_buscada && productos.isEmpty && _error == null)
                 const EmptyState(
                   'No encontramos productos',

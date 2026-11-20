@@ -75,18 +75,18 @@ class CorteNotifications {
   }
 
   /// A failed/incomplete read leaves the existing native alarms intact.
-  Future<bool> refresh(CorteRepository repo) async {
+  Future<bool> refresh(CorteRepository repo, {SnapshotDto? snapshot}) async {
     if (!supported || _disposed || _refreshing) return false;
     _refreshing = true;
     final scope = repo.cacheScope;
     final owner = repo.ownerScope;
     try {
       if (scope == null || owner == null) return false;
-      final snapshot = await repo.snapshot();
-      final local = snapshot.local;
+      final currentSnapshot = snapshot ?? await repo.snapshot();
+      final local = currentSnapshot.local;
       if (local == null ||
           local['preferencias'] is! Map ||
-          snapshot.raw['muestras'] is! List) {
+          currentSnapshot.raw['muestras'] is! List) {
         return false;
       }
       // Repository projections include pending local changes; rejected changes are excluded.
@@ -106,7 +106,7 @@ class CorteNotifications {
         return false;
       }
       final current = <String, dynamic>{
-        ...snapshot.raw,
+        ...currentSnapshot.raw,
         'local': <String, dynamic>{
           ...local,
           'planes': parts[0]['items'],

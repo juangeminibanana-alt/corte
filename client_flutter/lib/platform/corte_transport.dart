@@ -212,7 +212,34 @@ class CorteTransport implements CorteHttpAdapter {
       prepared['X-Corte-Expected-Creator'] = creator;
     }
     Uint8List? payload;
-    if (body != null) {
+    final video = body is CorteVideoBytes ? body : null;
+    if (video != null) {
+      final simple =
+          method == 'POST' && uri.path == '/api/publicaciones/shop/archivo';
+      final part =
+          method == 'PUT' &&
+          RegExp(
+            r'^/api/publicaciones/shop/archivo/[a-zA-Z0-9_-]+/partes/[1-9][0-9]*$',
+          ).hasMatch(uri.path);
+      if ((!simple && !part) ||
+          (part && video.filename != null) ||
+          video.bytes.isEmpty ||
+          video.bytes.length > 10 * 1024 * 1024 ||
+          (simple &&
+              (video.filename == null ||
+                  !RegExp(
+                    r'^video\.[a-z0-9]{2,5}$',
+                  ).hasMatch(video.filename!)))) {
+        throw const CorteTransportException(
+          'archivo_invalido',
+          'Revisa el archivo de video seleccionado.',
+        );
+      }
+      if (part) {
+        payload = video.bytes;
+        prepared['Content-Type'] = 'application/octet-stream';
+      }
+    } else if (body != null) {
       try {
         payload = body is Uint8List
             ? body
@@ -242,18 +269,39 @@ class CorteTransport implements CorteHttpAdapter {
     final abort = CorteCancelToken();
     _active.add(abort);
     var timedOut = false;
-    final timer = Timer(timeout, () {
-      timedOut = true;
-      abort.cancel();
-    });
+    final timer = Timer(
+      video != null ? const Duration(minutes: 3) : timeout,
+      () {
+        timedOut = true;
+        abort.cancel();
+      },
+    );
     final trigger = cancelToken == null
         ? abort.whenCancelled
         : Future.any<void>([abort.whenCancelled, cancelToken.whenCancelled]);
     try {
-      final request = http.AbortableRequest(method, uri, abortTrigger: trigger)
-        ..followRedirects = false
-        ..headers.addAll(prepared);
-      if (payload != null) request.bodyBytes = payload;
+      final http.BaseRequest request;
+      if (video?.filename != null) {
+        request =
+            http.AbortableMultipartRequest(method, uri, abortTrigger: trigger)
+              ..files.add(
+                http.MultipartFile.fromBytes(
+                  'archivo',
+                  video!.bytes,
+                  filename: video.filename,
+                ),
+              );
+      } else {
+        final jsonOrBytes = http.AbortableRequest(
+          method,
+          uri,
+          abortTrigger: trigger,
+        );
+        if (payload != null) jsonOrBytes.bodyBytes = payload;
+        request = jsonOrBytes;
+      }
+      request.followRedirects = false;
+      request.headers.addAll(prepared);
       final response = await _client.send(request);
       final bytes = BytesBuilder(copy: false);
       await for (final chunk in response.stream) {

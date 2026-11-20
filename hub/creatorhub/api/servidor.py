@@ -39,6 +39,7 @@ import time
 import urllib.parse
 from typing import Any, Callable, Iterable
 
+from ..pagina_estado import pagina_estado
 from .. import config
 from ..interfaces import CTX_UI, Despachador, RespuestaHttp
 from . import seguridad
@@ -62,8 +63,8 @@ MSG_NO_ENCONTRADO = 'No encontramos lo que buscas.'
 MSG_GRANDE = 'La petición es demasiado grande.'
 MSG_CABECERAS = 'Las cabeceras de la petición son demasiado grandes.'
 MSG_LARGO = 'Envía la petición con Content-Length.'
-MSG_BOOT = 'Este enlace de inicio ya no sirve. Cierra Corte y vuelve a abrirlo.'
-MSG_OAUTH = 'Algo salió mal al volver de TikTok. Regresa a Corte e inténtalo de nuevo.'
+MSG_BOOT = 'Este enlace de inicio ya no sirve. Cierra CUTGC y vuelve a abrir la aplicación.'
+MSG_OAUTH = 'Algo salió mal al volver de TikTok. Regresa a CUTGC e inténtalo de nuevo.'
 RUTA_OAUTH = '/oauth/tiktok'
 TASA_OAUTH = 2.0                          # regresos de autorización por segundo (ráfaga 5)
 
@@ -144,8 +145,7 @@ def _cerrar_con_espera(sock: Any, tope_s: float = ESPERA_CIERRE_S, max_bytes: in
 
 
 def _pagina(mensaje: str) -> bytes:
-    return ('<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><title>Corte</title></head><body>'
-            f'<main><h1>Corte</h1><p>{mensaje}</p></main></body></html>').encode('utf-8')
+    return pagina_estado("No se pudo continuar", mensaje)
 
 
 class Manejador(http.server.BaseHTTPRequestHandler):

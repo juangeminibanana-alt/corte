@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../app.dart';
 import '../domain/domain.dart';
 import 'catalog.dart' show openPublicLink;
+import 'corte_icons.dart';
 import 'format.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -308,6 +309,8 @@ class _ShowcasePageState extends State<ShowcasePage> {
           else
             EmptyState(
               'Vitrina no disponible',
+              icon: Icons.storefront_outlined,
+              error: widget.accessError != null,
               text: widget.accessError == null
                   ? 'Conecta TikTok Shop y autoriza el acceso a tu vitrina.'
                   : 'No pudimos comprobar el acceso.',
@@ -328,12 +331,12 @@ class _ShowcasePageState extends State<ShowcasePage> {
           'Vitrina',
           back: widget.onBack,
           action: Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: CorteSpace.small,
+            runSpacing: CorteSpace.small,
             children: [
               OutlinedButton.icon(
                 onPressed: _busy ? null : () => _load(),
-                icon: const Icon(Icons.refresh_rounded),
+                icon: const CorteIcon(CorteIconName.refreshCw, size: 18),
                 label: const Text('Actualizar'),
               ),
               if (_showWrite)
@@ -345,19 +348,17 @@ class _ShowcasePageState extends State<ShowcasePage> {
             ],
           ),
         ),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+        CorteRouteTabs(
           children: [
-            ChoiceChip(
-              label: const Text('Vitrina'),
+            CorteRouteTab(
+              'Vitrina',
               selected: !_live,
-              onSelected: _busy ? null : (_) => _selectOrigin(false),
+              onPressed: _busy ? null : () => _selectOrigin(false),
             ),
-            ChoiceChip(
-              label: const Text('Productos para LIVE'),
+            CorteRouteTab(
+              'Productos para LIVE',
               selected: _live,
-              onSelected: _busy ? null : (_) => _selectOrigin(true),
+              onPressed: _busy ? null : () => _selectOrigin(true),
             ),
           ],
         ),

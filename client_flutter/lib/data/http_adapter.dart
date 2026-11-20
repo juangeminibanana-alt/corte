@@ -1,5 +1,12 @@
 import 'dart:typed_data';
 
+/// A bounded video upload. The transport selects multipart or raw bytes from the endpoint.
+class CorteVideoBytes {
+  const CorteVideoBytes(this.bytes, {this.filename});
+  final Uint8List bytes;
+  final String? filename;
+}
+
 /// Platform code owns HTTPS, session cookies/native credentials and cancellation.
 /// Business repositories never receive an access token or creator identity.
 abstract interface class CorteHttpAdapter {

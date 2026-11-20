@@ -38,7 +38,7 @@ HOSTS_TIKTOK: frozenset[str] = frozenset({'open-api.tiktokglobalshop.com', 'auth
 TIMEOUT_CONEXION_S = 10.0
 TIMEOUT_LECTURA_S = 30.0
 MAX_RESPUESTA_BYTES = 32 * 1024 * 1024
-METODOS = frozenset({'GET', 'POST', 'DELETE'})
+METODOS = frozenset({'GET', 'POST', 'PUT', 'DELETE'})
 
 
 # ------------------------------------------------------------------ conexiones con tope de conexión propio

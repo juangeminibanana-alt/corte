@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 13+ aplica el tinte del sistema a la silueta blanca de los dos cortes. -->
+<!-- Generado por ui/scripts/render_iconos.mjs. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <group android:translateX="27" android:translateY="27" android:scaleX="1.35" android:scaleY="1.35">
-        <path android:pathData="M5,32L22,8" android:fillColor="#00000000"
-            android:strokeColor="#FFFFFFFF" android:strokeWidth="7" android:strokeLineCap="round" />
-        <path android:pathData="M18,32L35,8" android:fillColor="#00000000"
-            android:strokeColor="#FFFFFFFF" android:strokeWidth="7" android:strokeLineCap="round" />
+    <group android:translateX="26" android:translateY="37.38759585631642" android:scaleX="0.7533970133189829" android:scaleY="0.7533970133189829">
+        <path android:pathData="M23.46 0H43.31L19.85 44.1H0Z" android:fillColor="#FFFFFFFF" />
+        <path android:pathData="M54.48 0H74.33L50.87 44.1H31.02Z" android:fillColor="#FFFFFFFF" />
     </group>
 </vector>

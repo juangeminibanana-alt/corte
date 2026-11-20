@@ -23,6 +23,9 @@ public final class SalesNotifications {
     private static final String TAG = "corte.sale.";
     public static final String EXTRA_ROUTE = "app.creatorhub.SALES_ROUTE";
     public static final String EXTRA_SCOPE = "app.creatorhub.SALES_SCOPE";
+    private static final Object DISPATCH_STATE = new Object();
+    private static int pendingConfigurations;
+    private static volatile boolean dispatchPaused;
 
     private SalesNotifications() { }
 
@@ -30,10 +33,36 @@ public final class SalesNotifications {
         return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
-    public static synchronized boolean enabled(Context context) {
+    public static void beginConfiguration() {
+        synchronized (DISPATCH_STATE) {
+            pendingConfigurations++;
+            dispatchPaused = true;
+        }
+    }
+
+    public static void finishConfiguration(boolean succeeded) {
+        synchronized (DISPATCH_STATE) {
+            pendingConfigurations--;
+            dispatchPaused = pendingConfigurations != 0 || !succeeded;
+        }
+    }
+
+    public static boolean isDispatchPaused() {
+        return dispatchPaused;
+    }
+
+    public static synchronized boolean configured(Context context) {
         SharedPreferences p = prefs(context);
-        return !context.getPackageName().endsWith(".dev") && p.getBoolean("enabled", false)
-                && SalesMessagePolicy.validScope(p.getString("scope", null));
+        try {
+            return !context.getPackageName().endsWith(".dev") && p.getBoolean("enabled", false)
+                    && SalesMessagePolicy.validScope(p.getString("scope", null));
+        } catch (ClassCastException malformedPreferences) {
+            return false;
+        }
+    }
+
+    public static boolean enabled(Context context) {
+        return !isDispatchPaused() && configured(context) && !isDispatchPaused();
     }
 
     public static synchronized String scope(Context context) {
@@ -43,7 +72,7 @@ public final class SalesNotifications {
     public static synchronized void configure(Context context, boolean enabled, String scope) {
         if (enabled && !SalesMessagePolicy.validScope(scope)) throw new IllegalArgumentException();
         SharedPreferences p = prefs(context);
-        boolean changed = !enabled || !scope.equals(p.getString("scope", null));
+        boolean changed = !enabled || !scope.equals(storedScope(p));
         SharedPreferences.Editor update = p.edit();
         if (changed) {
             update.remove("token");
@@ -57,6 +86,14 @@ public final class SalesNotifications {
         if (enabled) update.putString("scope", scope); else update.remove("scope");
         if (!update.commit()) throw new IllegalStateException("Sales state unavailable");
         if (enabled) createChannel(context);
+    }
+
+    private static String storedScope(SharedPreferences preferences) {
+        try {
+            return preferences.getString("scope", null);
+        } catch (ClassCastException malformedPreferences) {
+            return null;
+        }
     }
 
     public static synchronized String permission(Context context) {
@@ -108,6 +145,7 @@ public final class SalesNotifications {
                 .setContentIntent(tap).setAutoCancel(true).setOnlyAlertOnce(true)
                 .setCategory(Notification.CATEGORY_EVENT).setVisibility(Notification.VISIBILITY_PRIVATE)
                 .setGroup("corte.sales").build();
+        if (isDispatchPaused()) return false;
         try {
             manager.notify(TAG + message.key, 0, notification);
         } catch (SecurityException ignored) {
@@ -141,12 +179,14 @@ public final class SalesNotifications {
         String requestedScope = intent.getStringExtra(EXTRA_SCOPE);
         String route = intent.getStringExtra(EXTRA_ROUTE);
         intent.removeExtra(EXTRA_SCOPE); intent.removeExtra(EXTRA_ROUTE);
-        return enabled(context) && scope(context).equals(requestedScope)
+        String scope = scope(context);
+        return scope != null && scope.equals(requestedScope)
                 && SalesMessagePolicy.ROUTE.equals(route) ? route : null;
     }
 
     public static synchronized boolean validTap(Context context, Intent intent) {
-        return intent != null && enabled(context) && scope(context).equals(intent.getStringExtra(EXTRA_SCOPE))
+        String scope = scope(context);
+        return intent != null && scope != null && scope.equals(intent.getStringExtra(EXTRA_SCOPE))
                 && SalesMessagePolicy.ROUTE.equals(intent.getStringExtra(EXTRA_ROUTE));
     }
 

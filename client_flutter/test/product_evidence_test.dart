@@ -378,7 +378,16 @@ void main() {
           expect(find.text('102'), findsOneWidget);
           expect(find.text('Opinión sintética r1'), findsOneWidget);
           expect(find.text('20 reseñas en la fuente'), findsOneWidget);
-          expect(tester.takeException(), isNull);
+          final layout = tester.takeException();
+          expect(
+            layout,
+            isNull,
+            reason: layout is FlutterError
+                ? layout.diagnostics
+                      .map((node) => node.toStringDeep())
+                      .join('\n')
+                : null,
+          );
           final horizontal = find.byWidgetPredicate(
             (widget) =>
                 widget is SingleChildScrollView &&

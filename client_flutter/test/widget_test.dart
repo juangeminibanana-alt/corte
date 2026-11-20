@@ -39,7 +39,17 @@ void main() {
       );
       await tester.pump();
       expect(tester.takeException(), isNull);
-      expect(find.text('Más'), findsOneWidget);
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+      final navigation = find.byWidget(scaffold.bottomNavigationBar!);
+      for (final label in ['Hoy', 'Prendas', 'Dinero']) {
+        expect(
+          find
+              .descendant(of: navigation, matching: find.text(label))
+              .hitTestable(),
+          findsOneWidget,
+        );
+      }
+      expect(find.byTooltip('Ajustes').hitTestable(), findsOneWidget);
     }
     await tester.pumpWidget(const SizedBox.shrink());
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));

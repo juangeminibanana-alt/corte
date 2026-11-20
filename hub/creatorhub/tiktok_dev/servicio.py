@@ -28,7 +28,6 @@ En demo y autoprueba lo que cambia la conexión responde 403 `prohibido` (la dem
 from __future__ import annotations
 
 import hmac
-import html
 import json
 import logging
 import os
@@ -39,6 +38,7 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
+from ..pagina_estado import pagina_estado
 from .. import config
 from ..errores import ErrorApi, ErrorDominio
 from ..interfaces import Almacen, Bus, Coordinador, Json, ModoHub, Reloj, Transporte
@@ -67,25 +67,17 @@ MSG_CLAVE_FORMATO = 'El Client key debe tener de 8 a 64 letras y números, sin e
 MSG_SECRETO_FORMATO = 'El Client secret debe tener de 16 a 128 letras, números, guiones o guiones bajos, sin espacios.'
 MSG_FALTAN_CREDENCIALES = 'Primero escribe el Client key y el Client secret de tu app de TikTok for Developers.'
 MSG_NAVEGADOR = 'No pudimos abrir tu navegador. Copia el enlace y ábrelo tú.'
-PAG_LISTO = 'Listo, ya puedes volver a Corte.'
-PAG_LISTO_FALTAN = 'Listo, ya puedes volver a Corte. Faltó un permiso: {faltan}. Algunas cifras no se van a actualizar.'
-PAG_NO_CORRESPONDE = ('Este enlace no corresponde a un intento de conexión de Corte, o ya caducó. Vuelve a Corte e '
+PAG_LISTO = 'Listo, ya puedes volver a CUTGC.'
+PAG_LISTO_FALTAN = 'Listo, ya puedes volver a CUTGC. Faltó un permiso: {faltan}. Algunas cifras no se van a actualizar.'
+PAG_NO_CORRESPONDE = ('Este enlace no corresponde a un intento de conexión de CUTGC, o ya caducó. Vuelve a CUTGC e '
                       'inténtalo de nuevo.')
-PAG_CANCELADA = 'Cancelaste la autorización en TikTok. Puedes volver a Corte e intentarlo cuando quieras.'
-PAG_ERROR_TIKTOK = 'TikTok no completó la autorización. Vuelve a Corte e inténtalo de nuevo.'
-PAG_INVALIDA = 'Este enlace no es válido. Vuelve a Corte e inténtalo de nuevo.'
+PAG_CANCELADA = 'Cancelaste la autorización en TikTok. Puedes volver a CUTGC e intentarlo cuando quieras.'
+PAG_ERROR_TIKTOK = 'TikTok no completó la autorización. Vuelve a CUTGC e inténtalo de nuevo.'
+PAG_INVALIDA = 'Este enlace no es válido. Vuelve a CUTGC e inténtalo de nuevo.'
 
 
 def pagina_html(mensaje: str, ok: bool) -> bytes:
-    """Página mínima (sin scripts ni recursos externos; la CSP del servidor solo permite estilos en línea)."""
-    color = '#1f7a4d' if ok else '#9b2c2c'
-    return ('<!doctype html><html lang="es-MX"><head><meta charset="utf-8">'
-            '<meta name="viewport" content="width=device-width, initial-scale=1"><title>Corte</title>'
-            '<style>body{font-family:Segoe UI,system-ui,sans-serif;margin:0;display:flex;min-height:100vh;'
-            'align-items:center;justify-content:center;background:#f6f6f4;color:#1c1c1a}'
-            'main{max-width:28rem;padding:2rem;text-align:center}h1{font-size:1.4rem;margin:0 0 .75rem}'
-            f'p{{font-size:1.05rem;line-height:1.5;margin:0;color:{color}}}</style></head>'
-            f'<body><main><h1>Corte</h1><p>{html.escape(mensaje)}</p></main></body></html>').encode('utf-8')
+    return pagina_estado("Conexión completada" if ok else "Revisa la conexión", mensaje, correcto=ok)
 
 
 def _abrir_url_sistema(url: str) -> None:
@@ -407,7 +399,7 @@ class ServicioDisplay:
             with self.boveda.candado:
                 current = self.boveda.leer()
                 if (current.get('client_key'), current.get('epoca_credenciales', 0)) != revision:
-                    return self._recordar(state, 409, pagina_html('La conexión cambió. Vuelve a Corte para revisar su estado.', False))
+                    return self._recordar(state, 409, pagina_html('La conexión cambió. Vuelve a CUTGC para revisar su estado.', False))
                 self._anotar_error(e)
             self.publicar()
             return self._recordar(state, 502 if e.transitorio else 400, pagina_html(e.mensaje, False))
@@ -418,7 +410,7 @@ class ServicioDisplay:
 
     def _conectar(self, tokens: Mapping[str, Any], revision: tuple[Any, Any]) -> bytes:
         ahora = self.reloj.ahora()
-        cambio = 'La conexión cambió. Vuelve a Corte para revisar su estado.'
+        cambio = 'La conexión cambió. Vuelve a CUTGC para revisar su estado.'
         actual = self.boveda.leer()
         if (actual.get('client_key'), actual.get('epoca_credenciales', 0)) != revision:
             raise ErrorDominio('credenciales_cambiaron', cambio, http=409)
@@ -584,7 +576,7 @@ class ServicioDisplay:
         with self.boveda.candado:
             actual = self.boveda.leer()
             if (actual.get('client_key'), actual.get('epoca_credenciales', 0)) != revision:
-                return ErrorDominio('credenciales_cambiaron', 'La conexión cambió. Vuelve a Corte para revisar su estado.',
+                return ErrorDominio('credenciales_cambiaron', 'La conexión cambió. Vuelve a CUTGC para revisar su estado.',
                                     http=409)
             if open_id_rechazado and actual.get('open_id') == open_id_rechazado and actual.get('access_token'):
                 olvidada = dict(actual)

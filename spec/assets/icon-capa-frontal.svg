@@ -1,8 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="1024" height="1024">
-  <title>Corte - primer plano adaptativo</title>
-  <!-- Geometria de Logo.tsx centrada dentro de la zona segura circular de 66 dp. -->
-  <g transform="translate(27 27) scale(1.35)" fill="none" stroke-width="7" stroke-linecap="round">
-    <path d="M5 32L22 8" stroke="#FE2C55"/>
-    <path d="M18 32L35 8" stroke="#25F4EE"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="1024" height="1024" role="img" aria-label="CUTGC">
+  <title>CUTGC</title>
+  <g transform="translate(26 37.38759585631642) scale(0.7533970133189829)">
+    <path d="M23.46 0H43.31L19.85 44.1H0Z" fill="#FE2C55"/>
+    <path d="M54.48 0H74.33L50.87 44.1H31.02Z" fill="#25F4EE"/>
   </g>
 </svg>

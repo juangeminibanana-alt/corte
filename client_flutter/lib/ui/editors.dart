@@ -65,6 +65,60 @@ Future<T?> _scopedDialog<T>(BuildContext context, WidgetBuilder builder) async {
   return result;
 }
 
+class _EditorHeading extends StatelessWidget {
+  const _EditorHeading(this.title, {required this.busy});
+  final String title;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: Semantics(
+              header: true,
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Cerrar',
+            onPressed: busy ? null : () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
+      ),
+      const Divider(),
+      const SizedBox(height: CorteSpace.large),
+    ],
+  );
+}
+
+class _EditorActions extends StatelessWidget {
+  const _EditorActions({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SizedBox(height: CorteSpace.medium),
+      const Divider(),
+      const SizedBox(height: CorteSpace.medium),
+      Wrap(
+        alignment: WrapAlignment.end,
+        spacing: CorteSpace.small,
+        runSpacing: CorteSpace.small,
+        children: children,
+      ),
+    ],
+  );
+}
+
 class _EditorDialog extends StatefulWidget {
   const _EditorDialog({
     required this.title,
@@ -166,33 +220,26 @@ class _EditorDialogState extends State<_EditorDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !busy,
     child: Dialog(
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: CorteSpace.large,
+        vertical: CorteSpace.large,
+      ),
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: 600,
           maxHeight: MediaQuery.sizeOf(context).height * .9,
         ),
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(
+            MediaQuery.sizeOf(context).width < 480
+                ? CorteSpace.large
+                : CorteSpace.xl,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.title,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Cerrar',
-                    onPressed: busy ? null : () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
+              _EditorHeading(widget.title, busy: busy),
               Flexible(
                 child: SingleChildScrollView(
                   child: Form(
@@ -232,11 +279,7 @@ class _EditorDialogState extends State<_EditorDialog> {
                   ),
                 ),
               ),
-              const SizedBox(height: 22),
-              Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 10,
-                runSpacing: 10,
+              _EditorActions(
                 children: [
                   TextButton(
                     onPressed: busy ? null : () => Navigator.of(context).pop(),
@@ -249,7 +292,7 @@ class _EditorDialogState extends State<_EditorDialog> {
                             dimension: 17,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.white,
+                              color: CorteColors.onAction,
                             ),
                           )
                         : const Icon(Icons.check_rounded, size: 19),
@@ -832,35 +875,29 @@ class _MessageEditorDialogState extends State<MessageEditorDialog> {
     return PopScope(
       canPop: !_busy,
       child: Dialog(
+        insetPadding: const EdgeInsets.symmetric(
+          horizontal: CorteSpace.large,
+          vertical: CorteSpace.large,
+        ),
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: 640,
             maxHeight: MediaQuery.sizeOf(context).height * .92,
           ),
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(
+              MediaQuery.sizeOf(context).width < 480
+                  ? CorteSpace.large
+                  : CorteSpace.xl,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Mensaje a ${textOf(widget.tienda['nombre'], 'la tienda')}',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Cerrar',
-                      onPressed: _busy
-                          ? null
-                          : () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
+                _EditorHeading(
+                  'Mensaje a ${textOf(widget.tienda['nombre'], 'la tienda')}',
+                  busy: _busy,
                 ),
-                const SizedBox(height: 16),
                 Flexible(
                   child: SingleChildScrollView(
                     child: Column(
@@ -1030,11 +1067,7 @@ class _MessageEditorDialogState extends State<MessageEditorDialog> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 12,
-                  runSpacing: 10,
+                _EditorActions(
                   children: [
                     OutlinedButton(
                       onPressed: _busy || !resolved.puedeCopiar || _loading
@@ -1473,7 +1506,7 @@ class RemindersPanel extends StatelessWidget {
                                 ? Icons.check_circle_rounded
                                 : Icons.radio_button_unchecked_rounded,
                             color: item['estado'] == 'hecho'
-                                ? context.corte.cyanInk
+                                ? context.corte.success
                                 : context.corte.muted,
                           ),
                         ),
@@ -1494,10 +1527,7 @@ class RemindersPanel extends StatelessWidget {
                                   item['pospuesto_hasta'] ?? item['vence_at'],
                                   time: true,
                                 ),
-                                style: TextStyle(
-                                  color: context.corte.muted,
-                                  fontSize: 12,
-                                ),
+                                style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
                           ),

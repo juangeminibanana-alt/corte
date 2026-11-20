@@ -51,6 +51,7 @@ AUTH = 'https://auth.tiktok-shops.com'
 P_PERFIL = '/affiliate_creator/202508/profiles'
 P_REFRESH = '/api/v2/token/refresh'
 P_TOKEN = '/api/v2/token/get'
+P_ARCHIVO_VIDEO = '/affiliate_creator/202505/videos/video_files'
 
 UMBRAL_PROACTIVO_S = 300            # refresh proactivo si al access le quedan < 5 min
 UMBRAL_INICIO_SYNC_S = 1800         # … o < 30 min en la primera llamada de una sync
@@ -434,16 +435,21 @@ class ClienteTikTokReal:
 
     # ================================================================ llamada firmada
     def llamar(self, metodo: Literal['GET', 'POST', 'DELETE'], path: str, query: Mapping[str, str] | None = None,
-               body: Json | None = None, *, ctx: ContextoSync | None = None, reintentar: bool = True) -> Json:
+               body: Json | None = None, *, ctx: ContextoSync | None = None, reintentar: bool = True,
+               reemitir_tras_refresh: bool = True, antes_de_enviar: Callable[[], None] | None = None,
+               archivo_multipart: tuple[str, bytes] | None = None) -> Json:
         """data{} de la respuesta o ErrorApi(codigo, mensaje_limpio, decision, http, request_id, path, transitorio)."""
         if metodo not in ('GET', 'POST', 'DELETE'):
             raise ValueError(f'método no permitido: {metodo!r}')
         if not isinstance(path, str) or not path.startswith('/') or '?' in path or '#' in path:
             raise ValueError('path debe ser una ruta absoluta sin query')
+        if archivo_multipart is not None and (metodo != 'POST' or path != P_ARCHIVO_VIDEO or body is not None):
+            raise ValueError('El archivo multipart requiere la ruta de carga de video.')
         previo = getattr(self._local, 'ctx', None)
         self._local.ctx = ctx
         try:
-            return self._llamar(metodo, path, query, body, ctx, reintentar)
+            return self._llamar(metodo, path, query, body, ctx, reintentar, reemitir_tras_refresh, antes_de_enviar,
+                                archivo_multipart)
         finally:
             self._local.ctx = previo
             self.volcar_errores()
@@ -467,7 +473,8 @@ class ClienteTikTokReal:
             raise
 
     def _llamar(self, metodo: str, path: str, query: Mapping[str, Any] | None, body: Json | None,
-                ctx: ContextoSync | None, reintentar: bool = True) -> Json:
+                ctx: ContextoSync | None, reintentar: bool = True, reemitir_tras_refresh: bool = True,
+                antes_de_enviar: Callable[[], None] | None = None, archivo_multipart: tuple[str, bytes] | None = None) -> Json:
         b = self.boveda.leer()
         self._verificar_contexto(b, ctx, path)
         if not b.get('app_secret') or not b.get('access_token'):
@@ -484,14 +491,16 @@ class ClienteTikTokReal:
             q: dict[str, Any] = {k: v for k, v in (query or {}).items() if v not in (None, '', [])}
             q['app_key'] = b.get('app_key') or APP_KEY_PUBLICA
             q['timestamp'] = str(self.ahora())
-            cuerpo = serializar_cuerpo(body)
-            q['sign'] = generar_firma(path, q, cuerpo, b['app_secret'])
+            tipo, cuerpo = archivo_multipart or ('application/json', serializar_cuerpo(body))
+            q['sign'] = generar_firma(path, q, cuerpo, b['app_secret'], tipo.partition(';')[0])
             url = f'{API}{path}?{urllib.parse.urlencode(q)}'
             self._tomar_ficha(path)
             self._verificar_contexto(self.boveda.leer(), ctx, path)
+            if antes_de_enviar is not None:
+                antes_de_enviar()
             self._contar()
             try:
-                http, r = self.transporte.manejar(metodo, url, {'content-type': 'application/json',
+                http, r = self.transporte.manejar(metodo, url, {'content-type': tipo,
                                                                 'x-tts-access-token': b['access_token'],
                                                                 'User-Agent': self.user_agent}, cuerpo)
             except ErrorRed as e:
@@ -517,6 +526,9 @@ class ClienteTikTokReal:
             request_id = (r or {}).get('request_id')
             self._encolar_error(path, http, codigo, mensaje, request_id, intento, regla.decision)
             if regla.decision == 'refrescar_token' and (reintentar or http < 500):
+                if not reemitir_tras_refresh:
+                    # La publicación consume su archivo. Sólo el refresh preventivo anterior al envío es seguro.
+                    raise ErrorApi(codigo, mensaje, 'abortar', http, request_id, path)
                 if not refrescado:
                     refrescado = True
                     try:
@@ -563,6 +575,41 @@ class ClienteTikTokReal:
             if regla.efecto == 'validacion':
                 e.validacion = True        # type: ignore[attr-defined]  (el sincronizador lo anota en sync_cursores)
             raise e
+
+    def subir_parte_video(self, url: str, token: str, numero: int, tipo: str, datos: bytes, *,
+                          ctx: ContextoSync, antes_de_enviar: Callable[[], None]) -> Json:
+        # La URL y su query de enrutamiento vienen de Upload File Init. El token sólo sale hacia la Open API.
+        try:
+            u = urllib.parse.urlsplit(url)
+        except ValueError:
+            raise ErrorApi('carga_invalida', 'TikTok devolvió una dirección de carga inválida.', 'abortar') from None
+        if (u.scheme != 'https' or u.netloc != urllib.parse.urlsplit(API).netloc or u.fragment
+                or not u.path.startswith('/') or '\\' in u.path or any(ord(c) < 33 or ord(c) > 126 for c in url)):
+            raise ErrorApi('carga_invalida', 'TikTok devolvió una dirección de carga inválida.', 'abortar')
+        reservados = {'app_key', 'upload_token', 'chunk_num', 'access_token', 'shop_cipher'}
+        if any(k in reservados for k, v in urllib.parse.parse_qsl(u.query, keep_blank_values=True)):
+            raise ErrorApi('carga_invalida', 'TikTok devolvió parámetros de carga inválidos.', 'abortar')
+        b = self.boveda.leer()
+        self._verificar_contexto(b, ctx, P_ARCHIVO_VIDEO)
+        self._proactivo(b, ctx, P_ARCHIVO_VIDEO)
+        self._tomar_ficha(P_ARCHIVO_VIDEO)
+        b = self.boveda.leer()
+        self._verificar_contexto(b, ctx, P_ARCHIVO_VIDEO)
+        if not b.get('access_token'):
+            raise ErrorApi('sin_credenciales', 'Conecta TikTok Shop para subir el video.', 'abortar')
+        q = urllib.parse.urlencode({'chunk_num': numero, 'upload_token': token, 'app_key': b.get('app_key') or APP_KEY_PUBLICA})
+        destino = u._replace(query=(u.query + '&' if u.query else '') + q).geturl()
+        antes_de_enviar()
+        try:
+            http, respuesta = self.transporte.manejar('PUT', destino, {'content-type': tipo,
+                'x-tts-access-token': b['access_token'], 'User-Agent': self.user_agent}, datos)
+        except ErrorRed:
+            raise ErrorApi(-1, 'Se interrumpió la carga del video.', 'abortar', transitorio=True) from None
+        codigo = respuesta.get('code') if isinstance(respuesta, dict) else None
+        if not 200 <= http < 300 or type(codigo) is not int or codigo != 0:
+            raise ErrorApi(codigo if type(codigo) is int else -1, 'TikTok rechazó la parte del video.', 'abortar', http)
+        data = respuesta.get('data')
+        return data if isinstance(data, dict) else {}
 
     # ================================================================ extras para auth
     def canjear_codigo(self, code: str) -> Json:

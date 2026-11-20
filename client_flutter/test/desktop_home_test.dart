@@ -8,6 +8,7 @@ import 'package:corte/ui/desktop.dart';
 import 'package:corte/ui/desktop_home.dart';
 import 'package:corte/ui/theme.dart';
 import 'package:corte/ui/shell.dart';
+import 'package:corte/ui/widgets.dart';
 import 'package:corte/ui/work.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -29,6 +30,8 @@ class _HomeFixture {
     this.empty = false,
     this.sessionUnavailable = false,
     this.disconnected = false,
+    this.commissionTotal = 8765400,
+    this.commissionEstimate = 1234500,
   }) {
     auth = CorteAuthController(
       runtime: CorteRuntime(
@@ -43,6 +46,8 @@ class _HomeFixture {
   }
 
   final bool empty, sessionUnavailable, disconnected;
+  final int? commissionTotal;
+  final int commissionEstimate;
   int syncRequests = 0;
   late final CorteAuthController auth;
   late final CorteUiController ui;
@@ -108,8 +113,9 @@ class _HomeFixture {
                   'pedidos': 0,
                 }
               : {
-                  'comision_estimada_centavos': 1234500,
-                  'comision_total_centavos': 8765400,
+                  'comision_estimada_centavos': commissionEstimate,
+                  if (commissionTotal case final amount?)
+                    'comision_total_centavos': amount,
                   'ventas_centavos': 9876500,
                   'pedidos': 67,
                   'pedidos_validos': 41,
@@ -146,6 +152,23 @@ class _HomeFixture {
         });
       case '/api/muestras':
         return _response({'items': samples});
+      case '/api/ordenes':
+        return _response({
+          'items': empty
+              ? []
+              : [
+                  {
+                    'order_id': '580009219001008421',
+                    'fecha': '2026-11-20',
+                    'estado': 'SETTLED',
+                    'estado_etiqueta': 'Liquidado',
+                    'comision_real_centavos': 21450,
+                    'lineas': [
+                      {'producto': 'Camisa de lino', 'cantidad': 1},
+                    ],
+                  },
+                ],
+        });
       case '/api/preferencias':
         return _response(preferences);
       case '/api/cloud/revision':
@@ -218,13 +241,20 @@ Future<void> _mount(
   await tester.pumpAndSettle();
 }
 
+Finder _homeHeading() => find.byWidgetPredicate(
+  (widget) =>
+      widget is Text &&
+      widget.data == 'Hoy' &&
+      widget.style?.fontFamily == CorteType.displayFamily,
+);
+
 void main() {
   testWidgets('móvil muestra Inicio web y conserva seguidores en el detalle', (
     tester,
   ) async {
     await _mount(tester, _HomeFixture(), contentWidth: 334, mobile: true);
-    expect(find.text('Tu negocio, en orden'), findsOneWidget);
-    expect(find.text('Resultados'), findsOneWidget);
+    expect(_homeHeading(), findsOneWidget);
+    expect(find.text('Comisión del período'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('@creadora_demo'), 300);
     expect(find.text('23,501 seguidores en TikTok'), findsOneWidget);
     expect(find.text('−12 en 7 días'), findsOneWidget);
@@ -243,13 +273,13 @@ void main() {
           textScale: textScale,
         );
         expect(tester.takeException(), isNull);
-        expect(find.text('Tu negocio, en orden'), findsOneWidget);
+        expect(_homeHeading(), findsOneWidget);
         final commission = find.text(r'$12,345');
         await tester.scrollUntilVisible(commission, 200, maxScrolls: 15);
         expect(commission, findsOneWidget);
         expect(find.text(r'$98,765'), findsOneWidget);
         expect(find.text('67'), findsOneWidget);
-        expect(find.text(r'$87,654'), findsNothing);
+        expect(find.text(r'$87,654.00 MXN'), findsOneWidget);
         expect(find.text('41'), findsNothing);
         expect(
           MediaQuery.textScalerOf(
@@ -290,6 +320,50 @@ void main() {
     await tester.pumpAndSettle();
     expect(fixture.ui.location, '/ventas?periodo=30d');
   });
+
+  for (final hasTotal in [true, false]) {
+    testWidgets(
+      'Hoy y Dinero muestran los mismos MXN con centavos (${hasTotal ? 'total' : 'estimación'})',
+      (tester) async {
+        final fixture = _HomeFixture(
+          commissionTotal: hasTotal ? 128450 : null,
+          commissionEstimate: hasTotal ? 193921 : 128450,
+        );
+        await _mount(tester, fixture, windowPhysicalWidth: 390, textScale: 2);
+        final amount = find.text(r'$1,284.50 MXN');
+        final label = hasTotal ? 'Comisión del período' : 'Comisión estimada';
+        expect(find.text(label), findsOneWidget);
+        expect(amount, findsOneWidget);
+
+        await tester.tap(amount);
+        await tester.pumpAndSettle();
+
+        expect(fixture.ui.location, '/ventas?periodo=30d');
+        expect(
+          find.descendant(
+            of: find.byType(PageTitle),
+            matching: find.text('Dinero'),
+          ),
+          findsOneWidget,
+        );
+        await tester.scrollUntilVisible(
+          amount,
+          250,
+          scrollable: find
+              .byWidgetPredicate(
+                (widget) =>
+                    widget is Scrollable &&
+                    widget.axisDirection == AxisDirection.down,
+              )
+              .first,
+        );
+        expect(find.text(label), findsOneWidget);
+        expect(amount, findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.android),
+    );
+  }
 
   testWidgets(
     'Prioriza vencidas, fecha y posición. El detalle abre la muestra elegida',
@@ -356,7 +430,7 @@ void main() {
         of: find.byKey(const ValueKey('home-history-metrics')),
         matching: find.text('—'),
       ),
-      findsNWidgets(3),
+      findsNWidgets(2),
     );
     expect(find.text(r'$0'), findsNothing);
     expect(find.text('0'), findsNothing);
@@ -449,26 +523,51 @@ void main() {
         tester.getSize(metrics).width,
         closeTo(viewport.expectedContent, 1),
       );
-      final heading = tester.widget<Text>(find.text('Tu negocio, en orden'));
-      expect(heading.style?.fontSize, 30);
-      expect(heading.style?.fontVariations?.single.value, 750);
-      final first = tester.getTopLeft(find.text('Ventas generadas'));
-      final second = tester.getTopLeft(find.text('Comisión estimada'));
-      final third = tester.getTopLeft(find.text('Pedidos'));
-      final priorities = tester.getTopLeft(find.text('Tus prioridades'));
-      final shortcuts = tester.getTopLeft(find.text('Accesos rápidos'));
-      if (viewport.columns) {
-        expect(second.dy, closeTo(first.dy, 1));
-        expect(third.dy, closeTo(first.dy, 1));
-        expect(third.dx, greaterThan(second.dx));
-        expect(shortcuts.dx, greaterThan(priorities.dx + 300));
-        expect(shortcuts.dy, closeTo(priorities.dy, 25));
-      } else {
-        expect(second.dy, greaterThan(first.dy));
-        expect(third.dy, greaterThan(second.dy));
-        expect(shortcuts.dx, closeTo(priorities.dx, 1));
-        expect(shortcuts.dy, greaterThan(priorities.dy));
+      final heading = tester.widget<Text>(_homeHeading());
+      final mobile = viewport.platform == TargetPlatform.android;
+      expect(
+        heading.style?.fontSize,
+        mobile ? CorteType.page : CorteType.display,
+      );
+      final first = tester.getTopLeft(find.text('Comisión del período'));
+      final prioritiesHeading = find.text('Tus prioridades');
+      final homeScroll = find
+          .descendant(
+            of: find.byType(DesktopHomePage),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      if (prioritiesHeading.evaluate().isEmpty) {
+        await tester.scrollUntilVisible(
+          prioritiesHeading,
+          240,
+          scrollable: homeScroll,
+        );
       }
+      final priorities = tester.getTopLeft(prioritiesHeading);
+      expect(priorities.dy, greaterThan(first.dy));
+      final recentHeading = find.text('Pedidos recientes');
+      await tester.scrollUntilVisible(
+        recentHeading,
+        260,
+        scrollable: homeScroll,
+      );
+      final recent = tester.getTopLeft(recentHeading);
+      final scaledDesktop =
+          viewport.expectedContent >= 790 &&
+          viewport.textScale * CorteType.label <= 20;
+      if (scaledDesktop) {
+        expect(recent.dx, greaterThan(priorities.dx + 250));
+      } else {
+        expect(recent.dx, closeTo(priorities.dx, 8));
+      }
+      final shortcutHeading = find.text('Accesos rápidos');
+      await tester.scrollUntilVisible(
+        shortcutHeading,
+        350,
+        scrollable: homeScroll,
+      );
+      expect(shortcutHeading, findsOneWidget);
       expect(tester.takeException(), isNull);
     }, variant: TargetPlatformVariant.only(viewport.platform));
   }

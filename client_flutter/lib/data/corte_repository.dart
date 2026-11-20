@@ -85,6 +85,8 @@ class CorteRepository {
   }
 
   Future<JsonMap> _overlay(String url, JsonMap data, int generation) async {
+    // Publicaciones y permisos provienen del servidor. La cola local sólo edita datos de trabajo.
+    if (url.startsWith('/api/publicaciones/shop/')) return data;
     final journal = _journal;
     if (journal == null) return data;
     try {
@@ -162,7 +164,7 @@ class CorteRepository {
     bool permitirCacheSinRed = true,
   }) {
     _ensureOpen();
-    if (path.startsWith('/api/push/')) {
+    if (path.startsWith('/api/push/') || path.startsWith('/api/publicaciones/shop/')) {
       force = true;
       permitirCacheSinRed = false;
     }
@@ -216,7 +218,8 @@ class CorteRepository {
       }
     }
     final headers = <String, String>{'Accept': 'application/json'};
-    if (Uri.parse(url).path.startsWith('/api/push/')) {
+    if (Uri.parse(url).path.startsWith('/api/push/') ||
+        (url.startsWith('/api/publicaciones/shop/') && url != '/api/publicaciones/shop/capacidades')) {
       if (_cacheScope == null) {
         throw ErrorApi(
           codigo: 'sesion_cambiada',
@@ -337,18 +340,19 @@ class CorteRepository {
     final url = rutaCanonica(path, query);
     final generation = _generation;
     final payload = body is Map ? immutableJson(jsonMap(body)) : body;
-    final evidenceWrite =
+    final scopedWrite =
+        path.startsWith('/api/publicaciones/shop/') ||
         path.startsWith('/api/push/') ||
         (verb == 'PUT' &&
             RegExp(r'^/api/productos/[0-9]{1,25}/evidencia$').hasMatch(path)) ||
         (verb == 'POST' &&
             RegExp(r'^/api/productos/[0-9]{1,25}/extraer$').hasMatch(path));
     final scope = _cacheScope;
-    if (evidenceWrite && scope == null) {
+    if (scopedWrite && scope == null) {
       throw ErrorApi(
         codigo: 'sesion_cambiada',
         mensaje:
-            'Actualiza la conexión antes de guardar información del producto.',
+            'Actualiza la cuenta conectada antes de continuar.',
       );
     }
     late final CorteResponse response;
@@ -359,7 +363,7 @@ class CorteRepository {
         headers: {
           'Accept': 'application/json',
           ...headers,
-          if (evidenceWrite) 'X-Corte-Cache-Scope': scope!,
+          if (scopedWrite) 'X-Corte-Cache-Scope': scope!,
         },
         body: payload,
       );
@@ -370,7 +374,7 @@ class CorteRepository {
     _ensureGeneration(generation);
     if (response.statusCode >= 400) throw _error(response);
     final data = _decode(response);
-    if (!path.startsWith('/api/push/')) invalidar();
+    if (!path.startsWith('/api/push/') && !path.startsWith('/api/publicaciones/shop/')) invalidar();
     return data;
   }
 
@@ -807,6 +811,7 @@ void _throwRejected(List<JsonMap> results, Set<dynamic> requested) {
 }
 
 bool _cacheable(String url) => !const [
+  '/api/publicaciones/shop/',
   '/api/push/',
   '/api/session',
   '/api/cloud/',

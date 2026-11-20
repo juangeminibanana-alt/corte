@@ -3,8 +3,8 @@ name: Corte Flutter - reviewed builds
 on:
   # The new workflow is not yet on main. Build only Windows on these review branches.
   push:
-    branches: [codex/tiktok-shop-firebase-cloud, claude/corte-nube-trabajo, codex/corte-nube-revision]
-    paths: ['client_flutter/**', '.github/workflows/corte-flutter-builds.yml']
+    branches: [codex/tiktok-shop-firebase-cloud, claude/corte-nube-trabajo, codex/corte-nube-revision, codex/api-publicacion-creator]
+    paths: ['client_flutter/**', 'design-system/**', 'spec/assets/**', 'branding/**', 'android/app/src/main/res/**', 'hub/creatorhub/identidad_generada.py', '.github/workflows/corte-flutter-builds.yml']
   workflow_dispatch:
     inputs:
       target:
@@ -38,6 +38,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - run: python3 ../design-system/generate_tokens.py --check
       - run: python3 tool/bootstrap_flutter.py --destination "$RUNNER_TEMP/flutter" --github-actions
       - run: flutter --no-version-check --disable-analytics
       - run: flutter --no-version-check pub get --enforce-lockfile

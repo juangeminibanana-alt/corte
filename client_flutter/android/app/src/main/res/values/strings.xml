@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">CUTGC</string>
+    <string name="diagnostics_title">Diagnóstico CUTGC</string>
+    <string name="diagnostics_intro">Aquí puedes consultar el último cierre que registró Android y abrir Inicio ligero.</string>
+    <string name="diagnostics_light_start">Abrir Inicio ligero</string>
+    <string name="diagnostics_copy">Copiar diagnóstico</string>
+    <string name="diagnostics_copy_done">Diagnóstico copiado</string>
+    <string name="diagnostics_reading">Leyendo el registro local…</string>
+    <string name="diagnostics_open_failed">No se pudo abrir CUTGC. Vuelve a intentarlo.</string>
     <string name="canal_recordatorios">Recordatorios</string>
     <string name="canal_recordatorios_desc">Avisos de tu plan de videos y de tus muestras.</string>
     <string name="canal_ventas">Ventas</string>

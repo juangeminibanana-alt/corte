@@ -11,6 +11,7 @@ import 'format.dart';
 import 'theme.dart';
 import 'widgets.dart';
 import 'work.dart';
+import 'shop_publisher.dart';
 
 const videosConVentas = '/videos';
 const videosTodos = '/videos?segmento=todos';
@@ -45,7 +46,9 @@ const _meses = [
 
 /// '14 oct' en el año en curso (México) y '14 oct 2025' en otro, como la web.
 String _corta(DateTime d, DateTime? ahora) {
-  final hoy = _diaMexico((ahora ?? DateTime.now()).millisecondsSinceEpoch / 1000);
+  final hoy = _diaMexico(
+    (ahora ?? DateTime.now()).millisecondsSinceEpoch / 1000,
+  );
   return '${d.day} ${_meses[d.month - 1]}${d.year == hoy.year ? '' : ' ${d.year}'}';
 }
 
@@ -138,7 +141,10 @@ List<Map<String, dynamic>> sortCatalog(
   }
   final publicado = v['publicado_at'];
   if (publicado is! num || fechaMexico(publicado).compareTo(pedidosDesde) < 0) {
-    return ('Sin ventas', 'desde el ${fechaCortaDe(pedidosDesde, ahora: ahora)}');
+    return (
+      'Sin ventas',
+      'desde el ${fechaCortaDe(pedidosDesde, ahora: ahora)}',
+    );
   }
   return ('Sin ventas', 'desde que se publicó');
 }
@@ -188,49 +194,19 @@ class VideoTabs extends StatelessWidget {
   final bool todos;
   @override
   Widget build(BuildContext context) {
-    final escritorio = useDesktopWorkspace(context);
-    Widget pestana((String, String, bool) tab) => Semantics(
-      selected: tab.$3,
-      button: true,
-      child: InkWell(
-        onTap: tab.$3 ? null : () => CorteScope.of(context).replace(tab.$1),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 48),
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          margin: EdgeInsets.only(right: escritorio ? 12 : 0),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: tab.$3 ? CorteColors.coral : Colors.transparent,
-                width: 3,
-              ),
-            ),
+    final ui = CorteScope.of(context);
+    return CorteRouteTabs(
+      children: [
+        for (final (path, label, selected) in [
+          (videosConVentas, 'Con ventas', !todos),
+          (videosTodos, 'Todos', todos),
+        ])
+          CorteRouteTab(
+            label,
+            selected: selected,
+            onPressed: selected ? null : () => ui.replace(path),
           ),
-          child: Text(
-            tab.$2,
-            style: TextStyle(
-              fontWeight: tab.$3 ? FontWeight.w600 : FontWeight.w500,
-              color: tab.$3 ? context.corte.ink : context.corte.muted,
-            ),
-          ),
-        ),
-      ),
-    );
-    final tabs = [
-      (videosConVentas, 'Con ventas', !todos),
-      (videosTodos, 'Todos', todos),
-    ];
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: context.corte.line)),
-      ),
-      child: Row(
-        children: [
-          for (final tab in tabs)
-            escritorio ? pestana(tab) : Expanded(child: pestana(tab)),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -428,7 +404,6 @@ class _VideoCatalogViewState extends State<VideoCatalogView> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const PageTitle('Videos'),
-            const SalesNavigation(selected: 'videos'),
             const SizedBox(height: 12),
             const VideoTabs(todos: true),
             EmptyState(
@@ -499,10 +474,10 @@ class _VideoCatalogViewState extends State<VideoCatalogView> {
                 children: [
                   PageTitle(
                     'Videos',
+                    action: const ShopPublishButton(),
                     subtitle:
                         '${integer(total)} ${total == 1 ? 'video' : 'videos'} · ${aviso == null ? 'publicados y con ventas' : 'solo los que tienen ventas'}',
                   ),
-                  const SalesNavigation(selected: 'videos'),
                   const SizedBox(height: 12),
                   const VideoTabs(todos: true),
                   if (aviso != null) ...[
@@ -545,7 +520,10 @@ class _VideoCatalogViewState extends State<VideoCatalogView> {
                     const SizedBox(height: 12),
                     Text(
                       'Se muestran los ${integer(todos.length)} videos más recientes de ${integer(total)}.',
-                      style: TextStyle(color: context.corte.muted, fontSize: 12),
+                      style: TextStyle(
+                        color: context.corte.muted,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 16),
@@ -667,13 +645,7 @@ class CatalogVideoDetail extends StatelessWidget {
                   const SizedBox(height: 20),
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: FilledButton.icon(
-                      onPressed: textOf(v['enlace']).isEmpty
-                          ? null
-                          : () => openPublicLink(context, textOf(v['enlace'])),
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text('Ver video en TikTok'),
-                    ),
+                    child: PublishedVideoActions(link: textOf(v['enlace'])),
                   ),
                 ],
               );

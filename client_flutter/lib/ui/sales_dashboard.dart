@@ -97,7 +97,7 @@ class _SalesPageState extends State<SalesPage> {
       errorBuilder: (context, _) => ListView(
         padding: pagePadding(context),
         children: [
-          const PageTitle('Ventas'),
+          const PageTitle('Dinero'),
           _SalesPeriodControl(
             selected: period,
             now: _salesToday(const {}),
@@ -105,6 +105,7 @@ class _SalesPageState extends State<SalesPage> {
           ),
           EmptyState(
             'No pudimos cargar tus ventas',
+            error: true,
             text: 'Conéctate para actualizar o elige otro periodo.',
             icon: Icons.bar_chart_rounded,
             action: OutlinedButton.icon(
@@ -142,7 +143,7 @@ class _SalesPageState extends State<SalesPage> {
         return ListView(
           padding: pagePadding(context),
           children: [
-            PageTitle('Ventas', subtitle: metadata),
+            PageTitle('Dinero', subtitle: metadata),
             _SalesPeriodControl(
               selected: period,
               now: _salesToday(data),
@@ -191,6 +192,7 @@ class _SalesPageState extends State<SalesPage> {
                 key: ValueKey('$period:$from:$to'),
                 from: period == 'todo' ? null : from,
                 to: period == 'todo' ? null : to,
+                catalog: orderCatalog(rowsOf(data['top_productos'])),
               ),
           ],
         );
@@ -272,10 +274,12 @@ class _SalesPeriodControl extends StatelessWidget {
   }
 }
 
-enum _SalesValue { currency, integer, rate, approximate }
+enum _SalesValue { currency, preciseCurrency, integer, rate, approximate }
 
 String _formatSalesValue(Object? value, _SalesValue kind) => switch (kind) {
   _SalesValue.currency => _salesMoney(value),
+  _SalesValue.preciseCurrency =>
+    _salesNumber(value) == null ? '—' : money(value, decimals: true),
   _SalesValue.approximate => _salesMoney(value, approximate: true),
   _SalesValue.integer => _salesInteger(value),
   _SalesValue.rate => _salesPercent(_salesNumber(value)),
@@ -283,30 +287,23 @@ String _formatSalesValue(Object? value, _SalesValue kind) => switch (kind) {
 
 const _salesKpiItems = [
   (
-    'Comisión estimada',
-    'comision_total_centavos',
-    _SalesValue.currency,
-    true,
-    false,
-  ),
-  (
     'Liquidada',
     'comision_liquidada_centavos',
-    _SalesValue.currency,
+    _SalesValue.preciseCurrency,
     false,
     false,
   ),
   (
     'Por liquidar',
     'comision_por_liquidar_centavos',
-    _SalesValue.currency,
+    _SalesValue.preciseCurrency,
     false,
     false,
   ),
   (
     'Perdida (reembolsos)',
     'comision_perdida_reembolsos_centavos',
-    _SalesValue.currency,
+    _SalesValue.preciseCurrency,
     true,
     true,
   ),
@@ -328,12 +325,23 @@ class _SalesKpis extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasTotal = values['comision_total_centavos'] != null;
+    final key = hasTotal
+        ? 'comision_total_centavos'
+        : 'comision_estimada_centavos';
+    final trend = _SalesTrend.of(
+      _salesNumber(values[key]),
+      _salesNumber(previous[key]),
+      lowerIsBetter: false,
+      percentagePoints: false,
+    );
+    const dark = CortePalette(isDark: true);
     final items = [..._salesKpiItems];
     if ((_salesNumber(values['comision_retenida_centavos']) ?? 0) > 0) {
       items.insert(3, (
         'Congelada',
         'comision_retenida_centavos',
-        _SalesValue.currency,
+        _SalesValue.preciseCurrency,
         false,
         false,
       ));
@@ -342,6 +350,41 @@ class _SalesKpis extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SectionHeading(title),
+        StudioEarningsBand(
+          label: hasTotal ? 'Comisión del período' : 'Comisión estimada',
+          amount: studioCommissionAmount(values[key]),
+          detail: trend == null
+              ? Text(
+                  hasTotal
+                      ? 'Sin contar reembolsos'
+                      : 'Estimación de TikTok Shop',
+                )
+              : Semantics(
+                  excludeSemantics: true,
+                  label:
+                      'Variación respecto al período anterior: ${trend.direction > 0
+                          ? 'subió'
+                          : trend.direction < 0
+                          ? 'bajó'
+                          : 'sin cambio'} ${trend.text}',
+                  child: Text(
+                    '${trend.direction < 0
+                        ? '▼ '
+                        : trend.direction > 0
+                        ? '▲ '
+                        : ''}${trend.text} respecto al período anterior',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: switch (trend.favorable) {
+                        true => dark.success,
+                        false => dark.warning,
+                        null => CorteColors.chromeMuted,
+                      },
+                    ),
+                  ),
+                ),
+        ),
+        const SizedBox(height: CorteSpace.medium),
         LayoutBuilder(
           builder: (context, limits) {
             final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
@@ -375,8 +418,6 @@ class _SalesKpis extends StatelessWidget {
                         'comision_por_liquidar_centavos' =>
                           'De pedidos hechos en este periodo',
                         'comision_retenida_centavos' => 'En revisión de TikTok',
-                        'comision_total_centavos' when previous.isEmpty =>
-                          'Sin contar reembolsos',
                         'tasa_reembolso'
                             when values['pedidos_reembolsados'] != null =>
                           '${_salesInteger(values['pedidos_reembolsados'])} pedidos reembolsados',
@@ -512,22 +553,15 @@ class _SalesKpiCard extends StatelessWidget {
 class _SalesPanel extends StatelessWidget {
   const _SalesPanel({
     required this.child,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = const EdgeInsets.all(CorteSpace.large),
   });
 
   final Widget child;
   final EdgeInsets padding;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: context.corte.soft,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(9),
-      side: BorderSide(color: context.corte.line),
-    ),
-    clipBehavior: Clip.antiAlias,
-    child: Padding(padding: padding, child: child),
-  );
+  Widget build(BuildContext context) =>
+      CortePanel(padding: padding, child: child);
 }
 
 enum _SalesGranularity {
@@ -1655,9 +1689,15 @@ const _salesOrderFilters = [
 ];
 
 class _SalesOrders extends StatefulWidget {
-  const _SalesOrders({required this.from, required this.to, super.key});
+  const _SalesOrders({
+    required this.from,
+    required this.to,
+    required this.catalog,
+    super.key,
+  });
 
   final String? from, to;
+  final Map<String, Map<String, dynamic>> catalog;
 
   @override
   State<_SalesOrders> createState() => _SalesOrdersState();
@@ -1745,10 +1785,10 @@ class _SalesOrdersState extends State<_SalesOrders> {
                         ),
                       ),
                     for (final order in orders)
-                      _OrderTile(
+                      OrderTile(
                         key: ValueKey(textOf(order['order_id'])),
                         order: order,
-                        embedded: true,
+                        catalog: widget.catalog,
                         initiallyExpanded:
                             params['pedido'] == order['order_id'],
                       ),

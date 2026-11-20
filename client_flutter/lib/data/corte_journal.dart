@@ -30,6 +30,7 @@ class CorteJournal {
   final CorteDataStore store;
   final String scope;
   Future<void> _tail = Future.value();
+  Future<JsonMap?>? _snapshotRead;
   String key(String kind) => 'corte.data.$scope.$kind';
 
   Future<T> _serial<T>(Future<T> Function() action) {
@@ -38,7 +39,16 @@ class CorteJournal {
     return result;
   }
 
-  Future<JsonMap?> leerSnapshot() async {
+  Future<JsonMap?> leerSnapshot() {
+    if (_snapshotRead case final pending?) return pending;
+    late final Future<JsonMap?> read;
+    read = _readSnapshot().whenComplete(() {
+      if (identical(_snapshotRead, read)) _snapshotRead = null;
+    });
+    return _snapshotRead = read;
+  }
+
+  Future<JsonMap?> _readSnapshot() async {
     final content = await store.read(key('snapshot'));
     if (content == null) return null;
     final envelope = _envelope(content);
@@ -46,25 +56,21 @@ class CorteJournal {
     return envelope;
   }
 
-  Future<void> guardarSnapshot(JsonMap snapshot, String? etag) => _serial(
-    () async {
-      if (snapshot['version_esquema'] != 1 ||
-          snapshot['muestras'] is! List ||
-          snapshot['local'] is! Map) {
-        throw _invalid();
-      }
-      await store.write(
-        key('snapshot'),
-        jsonEncode({
+  Future<void> guardarSnapshot(JsonMap snapshot, String? etag) =>
+      _serial(() async {
+        if (snapshot['version_esquema'] != 1 ||
+            snapshot['muestras'] is! List ||
+            snapshot['local'] is! Map) {
+          throw _invalid();
+        }
+        await _writeSnapshot({
           'version': 1,
           'cache_scope': scope,
           'guardada_at': DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000,
           'etag': etag,
           'snapshot': snapshot,
-        }),
-      );
-    },
-  );
+        });
+      });
 
   Future<List<JsonMap>> leerOps() async {
     final content = await store.read(key('outbox'));
@@ -151,18 +157,15 @@ class CorteJournal {
     if (saved != null) {
       // Save first: a crash can safely replay the old idempotent operation.
       // The reverse order could permanently hide an acknowledged local edit.
-      await store.write(
-        key('snapshot'),
-        jsonEncode({
-          ...saved,
-          'etag': null,
-          'snapshot': snapshotConResultados(
-            jsonMap(saved['snapshot']),
-            current,
-            responses,
-          ),
-        }),
-      );
+      await _writeSnapshot({
+        ...saved,
+        'etag': null,
+        'snapshot': snapshotConResultados(
+          jsonMap(saved['snapshot']),
+          current,
+          responses,
+        ),
+      });
     }
     await _guardarOps(remaining);
   });
@@ -226,6 +229,12 @@ class CorteJournal {
       );
     }
     await store.write(key('outbox'), encoded);
+  }
+
+  Future<void> _writeSnapshot(JsonMap envelope) {
+    final encoded = jsonEncode(envelope);
+    _snapshotRead = null;
+    return store.write(key('snapshot'), encoded);
   }
 
   JsonMap _envelope(String content) {

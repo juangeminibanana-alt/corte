@@ -1,1 +1,52 @@
-html,body{margin:0;background:#fff;color:#161823;height:100%;font-family:system-ui,sans-serif}#corte-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column}#corte-loading svg{width:48px;height:48px;stroke-width:7;stroke-linecap:round}#corte-loading p{font-size:20px;font-weight:700;letter-spacing:-.3px;line-height:1.15;margin:14px 0 8px}#corte-loading span{font-size:14px;color:#62636f}body:has(flutter-view) #corte-loading{display:none}
+@font-face {
+  font-family: 'Mona Sans';
+  src: url('assets/assets/fonts/CUTGCWebSans.ttf') format('truetype');
+  font-weight: 200 900;
+  font-display: swap;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: #f6f7f9;
+  color: #141722;
+  font-family: 'Mona Sans', 'Segoe UI', system-ui, sans-serif;
+}
+
+#corte-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+#corte-loading img {
+  display: block;
+  width: min(180px, 70vw);
+  height: auto;
+  animation: corte-loader-mark 560ms cubic-bezier(.2, .7, .1, 1) both;
+}
+
+#corte-loading span {
+  color: #596272;
+  font-size: 14px;
+}
+
+@keyframes corte-loader-mark {
+  from { opacity: .65; transform: translate(9px, 6px) scale(.92); }
+  to { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+
+@media (prefers-color-scheme: dark) {
+  html,
+  body { background: #10131a; color: #f2f4f8; }
+  #corte-loading span { color: #aeb8c8; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #corte-loading img { animation: none; }
+}

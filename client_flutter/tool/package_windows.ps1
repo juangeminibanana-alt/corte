@@ -23,7 +23,7 @@ try {
         Where-Object Name -Match '^Microsoft\.VC\d+\.CRT$' | Select-Object -First 1
     if (-not $crt) { throw 'Missing x64 Microsoft C++ runtime.' }
     Get-ChildItem -LiteralPath $crt.FullName -Filter '*.dll' -File | Copy-Item -Destination $release
-    foreach ($dependency in @('flutter_windows.dll', 'data\flutter_assets', 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')) {
+    foreach ($dependency in @('flutter_windows.dll', 'file_selector_windows_plugin.dll', 'data\flutter_assets', 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')) {
         if (-not (Test-Path -LiteralPath (Join-Path $release $dependency))) { throw "Missing native runtime: $dependency" }
     }
     $forbidden = Get-ChildItem -LiteralPath $release -Recurse -File | Where-Object {

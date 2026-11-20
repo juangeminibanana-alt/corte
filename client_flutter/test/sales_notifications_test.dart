@@ -125,6 +125,46 @@ void main() {
   );
 
   test(
+    'Android defers push requests while clearing a previous notification scope',
+    () async {
+      service.dispose();
+      service = CorteSalesNotifications(
+        runtime: CorteRuntime(
+          platform: 'android',
+          baseUri: Uri.parse(corteCloudOrigin),
+        ),
+      );
+      final requested = Completer<void>();
+      adapter.handle = (_, path, _) async {
+        if (path == '/api/push/status' && !requested.isCompleted) {
+          requested.complete();
+        }
+        return {'enabled': false};
+      };
+
+      service.bind(repo, authenticated: true, refreshAutomatically: false);
+      repo.setScopes(ownerScope: scope, cacheScope: otherScope);
+      service.bind(repo, authenticated: true, refreshAutomatically: false);
+      await service.refresh();
+
+      expect(adapter.requests, isEmpty);
+      expect(calls.map((call) => call.method), [
+        'configureSales',
+        'configureSales',
+      ]);
+      expect(
+        calls.map((call) => call.arguments),
+        everyElement({'enabled': false, 'cache_scope': null}),
+      );
+
+      service.bind(repo, authenticated: true);
+      await requested.future;
+      expect(adapter.requests.single.$2, '/api/push/status');
+      expect(adapter.requests.single.$3['X-Corte-Cache-Scope'], otherScope);
+    },
+  );
+
+  test(
     'feed notification is scoped and acked only after native accepts it',
     () async {
       final acked = Completer<void>();

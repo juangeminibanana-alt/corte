@@ -4,28 +4,25 @@ import 'package:flutter/material.dart';
 
 import '../app.dart';
 import '../domain/domain.dart';
+import '../platform/android_startup.dart';
 import 'corte_icons.dart';
+import 'desktop.dart';
 import 'format.dart';
 import 'home_sales.dart';
 import 'home_tiktok.dart';
+import 'order_tile.dart';
+import 'studio_earnings.dart';
 import 'theme.dart';
+import 'video_catalog.dart' show videosTodos;
 import 'widgets.dart';
 import 'work.dart' show productName, samplePending;
 
 const _sectionStyle = TextStyle(
-  fontSize: 21,
+  fontSize: CorteType.section,
   height: 1.35,
   fontWeight: FontWeight.w700,
   fontVariations: [FontVariation('wght', 720)],
   letterSpacing: -.4,
-);
-
-const _amountStyle = TextStyle(
-  fontWeight: FontWeight.w700,
-  fontVariations: [FontVariation('wght', 720)],
-  fontFeatures: [FontFeature.tabularFigures()],
-  height: 1.2,
-  letterSpacing: -.9,
 );
 
 double _panelPadding(BuildContext context) =>
@@ -51,10 +48,37 @@ class _HomeState extends State<DesktopHomePage> {
   late Future<DashboardDto> _dashboard;
   late Future<MuestrasDto> _samples;
   bool _updating = false;
+  bool _opened = false;
+  bool _recoveryLoaded = false;
+  bool _readyMarked = false;
   String? _notice;
 
   _HomeScope _scopeFor(CorteUiController ui) =>
       (ui, ui.repo.ownerScope, ui.repo.cacheScope);
+
+  Future<MuestrasDto> _readSamples(CorteUiController ui) => ui.repo.muestras(
+    query: ui.auth.runtime.platform == 'android'
+        ? const {
+            'grupo': ['vencida', 'por_vencer', 'pausada'],
+            'orden': 'prioridad',
+          }
+        : const {},
+  );
+
+  Future<T> _trace<T>(Future<T> load, String resource, _HomeScope scope) async {
+    try {
+      final data = await load;
+      if (mounted && _scope == scope) {
+        CorteAndroidStartup.mark('home_${resource}_loaded');
+      }
+      return data;
+    } catch (_) {
+      if (mounted && _scope == scope) {
+        CorteAndroidStartup.mark('home_${resource}_error');
+      }
+      rethrow;
+    }
+  }
 
   void _load(CorteUiController ui) {
     final scope = _scopeFor(ui);
@@ -65,10 +89,18 @@ class _HomeState extends State<DesktopHomePage> {
       _notice = null;
     }
     if (_revision == ui.revision) return;
+    final firstLoad = _revision == null;
     _revision = ui.revision;
     _session = ui.repo.sesion();
     _dashboard = ui.repo.dashboard();
-    _samples = ui.repo.muestras();
+    _samples = _readSamples(ui);
+    if (firstLoad) {
+      _readyMarked = false;
+      CorteAndroidStartup.mark('home_loading');
+      _session = _trace(_session, 'session', scope);
+      _dashboard = _trace(_dashboard, 'dashboard', scope);
+      _samples = _trace(_samples, 'samples', scope);
+    }
   }
 
   Future<void> _update(CorteUiController ui, SesionDto? session) async {
@@ -111,6 +143,32 @@ class _HomeState extends State<DesktopHomePage> {
   @override
   Widget build(BuildContext context) {
     final ui = CorteScope.of(context);
+    if (!_opened) {
+      _opened = true;
+      CorteAndroidStartup.mark(
+        ui.androidRecovery ? 'recovery_home' : 'home_open',
+      );
+    }
+    if (ui.androidRecovery && !_recoveryLoaded) {
+      return ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const PageTitle(
+            'Inicio ligero',
+            subtitle:
+                'Abre Prendas o Dinero desde el menú, o carga el resumen cuando lo necesites.',
+          ),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton(
+              onPressed: () => setState(() => _recoveryLoaded = true),
+              child: const Text('Cargar resultados'),
+            ),
+          ),
+        ],
+      );
+    }
     _load(ui);
     // The session request is not cached. An offline failure here must not
     // prevent cached sample work or results from rendering.
@@ -135,108 +193,100 @@ class _HomeState extends State<DesktopHomePage> {
     AsyncSnapshot<DashboardDto> dashboard,
     AsyncSnapshot<MuestrasDto> samples,
   ) {
-    final viewport = MediaQuery.sizeOf(context).width;
-    final compact = viewport < 600;
-    final gap = compact ? 24.0 : 28.0;
+    if (!_readyMarked && dashboard.hasData && samples.hasData) {
+      _readyMarked = true;
+      final scope = _scope;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _scope == scope) CorteAndroidStartup.mark('home_ready');
+      });
+    }
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final updating = _updating || session.data?.sync?.enCurso == true;
     final sessionData = session.data?.datos;
     final showKpis =
         sessionData == null ||
         sessionData['hay_datos'] == true ||
         sessionData['ultima_sync_ok_at'] != null;
+    final today =
+        DateTime.tryParse(
+          textOf(mapOf(dashboard.data?.actualidad?['hoy'])['fecha']),
+        ) ??
+        DateTime.now().toUtc().subtract(const Duration(hours: 6));
+    final priorities = _HomePriorities(
+      samples: samples,
+      retry: () => setState(() => _samples = _readSamples(ui)),
+    );
+    final recentOrders = _HomeRecentOrders(
+      catalog: orderCatalog(rowsOf(dashboard.data?.raw['top_productos'])),
+      hasResults: showKpis && dashboard.hasData,
+    );
+
     return RefreshIndicator(
       onRefresh: () => _update(ui, session.data),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.fromLTRB(
-          compact ? 16 : 32,
-          compact ? 40 : 30,
-          compact ? 16 : 32,
-          48,
+          compact ? CorteSpace.large : CorteSpace.xxl,
+          compact ? CorteSpace.large : CorteSpace.xxl,
+          compact ? CorteSpace.large : CorteSpace.xxl,
+          CorteSpace.block,
         ),
         children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              viewport > 1100 ? 16 : 0,
-              0,
-              viewport > 1100 ? 16 : 0,
-              4,
-            ),
-            child: _HomeHeader(
-              updating: updating,
-              onRefresh: () => _update(ui, session.data),
-            ),
+          _HomeHeader(
+            today: today,
+            updating: updating,
+            onRefresh: () => _update(ui, session.data),
           ),
           if (_notice case final notice?) ...[
-            const SizedBox(height: 12),
-            Semantics(
-              liveRegion: true,
-              child: Text(
-                notice,
-                style: TextStyle(fontSize: 13, color: context.corte.muted),
-              ),
-            ),
+            const SizedBox(height: CorteSpace.medium),
+            InlineNotice(text: notice),
           ],
           if (session.data?.conexion != null &&
               session.data?.conectada == false) ...[
-            const SizedBox(height: 24),
+            const SizedBox(height: CorteSpace.large),
             const _ConnectShop(),
           ] else if (session.hasError) ...[
-            const SizedBox(height: 24),
+            const SizedBox(height: CorteSpace.large),
             const InlineNotice(
               text:
                   'No pudimos cargar tu cuenta. Usa Actualizar para volver a intentarlo.',
               error: true,
             ),
           ],
-          SizedBox(height: gap),
-          _HomeResults(dashboard: dashboard, showKpis: showKpis),
-          SizedBox(height: gap),
+          const SizedBox(height: CorteSpace.xl),
+          _HomeEarnings(dashboard: dashboard, showKpis: showKpis),
+          const SizedBox(height: CorteSpace.xl),
           LayoutBuilder(
             builder: (context, limits) {
-              final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
-              final priorities = _HomePriorities(
-                samples: samples,
-                retry: () => setState(() => _samples = ui.repo.muestras()),
-              );
-              const shortcuts = _HomeShortcuts();
-              final compactPanels = viewport <= 1100;
-              final panelGap = compactPanels ? 16.0 : 20.0;
-              final usableWidth = limits.maxWidth - panelGap;
-              final shortcutsWidth = math.max(
-                math.max(compactPanels ? 275.0 : 300.0, 210 * scale),
-                usableWidth / (compactPanels ? 2.4 : 2.65),
-              );
-              final prioritiesWidth = usableWidth - shortcutsWidth;
-              if (viewport <= 850 || prioritiesWidth < 250 * scale) {
+              final sideBySide =
+                  limits.maxWidth >= 790 &&
+                  MediaQuery.textScalerOf(context).scale(CorteType.label) <= 20;
+              if (!sideBySide) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     priorities,
-                    SizedBox(height: panelGap),
-                    shortcuts,
+                    const SizedBox(height: CorteSpace.xl),
+                    recentOrders,
                   ],
                 );
               }
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: priorities),
-                  SizedBox(width: panelGap),
-                  SizedBox(width: shortcutsWidth, child: shortcuts),
+                  Expanded(flex: 5, child: priorities),
+                  const SizedBox(width: CorteSpace.xl),
+                  Expanded(flex: 6, child: recentOrders),
                 ],
               );
             },
           ),
+          const SizedBox(height: CorteSpace.xl),
+          const _HomeShortcuts(),
           if (dashboard.data case final data?) ...[
-            const SizedBox(height: 32),
+            const SizedBox(height: CorteSpace.xl),
             _NativeResults(dashboard: data),
           ],
-          const SizedBox(height: 26),
-          Text(
-            'CUTGC · Tu espacio para crear y crecer',
-            style: TextStyle(fontSize: 13, color: context.corte.muted),
-          ),
         ],
       ),
     );
@@ -244,69 +294,59 @@ class _HomeState extends State<DesktopHomePage> {
 }
 
 class _HomeHeader extends StatelessWidget {
-  const _HomeHeader({required this.updating, required this.onRefresh});
+  const _HomeHeader({
+    required this.today,
+    required this.updating,
+    required this.onRefresh,
+  });
+
+  final DateTime today;
   final bool updating;
   final VoidCallback onRefresh;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, limits) {
-      final viewport = MediaQuery.sizeOf(context).width;
-      final wide =
-          viewport >= 600 &&
-          limits.maxWidth >= 380 &&
-          MediaQuery.textScalerOf(context).scale(14) <= 22;
-      final heading = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Semantics(
-            header: true,
-            child: Text(
-              'Tu negocio, en orden',
-              style: TextStyle(
-                fontSize: (viewport * .028).clamp(30, 40).toDouble(),
-                height: 1.2,
-                fontWeight: FontWeight.w700,
-                fontVariations: const [FontVariation('wght', 750)],
-                letterSpacing: viewport < 600 ? -.9 : -1.1,
+  Widget build(BuildContext context) {
+    final wide = MediaQuery.sizeOf(context).width >= 600;
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: CorteSpace.large,
+      runSpacing: CorteSpace.small,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Semantics(
+              header: true,
+              child: Text(
+                'Hoy',
+                style: studioDisplay(
+                  context,
+                  size: wide ? CorteType.display : CorteType.page,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 7),
-          Text(
-            'Tus resultados y próximos pasos, en un solo lugar.',
-            style: TextStyle(
-              fontSize: viewport < 600 ? 15 : 17,
-              height: 1.5,
-              color: context.corte.muted,
+            const SizedBox(height: CorteSpace.xs),
+            Text(
+              MaterialLocalizations.of(context).formatFullDate(today),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: context.corte.muted),
             ),
-          ),
-        ],
-      );
-      final action = OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: context.corte.ink,
-          backgroundColor: context.corte.soft,
-          side: BorderSide(color: context.corte.line),
-          minimumSize: Size(wide ? 120 : 105, 44),
+          ],
         ),
-        onPressed: updating ? null : onRefresh,
-        child: Text(updating ? 'Actualizando…' : 'Actualizar'),
-      );
-      return wide
-          ? Row(
-              children: [
-                Expanded(child: heading),
-                const SizedBox(width: 24),
-                action,
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [heading, const SizedBox(height: 14), action],
-            );
-    },
-  );
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: context.corte.ink,
+            side: BorderSide(color: context.corte.inputBorder),
+          ),
+          onPressed: updating ? null : onRefresh,
+          icon: const CorteIcon(CorteIconName.refreshCw, size: 18),
+          label: Text(updating ? 'Actualizando…' : 'Actualizar'),
+        ),
+      ],
+    );
+  }
 }
 
 class _ConnectShop extends StatelessWidget {
@@ -368,237 +408,199 @@ class _ConnectShop extends StatelessWidget {
   );
 }
 
-class _HomeResults extends StatelessWidget {
-  const _HomeResults({required this.dashboard, required this.showKpis});
+class _HomeEarnings extends StatelessWidget {
+  const _HomeEarnings({required this.dashboard, required this.showKpis});
+
   final AsyncSnapshot<DashboardDto> dashboard;
   final bool showKpis;
 
   @override
   Widget build(BuildContext context) {
     final kpis = showKpis ? dashboard.data?.kpis : null;
-    final orders = kpis?['pedidos'];
-    final unavailable = dashboard.hasError
+    final total = kpis?['comision_total_centavos'];
+    final principal = studioCommissionAmount(
+      total ?? kpis?['comision_estimada_centavos'],
+    );
+    final headline = total == null
+        ? 'Comisión estimada'
+        : 'Comisión del período';
+    final state = dashboard.hasError
         ? 'No disponible'
         : dashboard.connectionState == ConnectionState.waiting
         ? 'Cargando resultados…'
         : 'Sin datos todavía';
-    final metrics = [
-      (
-        'Ventas generadas',
-        money(kpis?['ventas_centavos']),
-        'Ventas atribuidas a tu contenido',
-      ),
-      (
-        'Comisión estimada',
-        money(kpis?['comision_estimada_centavos']),
-        'Estimación de TikTok Shop',
-      ),
-      (
-        'Pedidos',
-        orders is num ? integer(orders) : '—',
-        'Pedidos de los últimos 30 días',
-      ),
-    ];
+    void openSales() => CorteScope.of(context).go('/ventas?periodo=30d');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 16,
-          runSpacing: 6,
-          children: [
-            Semantics(
-              header: true,
-              child: Text(
-                'Resultados',
-                style: _sectionStyle.copyWith(
-                  fontSize: MediaQuery.sizeOf(context).width < 600 ? 23 : 25,
-                  height: 1.3,
-                  letterSpacing: -.6,
-                ),
-              ),
-            ),
-            Text(
-              'Últimos 30 días',
-              style: TextStyle(
-                fontSize: MediaQuery.sizeOf(context).width < 600 ? 13 : 14,
-                color: context.corte.muted,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        _HomePanel(
-          key: const ValueKey('home-history-metrics'),
-          child: LayoutBuilder(
-            builder: (context, limits) {
-              final width = limits.maxWidth;
-              final values = [for (final (_, amount, _) in metrics) amount];
-              final columnAmountSize = (width * .036).clamp(24, 36).toDouble();
-              final wide =
-                  width > 720 &&
-                  _amountsFit(
-                    context,
-                    values,
-                    columnAmountSize,
-                    (width - 2) / 3 - 56,
-                  );
-              final amountSize = wide
-                  ? columnAmountSize
-                  : (width * .06).clamp(24, 32).toDouble();
-              final inlineValues =
-                  !wide &&
-                  width > 360 &&
-                  _amountsFit(context, values, amountSize, (width - 54) / 2);
-              final tiles = [
-                for (final (label, value, subtitle) in metrics)
-                  _HomeMetric(
-                    label: label,
-                    value: value,
-                    detail: value == '—' ? unavailable : subtitle,
-                    amountSize: amountSize,
-                    sideBySide: inlineValues,
-                    wide: wide,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: wide ? 28 : 20,
-                      vertical: wide ? 0 : 18,
-                    ),
-                  ),
-              ];
-              if (wide) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  child: IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (var i = 0; i < tiles.length; i++) ...[
-                          if (i > 0) const VerticalDivider(width: 1),
-                          Expanded(child: tiles[i]),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < tiles.length; i++) ...[
-                    if (i > 0) const Divider(indent: 20, endIndent: 20),
-                    tiles[i],
+        StudioEarningsBand(
+          label: headline,
+          amount: principal,
+          detail: Text(principal == '—' ? state : 'Últimos 30 días'),
+          onPressed: openSales,
+          breakdown:
+              kpis?['comision_liquidada_centavos'] == null &&
+                  kpis?['comision_por_liquidar_centavos'] == null
+              ? null
+              : Wrap(
+                  spacing: CorteSpace.xl,
+                  runSpacing: CorteSpace.small,
+                  children: [
+                    if (kpis?['comision_liquidada_centavos'] case final amount?)
+                      _HomeBreakdown(
+                        'Liquidada',
+                        money(amount, decimals: true),
+                      ),
+                    if (kpis?['comision_por_liquidar_centavos']
+                        case final amount?)
+                      _HomeBreakdown(
+                        'Por liquidar',
+                        money(amount, decimals: true),
+                      ),
                   ],
-                ],
-              );
-            },
+                ),
+        ),
+        Padding(
+          key: const ValueKey('home-history-metrics'),
+          padding: const EdgeInsets.symmetric(vertical: CorteSpace.small),
+          child: Wrap(
+            runSpacing: CorteSpace.xs,
+            spacing: CorteSpace.large,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _HomeMeasure(
+                'Ventas generadas',
+                money(kpis?['ventas_centavos']),
+                openSales,
+              ),
+              _HomeMeasure(
+                'Pedidos',
+                kpis?['pedidos'] is num ? integer(kpis?['pedidos']) : '—',
+                openSales,
+              ),
+              if (kpis?['comision_estimada_centavos'] != null && total != null)
+                _HomeMeasure(
+                  'Comisión estimada',
+                  money(kpis?['comision_estimada_centavos']),
+                  openSales,
+                ),
+            ],
           ),
         ),
-        if (dashboard.hasError) ...[
-          const SizedBox(height: 10),
-          Semantics(
-            liveRegion: true,
-            child: Text(
-              'No pudimos cargar tus resultados. Usa Actualizar para volver a intentarlo.',
-              style: TextStyle(fontSize: 13, color: context.corte.danger),
-            ),
+        if (dashboard.hasError)
+          const InlineNotice(
+            error: true,
+            text:
+                'No pudimos cargar tus resultados. Usa Actualizar para volver a intentarlo.',
           ),
-        ],
       ],
     );
   }
 }
 
-bool _amountsFit(
-  BuildContext context,
-  List<String> values,
-  double fontSize,
-  double availableWidth,
-) {
-  final painter = TextPainter(
-    textDirection: Directionality.of(context),
-    textScaler: MediaQuery.textScalerOf(context),
-    maxLines: 1,
+class _HomeBreakdown extends StatelessWidget {
+  const _HomeBreakdown(this.label, this.amount);
+  final String label, amount;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: const TextStyle(
+          color: CorteColors.chromeMuted,
+          fontSize: CorteType.meta,
+        ),
+      ),
+      Text(
+        amount,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          color: CorteColors.chromeInk,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    ],
   );
-  final style = DefaultTextStyle.of(
-    context,
-  ).style.merge(_amountStyle.copyWith(fontSize: fontSize));
-  try {
-    for (final value in values) {
-      painter.text = TextSpan(text: value, style: style);
-      painter.layout();
-      if (painter.width > availableWidth) return false;
-    }
-    return true;
-  } finally {
-    painter.dispose();
-  }
 }
 
-class _HomeMetric extends StatelessWidget {
-  const _HomeMetric({
-    required this.label,
-    required this.value,
-    required this.detail,
-    required this.amountSize,
-    required this.sideBySide,
-    required this.wide,
-    required this.padding,
-  });
-  final String label, value, detail;
-  final double amountSize;
-  final bool sideBySide, wide;
-  final EdgeInsets padding;
+class _HomeMeasure extends StatelessWidget {
+  const _HomeMeasure(this.label, this.value, this.onTap);
+  final String label, value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+    onPressed: onTap,
+    style: TextButton.styleFrom(
+      alignment: AlignmentDirectional.centerStart,
+      foregroundColor: context.corte.ink,
+      padding: EdgeInsets.zero,
+    ),
+    child: Wrap(
+      spacing: CorteSpace.small,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: context.corte.muted),
+        ),
+        Text(value, style: studioDisplay(context, size: 22)),
+      ],
+    ),
+  );
+}
+
+class _HomeRecentOrders extends StatelessWidget {
+  const _HomeRecentOrders({required this.catalog, required this.hasResults});
+
+  final Map<String, Map<String, dynamic>> catalog;
+  final bool hasResults;
 
   @override
   Widget build(BuildContext context) {
-    final title = Text(
-      label,
-      style: TextStyle(
-        fontSize: wide ? 16 : 14,
-        height: 1.4,
-        fontWeight: FontWeight.w600,
-        fontVariations: const [FontVariation('wght', 650)],
+    final ui = CorteScope.of(context);
+    return _HomePanel(
+      title: 'Pedidos recientes',
+      action: TextButton.icon(
+        onPressed: () => ui.go('/ordenes'),
+        icon: const CorteIcon(CorteIconName.arrowRight, size: 18),
+        iconAlignment: IconAlignment.end,
+        label: const Text('Ver todos'),
       ),
-    );
-    final amount = Text(
-      value,
-      style: _amountStyle.copyWith(fontSize: amountSize),
-    );
-    final description = Text(
-      detail,
-      style: TextStyle(
-        fontSize: wide ? 13 : 12,
-        height: 1.5,
-        color: context.corte.muted,
-      ),
-    );
-    return InkWell(
-      onTap: () => CorteScope.of(context).go('/ventas?periodo=30d'),
       child: Padding(
-        padding: padding,
-        child: sideBySide
-            ? Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [title, const SizedBox(height: 4), description],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Flexible(child: amount),
-                ],
+        padding: EdgeInsets.symmetric(horizontal: _panelPadding(context)),
+        child: hasResults
+            ? ApiData(
+                path: '/api/ordenes',
+                query: const {'pagina': 1, 'por_pagina': 3},
+                padding: EdgeInsets.zero,
+                builder: (context, data) {
+                  final orders = rowsOf(data['items']);
+                  if (orders.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: CorteSpace.xl),
+                      child: Text('Los pedidos de tu tienda aparecerán aquí.'),
+                    );
+                  }
+                  return Column(
+                    children: [
+                      for (final order in orders.take(3))
+                        OrderTile(
+                          key: ValueKey(order['order_id']),
+                          order: order,
+                          catalog: catalog,
+                        ),
+                    ],
+                  );
+                },
               )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  title,
-                  const SizedBox(height: 7),
-                  amount,
-                  const SizedBox(height: 7),
-                  description,
-                ],
+            : const Padding(
+                padding: EdgeInsets.symmetric(vertical: CorteSpace.xl),
+                child: Text('Los pedidos de tu tienda aparecerán aquí.'),
               ),
       ),
     );
@@ -612,13 +614,7 @@ class _HomePanel extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: context.corte.isDark ? context.corte.soft : context.corte.surface,
-    clipBehavior: Clip.antiAlias,
-    shape: RoundedRectangleBorder(
-      side: BorderSide(color: context.corte.line),
-      borderRadius: BorderRadius.circular(8),
-    ),
+  Widget build(BuildContext context) => CortePanel(
     child: title == null
         ? child
         : Column(
@@ -641,15 +637,7 @@ class _HomePanel extends StatelessWidget {
                         header: true,
                         child: Text(
                           title!,
-                          style: _sectionStyle.copyWith(
-                            fontSize: switch (MediaQuery.sizeOf(
-                              context,
-                            ).width) {
-                              <= 599 => 20,
-                              <= 1100 => 19,
-                              _ => 21,
-                            },
-                          ),
+                          style: studioDisplay(context, size: 29),
                         ),
                       ),
                       ?action,
@@ -672,6 +660,10 @@ class _HomePriorities extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final data = samples.data?.items ?? const <MuestraDto>[];
+    final groupCounts = mapOf(samples.data?.raw['por_grupo']);
+    final hasSamples =
+        data.isNotEmpty ||
+        groupCounts.values.any((count) => count is num && count > 0);
     final priorities = data.where((m) => samplePending(m.raw)).toList()
       ..sort(_priorityOrder);
     void openSamples() => CorteScope.of(context).go('/muestras');
@@ -712,28 +704,29 @@ class _HomePriorities extends StatelessWidget {
             )
           : priorities.isEmpty
           ? _PrioritiesMessage(
-              title: data.isEmpty
-                  ? 'Todo empieza con tus muestras'
-                  : 'Tus muestras están al día',
-              text: data.isEmpty
-                  ? 'Aquí verás qué productos necesitas grabar y cuándo publicarlos.'
-                  : 'No tienes muestras pendientes de publicar. Puedes revisar todas en Muestras.',
-              icon: data.isEmpty
-                  ? CorteIconName.package
-                  : CorteIconName.circleCheckBig,
+              title: hasSamples
+                  ? 'Tus muestras están al día'
+                  : 'Todo empieza con tus muestras',
+              text: hasSamples
+                  ? 'No tienes muestras pendientes de publicar. Puedes revisar todas en Muestras.'
+                  : 'Aquí verás qué productos necesitas grabar y cuándo publicarlos.',
+              icon: hasSamples
+                  ? CorteIconName.circleCheckBig
+                  : CorteIconName.package,
               action: OutlinedButton(
                 onPressed: openSamples,
                 child: const Text('Ir a muestras'),
               ),
             )
           : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final (index, item) in priorities.take(5).indexed) ...[
-                  if (index > 0)
-                    Divider(
-                      indent: _panelPadding(context),
-                      endIndent: _panelPadding(context),
-                    ),
+                _PriorityFeature(priorities.first.raw),
+                for (final item in priorities.skip(1).take(4)) ...[
+                  Divider(
+                    indent: _panelPadding(context),
+                    endIndent: _panelPadding(context),
+                  ),
                   _PriorityRow(item.raw),
                 ],
               ],
@@ -758,18 +751,6 @@ class _PrioritiesMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 600;
     final error = icon == CorteIconName.circleAlert;
-    Widget accent(Color color, double angle) => Transform.rotate(
-      angle: angle,
-      child: Container(
-        width: 5,
-        height: 15,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(3),
-        ),
-      ),
-    );
-
     return ConstrainedBox(
       constraints: BoxConstraints(minHeight: compact ? 285 : 267),
       child: Padding(
@@ -780,35 +761,26 @@ class _PrioritiesMessage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (error)
-              CorteIcon(icon, size: 24, color: context.corte.danger)
-            else
-              SizedBox(
-                width: 80,
-                height: 70,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CorteIcon(icon, size: 60, color: context.corte.ink),
-                    Positioned(
-                      top: 0,
-                      right: 10,
-                      child: accent(CorteColors.coral, 22 * math.pi / 180),
-                    ),
-                    Positioned(
-                      top: 9,
-                      right: 0,
-                      child: accent(context.corte.cyanInk, 55 * math.pi / 180),
-                    ),
-                  ],
-                ),
+            Container(
+              width: CorteSpace.block,
+              height: CorteSpace.block,
+              decoration: BoxDecoration(
+                color: error ? context.corte.rose : context.corte.soft,
+                border: Border.all(color: context.corte.line),
+                borderRadius: BorderRadius.circular(CorteRadius.panel),
               ),
-            const SizedBox(height: 12),
+              child: CorteIcon(
+                icon,
+                size: 24,
+                color: error ? context.corte.danger : context.corte.cyanInk,
+              ),
+            ),
+            const SizedBox(height: CorteSpace.medium),
             Text(
               title,
               textAlign: TextAlign.center,
               style: _sectionStyle.copyWith(
-                fontSize: compact ? 20 : 21,
+                fontSize: CorteType.section,
                 fontVariations: const [FontVariation('wght', 700)],
               ),
             ),
@@ -915,6 +887,101 @@ class _PriorityRow extends StatelessWidget {
   }
 }
 
+class _PriorityFeature extends StatelessWidget {
+  const _PriorityFeature(this.sample);
+
+  final JsonMap sample;
+
+  @override
+  Widget build(BuildContext context) {
+    final product = mapOf(sample['producto']);
+    final title = orderProductLabel({
+      'producto': productName(product),
+    }, const {});
+    final image = textOf(product['imagen']);
+    final store = textOf(mapOf(sample['tienda'])['nombre']);
+    final limit = sample['fecha_limite_at'];
+    final overdue = sample['grupo'] == 'vencida';
+    final deadline = overdue
+        ? 'Plazo vencido'
+        : limit is int
+        ? 'Vence ${_dayLabel(limit, DateTime.now())}'
+        : 'Por organizar';
+    final id = textOf(sample['application_id']);
+    void open() =>
+        CorteScope.of(context).go('/muestras/m/${Uri.encodeComponent(id)}');
+    return Padding(
+      padding: EdgeInsets.all(_panelPadding(context)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (image.isNotEmpty)
+            LayoutBuilder(
+              builder: (context, limits) => CortePhoto(
+                image,
+                label: 'Foto de $title',
+                width: limits.maxWidth,
+                height: (limits.maxWidth * .60).clamp(115.0, 280.0).toDouble(),
+                radius: CorteRadius.control,
+              ),
+            )
+          else
+            Container(
+              width: CorteSpace.section,
+              height: CorteSpace.block,
+              decoration: BoxDecoration(
+                color: context.corte.soft,
+                borderRadius: BorderRadius.circular(CorteRadius.control),
+              ),
+              child: CorteIcon(
+                CorteIconName.shirt,
+                size: 24,
+                color: context.corte.muted,
+              ),
+            ),
+          const SizedBox(height: CorteSpace.large),
+          InkWell(
+            onTap: id.isEmpty ? null : open,
+            child: Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: studioDisplay(context, size: 33),
+            ),
+          ),
+          const SizedBox(height: CorteSpace.small),
+          Wrap(
+            spacing: CorteSpace.small,
+            runSpacing: CorteSpace.xs,
+            children: [
+              if (store.isNotEmpty)
+                Text(store, style: Theme.of(context).textTheme.bodySmall),
+              Text(
+                deadline,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: overdue ? context.corte.danger : context.corte.ink,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: CorteSpace.medium),
+          FilledButton.icon(
+            onPressed: id.isEmpty ? null : open,
+            icon: const CorteIcon(
+              CorteIconName.arrowRight,
+              color: CorteColors.onAction,
+              size: 18,
+            ),
+            iconAlignment: IconAlignment.end,
+            label: const Text('Ver muestra'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 String _dayLabel(int seconds, DateTime now) {
   const weekdays = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
   const offset = Duration(hours: 6);
@@ -946,10 +1013,10 @@ class _HomeShortcuts extends StatelessWidget {
       CorteIconName.chartColumn,
     ),
     (
-      'Ver tus tiendas',
-      'Da seguimiento a cada colaboración',
-      '/tiendas',
-      CorteIconName.store,
+      'Todos tus videos',
+      'Revisa también los videos sin ventas',
+      videosTodos,
+      CorteIconName.squarePlay,
     ),
   ];
 
@@ -1055,7 +1122,7 @@ class _DesktopPanel extends StatelessWidget {
     decoration: BoxDecoration(
       color: context.corte.surface,
       border: Border.all(color: context.corte.line),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(CorteRadius.panel),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

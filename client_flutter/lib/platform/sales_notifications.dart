@@ -18,6 +18,7 @@ class CorteSalesNotifications extends ChangeNotifier {
   Timer? _timer;
   FutureOr<void> Function(String)? _onOpen;
   bool _closed = false, _refreshing = false, busy = false, enabled = false;
+  bool _refreshAutomatically = true;
   int _generation = 0;
   String? _scope, _owner, error;
   String? _registeredSignature;
@@ -58,19 +59,28 @@ class CorteSalesNotifications extends ChangeNotifier {
     }
   }
 
-  void bind(CorteRepository repo, {required bool authenticated}) {
+  // Clear the previous scope immediately even when automatic refresh is paused.
+  void bind(
+    CorteRepository repo, {
+    required bool authenticated,
+    bool refreshAutomatically = true,
+  }) {
     final scope = authenticated ? repo.cacheScope : null;
     final owner = authenticated ? repo.ownerScope : null;
     _repo = repo;
-    if (_scope == scope && _owner == owner) return;
-    _scope = scope;
-    _owner = owner;
-    _generation++;
-    _registeredSignature = null;
-    enabled = false;
-    error = null;
-    unawaited(_configure(false, null));
-    if (supported && scope != null && owner != null) unawaited(refresh());
+    final resumed = refreshAutomatically && !_refreshAutomatically;
+    _refreshAutomatically = refreshAutomatically;
+    final scopeChanged = _scope != scope || _owner != owner;
+    if (scopeChanged) {
+      _scope = scope;
+      _owner = owner;
+      _generation++;
+      _registeredSignature = null;
+      enabled = false;
+      error = null;
+      unawaited(_configure(false, null));
+    }
+    if (scopeChanged || resumed) unawaited(refresh());
   }
 
   bool _current(int generation) =>
@@ -187,6 +197,7 @@ class CorteSalesNotifications extends ChangeNotifier {
     final repo = _repo;
     final generation = _generation;
     if (!supported ||
+        !_refreshAutomatically ||
         repo == null ||
         !_current(generation) ||
         _refreshing ||

@@ -85,7 +85,36 @@ class FailingStore extends MemoryCorteDataStore {
   }
 }
 
+class SnapshotCountingStore extends MemoryCorteDataStore {
+  int reads = 0;
+
+  @override
+  Future<String?> read(String key) {
+    if (key.endsWith('.snapshot')) reads++;
+    return super.read(key);
+  }
+}
+
 void main() {
+  test(
+    'concurrent offline reads share one saved snapshot and see a later write',
+    () async {
+      final store = SnapshotCountingStore();
+      final journal = CorteJournal(store, scopeA);
+      await journal.guardarSnapshot(fixtureSnapshot(), 'first');
+      final results = await Future.wait([
+        journal.leerSnapshot(),
+        journal.leerSnapshot(),
+        journal.leerSnapshot(),
+      ]);
+      expect(store.reads, 1);
+      expect(results.map((result) => result?['etag']), everyElement('first'));
+      await journal.guardarSnapshot(fixtureSnapshot(), 'second');
+      expect((await journal.leerSnapshot())?['etag'], 'second');
+      expect(store.reads, 2);
+    },
+  );
+
   test(
     'offline projects persisted full sample history and product gallery/SKU',
     () async {

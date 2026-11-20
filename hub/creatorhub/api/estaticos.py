@@ -16,6 +16,7 @@ import re
 import urllib.parse
 from dataclasses import dataclass, field
 
+from ..pagina_estado import pagina_estado
 from .seguridad import CSP_PAGINA_HUB, CSP_WINDOWS
 
 _log = logging.getLogger('creatorhub.api.estaticos')
@@ -32,9 +33,7 @@ TIPOS: dict[str, str] = {
 _RE_META_CSP = re.compile(rb'<meta\b[^>]*http-equiv\s*=\s*["\']?\s*content-security-policy[^>]*>\s*', re.IGNORECASE)
 PREFIJOS_RESERVADOS = ('/api', '/img', '/boot', '/lan')
 
-PAGINA_SIN_INTERFAZ = ('<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><title>Corte</title></head><body>'
-                       '<main><h1>Corte</h1><p>No encontramos la interfaz de Corte. Vuelve a instalar Corte.</p></main>'
-                       '</body></html>').encode('utf-8')
+PAGINA_SIN_INTERFAZ = pagina_estado("No encontramos la interfaz", "Vuelve a instalar CUTGC para abrir la aplicación.")
 
 
 @dataclass
@@ -98,6 +97,14 @@ class Estaticos:
             return _no_encontrado()
         if ruta_url in ('/', '/index.html'):
             return self._index()
+        if ruta_url in ('/diseno', '/diseno/', '/diseno/index.html'):
+            guia = self._ruta_local('/diseno/index.html')
+            if guia and os.path.isfile(guia):
+                if ruta_url == '/diseno':
+                    return Estatico(308, [('Location', '/diseno/'), ('Cache-Control', 'no-cache')])
+                return Estatico(200, [('Content-Type', 'text/html; charset=utf-8'),
+                                      ('Cache-Control', 'no-cache'),
+                                      ('Content-Security-Policy', CSP_WINDOWS)], archivo=guia)
         local = self._ruta_local(ruta_url)
         if local is None:
             return _no_encontrado()

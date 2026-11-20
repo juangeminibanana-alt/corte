@@ -111,7 +111,7 @@ void main() {
     'Pendientes groups priority, opens and closes the progress, and filters by accent-insensitive search',
     (tester) async {
       await _mount(tester, const SamplesPage(), size: const Size(1380, 1200));
-      expect(find.text('Muestras'), findsOneWidget);
+      expect(find.text('Prendas'), findsOneWidget);
       expect(find.text('2 pendientes'), findsOneWidget);
       expect(find.text('Avisar a mis tiendas'), findsOneWidget);
       expect(find.text('Prioridad alta'), findsOneWidget);

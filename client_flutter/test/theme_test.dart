@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:corte/ui/desktop.dart';
 import 'package:corte/ui/theme.dart';
 import 'package:corte/ui/widgets.dart';
 
@@ -10,6 +12,40 @@ double contrast(Color foreground, Color background) {
 }
 
 void main() {
+  for (final desktop in [false, true]) {
+    testWidgets(
+      'PageTitle and SectionHeading render with CUTGCDisplay (desktop: $desktop)',
+      (tester) async {
+        final base = corteTheme();
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: desktop ? desktopWorkspaceTheme(base) : base,
+            home: const Scaffold(
+              body: Column(
+                children: [
+                  PageTitle('Dinero', subtitle: 'Últimos 30 días'),
+                  SectionHeading('Resumen'),
+                ],
+              ),
+            ),
+          ),
+        );
+        for (final heading in ['Dinero', 'Resumen']) {
+          final paragraph = tester.renderObject<RenderParagraph>(
+            find.text(heading),
+          );
+          expect(paragraph.text.style?.fontFamily, 'CUTGCDisplay');
+          expect(paragraph.text.style?.fontWeight, FontWeight.w700);
+        }
+        final subtitle = tester.renderObject<RenderParagraph>(
+          find.text('Últimos 30 días'),
+        );
+        expect(subtitle.text.style?.fontFamily, isNot('CUTGCDisplay'));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   for (final brightness in Brightness.values) {
     test('Text and interactive accents have AA contrast in $brightness', () {
       final palette = CortePalette(isDark: brightness == Brightness.dark);
@@ -31,6 +67,14 @@ void main() {
         }
       }
       final theme = corteTheme(brightness: brightness);
+      final chip = theme.chipTheme;
+      expect(
+        contrast(
+          chip.secondaryLabelStyle!.color!,
+          chip.secondarySelectedColor!,
+        ),
+        greaterThanOrEqualTo(4.5),
+      );
       final button = theme.filledButtonTheme.style!;
       expect(
         contrast(

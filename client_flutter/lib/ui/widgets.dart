@@ -1,10 +1,110 @@
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+
 import '../app.dart';
 import '../data/corte_repository.dart';
+import 'corte_icons.dart';
 import 'format.dart';
 import 'theme.dart';
 import 'desktop.dart';
+
+class CortePanel extends StatelessWidget {
+  const CortePanel({
+    super.key,
+    this.padding = EdgeInsets.zero,
+    required this.child,
+  });
+
+  final EdgeInsetsGeometry padding;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: context.corte.surface,
+    clipBehavior: Clip.antiAlias,
+    shape: RoundedRectangleBorder(
+      side: BorderSide(color: context.corte.line),
+      borderRadius: BorderRadius.circular(CorteRadius.panel),
+    ),
+    child: Padding(padding: padding, child: child),
+  );
+}
+
+class CorteRouteTabs extends StatelessWidget {
+  const CorteRouteTabs({super.key, required this.children});
+
+  final List<CorteRouteTab> children;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: double.infinity,
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.corte.line)),
+      ),
+      child: Wrap(children: children),
+    ),
+  );
+}
+
+class CorteRouteTab extends StatelessWidget {
+  const CorteRouteTab(
+    this.label, {
+    super.key,
+    required this.selected,
+    required this.onPressed,
+    this.count,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback? onPressed;
+  final int? count;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    selected: selected,
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: selected ? context.corte.action : Colors.transparent,
+            width: 2,
+          ),
+        ),
+      ),
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          foregroundColor: selected ? context.corte.action : context.corte.ink,
+          disabledForegroundColor: selected
+              ? context.corte.action
+              : context.corte.muted,
+          minimumSize: const Size(44, 48),
+          padding: const EdgeInsets.symmetric(horizontal: CorteSpace.medium),
+          textStyle: TextStyle(
+            fontSize: CorteType.label,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: CorteSpace.small,
+          children: [
+            Text(label, textAlign: TextAlign.center),
+            if (count case final value?)
+              Text(
+                integer(value),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
 class InlineNotice extends StatelessWidget {
   const InlineNotice({
@@ -21,23 +121,47 @@ class InlineNotice extends StatelessWidget {
     liveRegion: true,
     child: Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(CorteSpace.medium),
       decoration: BoxDecoration(
         color: error ? context.corte.rose : context.corte.soft,
-        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: context.corte.line),
+        borderRadius: BorderRadius.circular(CorteRadius.control),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            error ? Icons.error_outline_rounded : Icons.info_outline_rounded,
-            size: 20,
-            color: error ? context.corte.action : context.corte.cyanInk,
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Text(text)),
-          if (action != null) action!,
-        ],
+      child: LayoutBuilder(
+        builder: (context, limits) {
+          final message = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CorteIcon(
+                error ? CorteIconName.circleAlert : CorteIconName.circleHelp,
+                color: error ? context.corte.danger : context.corte.cyanInk,
+              ),
+              const SizedBox(width: CorteSpace.small),
+              Expanded(child: Text(text)),
+            ],
+          );
+          final trailing = action;
+          if (trailing == null) return message;
+          final wide =
+              limits.maxWidth >= 420 &&
+              MediaQuery.textScalerOf(context).scale(14) <= 20;
+          return wide
+              ? Row(
+                  children: [
+                    Expanded(child: message),
+                    const SizedBox(width: CorteSpace.medium),
+                    trailing,
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    message,
+                    const SizedBox(height: CorteSpace.small),
+                    trailing,
+                  ],
+                );
+        },
       ),
     ),
   );
@@ -58,39 +182,53 @@ class PageTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, limits) {
+      final wide =
+          limits.maxWidth > 720 &&
+          MediaQuery.textScalerOf(context).scale(14) <= 20;
       final text = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (back != null) ...[
             TextButton.icon(
               onPressed: back,
-              icon: const Icon(Icons.chevron_left_rounded),
+              icon: const CorteIcon(CorteIconName.chevronLeft),
               label: const Text('Volver'),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: CorteSpace.small),
           ],
-          Text(
-            title,
-            style: useDesktopWorkspace(context) || limits.maxWidth > 650
-                ? Theme.of(context).textTheme.headlineLarge
-                : Theme.of(
-                    context,
-                  ).textTheme.headlineLarge?.copyWith(fontSize: 32),
+          Semantics(
+            header: true,
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.headlineLarge,
+            ),
           ),
           if (subtitle != null && subtitle!.isNotEmpty) ...[
-            const SizedBox(height: 7),
-            Text(subtitle!, style: TextStyle(color: context.corte.muted)),
+            const SizedBox(height: CorteSpace.small),
+            Text(
+              subtitle!,
+              style: Theme.of(context).textTheme.bodyLarge
+                  ?.copyWith(color: context.corte.muted),
+            ),
           ],
         ],
       );
       return Padding(
-        padding: const EdgeInsets.only(bottom: 24),
-        child: limits.maxWidth > 650
+        padding: const EdgeInsets.only(bottom: CorteSpace.xl),
+        child: wide
             ? Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(child: text),
-                  if (action != null) ...[const SizedBox(width: 24), action!],
+                  if (action != null) ...[
+                    const SizedBox(width: CorteSpace.xl),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: limits.maxWidth / 2,
+                      ),
+                      child: action!,
+                    ),
+                  ],
                 ],
               )
             : Column(
@@ -98,7 +236,7 @@ class PageTitle extends StatelessWidget {
                 children: [
                   text,
                   if (action != null) ...[
-                    const SizedBox(height: 16),
+                    const SizedBox(height: CorteSpace.large),
                     SizedBox(width: double.infinity, child: action!),
                   ],
                 ],
@@ -115,23 +253,30 @@ class SectionHeading extends StatelessWidget {
   final String? subtitle;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.only(
-      top: useDesktopWorkspace(context) ? 18 : 26,
-      bottom: useDesktopWorkspace(context) ? 10 : 16,
+    padding: const EdgeInsets.only(
+      top: CorteSpace.xl,
+      bottom: CorteSpace.medium,
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: CorteSpace.medium,
+          runSpacing: CorteSpace.small,
           children: [
-            Expanded(
-              child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+            Semantics(
+              header: true,
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
             ),
             if (action != null) action!,
           ],
         ),
         if (subtitle != null) ...[
-          const SizedBox(height: 6),
+          const SizedBox(height: CorteSpace.xs),
           Text(subtitle!, style: TextStyle(color: context.corte.muted)),
         ],
       ],
@@ -146,27 +291,51 @@ class EmptyState extends StatelessWidget {
     this.text,
     this.action,
     this.icon = Icons.inbox_outlined,
+    this.error = false,
   });
   final String title;
   final String? text;
   final Widget? action;
   final IconData icon;
+  final bool error;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 24),
+    padding: const EdgeInsets.symmetric(
+      vertical: CorteSpace.xxl,
+      horizontal: CorteSpace.xl,
+    ),
     child: Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 38, color: context.corte.muted),
-          const SizedBox(height: 18),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleLarge,
+          Container(
+            width: CorteSpace.block,
+            height: CorteSpace.block,
+            decoration: BoxDecoration(
+              color: error ? context.corte.rose : context.corte.soft,
+              border: Border.all(color: context.corte.line),
+              borderRadius: BorderRadius.circular(CorteRadius.panel),
+            ),
+            child: error
+                ? CorteIcon(
+                    CorteIconName.circleAlert,
+                    color: context.corte.danger,
+                    size: 24,
+                  )
+                : Icon(icon, size: 24, color: context.corte.cyanInk),
+          ),
+          const SizedBox(height: CorteSpace.medium),
+          Semantics(
+            header: true,
+            liveRegion: error,
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
           ),
           if (text != null) ...[
-            const SizedBox(height: 9),
+            const SizedBox(height: CorteSpace.small),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
               child: Text(
@@ -176,7 +345,10 @@ class EmptyState extends StatelessWidget {
               ),
             ),
           ],
-          if (action != null) ...[const SizedBox(height: 20), action!],
+          if (action != null) ...[
+            const SizedBox(height: CorteSpace.large),
+            action!,
+          ],
         ],
       ),
     ),
@@ -238,6 +410,7 @@ class _ApiDataState extends State<ApiData> {
             padding: widget.padding,
             child: EmptyState(
               'No pudimos cargar esta información',
+              error: true,
               text: error is ErrorApi
                   ? error.mensaje
                   : 'Revisa tu conexión y vuelve a intentarlo.',
@@ -276,6 +449,7 @@ class CortePhoto extends StatefulWidget {
     this.label = 'Foto del producto',
     this.video = false,
     this.original = false,
+    this.fallback,
   });
   final String? path;
   final double width, height, radius;
@@ -283,6 +457,7 @@ class CortePhoto extends StatefulWidget {
   final String label;
   final bool video;
   final bool original;
+  final Widget? fallback;
   @override
   State<CortePhoto> createState() => _CortePhotoState();
 }
@@ -302,16 +477,18 @@ class _CortePhotoState extends State<CortePhoto> {
           ? null
           : ui.repo.imagen(path, tamano: size);
     }
-    final placeholder = ColoredBox(
-      color: context.corte.soft,
-      child: Center(
-        child: Icon(
-          widget.video ? Icons.videocam_off_outlined : Icons.image_outlined,
-          color: context.corte.muted,
-          size: widget.width < 60 ? 20 : 29,
-        ),
-      ),
-    );
+    final placeholder =
+        widget.fallback ??
+        ColoredBox(
+          color: context.corte.soft,
+          child: Center(
+            child: Icon(
+              widget.video ? Icons.videocam_off_outlined : Icons.image_outlined,
+              color: context.corte.muted,
+              size: widget.width < 60 ? 20 : 29,
+            ),
+          ),
+        );
     return Semantics(
       image: true,
       label: widget.label,
@@ -519,9 +696,7 @@ Future<void> runAction(
     if (context.mounted)
       toast(
         context,
-        error is ErrorApi
-            ? error.mensaje
-            : 'No pudimos guardar. Conserva la información e inténtalo de nuevo.',
+        error is ErrorApi ? error.mensaje : 'No pudimos guardar. Conserva la información e inténtalo de nuevo.',
       );
   }
 }

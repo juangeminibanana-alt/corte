@@ -104,25 +104,21 @@ void main() {
   }
 
   testWidgets(
-    'short desktop window scrolls the sidebar and keeps every navigation action reachable',
+    'short desktop window keeps all three sections and settings reachable',
     (tester) async {
       final fixture = await _mount(tester, height: 500, scale: 2);
-      final scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
-      expect(scrollable.position.maxScrollExtent, greaterThan(0));
-
-      final samples = find.byTooltip('Muestras');
-      await tester.ensureVisible(samples);
-      await tester.tap(samples);
-      await tester.pumpAndSettle();
-      expect(fixture.ui.location, '/muestras');
-
-      final settings = find.byTooltip('Configuración');
-      await tester.ensureVisible(settings);
-      await tester.pumpAndSettle();
-      expect(scrollable.position.pixels, greaterThan(0));
-      await tester.tap(settings);
-      await tester.pumpAndSettle();
-      expect(fixture.ui.location, '/ajustes');
+      for (final (label, path) in [
+        ('Prendas', '/muestras'),
+        ('Dinero', '/ventas'),
+        ('Hoy', '/inicio'),
+        ('Ajustes', '/ajustes'),
+      ]) {
+        final destination = find.byTooltip(label);
+        await tester.ensureVisible(destination);
+        await tester.tap(destination);
+        await tester.pumpAndSettle();
+        expect(fixture.ui.location, path);
+      }
       expect(find.text('Contenido de escritorio'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
@@ -154,13 +150,15 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final brand = find.text('CUTGC');
+      final brand = find.bySemanticsLabel('CUTGC');
       final search = find.byTooltip('Buscar en CUTGC');
       final refresh = find.byTooltip('Actualizar datos');
       expect(brand, findsOneWidget);
-      expect(find.bySemanticsLabel('CUTGC'), findsOneWidget);
       expect(search.hitTestable(), findsOneWidget);
       expect(refresh.hitTestable(), findsOneWidget);
+      final settings = find.byTooltip('Ajustes');
+      expect(settings.hitTestable(), findsOneWidget);
+      expect(tester.getRect(settings).right, lessThanOrEqualTo(320));
       expect(
         tester.getRect(brand).right,
         lessThanOrEqualTo(tester.getRect(search).left),
@@ -174,36 +172,56 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.android),
   );
 
-  testWidgets('mobile sales tabs navigate to the existing catalog routes', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final fixture = _Fixture();
-    addTearDown(fixture.dispose);
-    fixture.ui.restoreRoute('/ventas');
+  testWidgets(
+    'mobile sections keep shop, product, order and video routes reachable',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final fixture = _Fixture();
+      addTearDown(fixture.dispose);
+      fixture.ui.restoreRoute('/ventas');
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: corteTheme(),
-        builder: (context, child) =>
-            CorteScope(controller: fixture.ui, child: child!),
-        home: const CorteShell(),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Resumen'), findsOneWidget);
-    await tester.tap(find.text('Videos'));
-    await tester.pumpAndSettle();
-    expect(fixture.ui.location, '/videos');
-    await tester.tap(find.text('Productos'));
-    await tester.pumpAndSettle();
-    expect(fixture.ui.location, '/productos');
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox.shrink());
-  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: corteTheme(),
+          builder: (context, child) =>
+              CorteScope(controller: fixture.ui, child: child!),
+          home: const CorteShell(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Resumen'), findsOneWidget);
+      for (final (id, path) in [
+        ('ordenes', '/ordenes'),
+        ('videos', '/videos?segmento=todos'),
+      ]) {
+        await tester.tap(find.byKey(ValueKey('section-link-$id')));
+        await tester.pumpAndSettle();
+        expect(fixture.ui.location, path);
+      }
+
+      await tester.tap(find.text('Prendas'));
+      await tester.pumpAndSettle();
+      expect(fixture.ui.location, '/muestras');
+      for (final (id, path) in [
+        ('tiendas', '/tiendas'),
+        ('productos', '/productos'),
+      ]) {
+        await tester.tap(find.byKey(ValueKey('section-link-$id')));
+        await tester.pumpAndSettle();
+        expect(fixture.ui.location, path);
+      }
+
+      await tester.tap(find.byTooltip('Ajustes'));
+      await tester.pumpAndSettle();
+      expect(fixture.ui.location, '/ajustes');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
 
   testWidgets('TikTok shortcut opens the TikTok Shop section in settings', (
     tester,

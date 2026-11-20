@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from contextlib import contextmanager
 from datetime import timedelta
 from typing import Any
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 from flask import Flask, Response, g, jsonify, redirect, request, send_file, session, stream_with_context
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -38,6 +38,7 @@ from creatorhub.api.sse import formatear
 from creatorhub.comun import fecha_local
 from creatorhub.errores import ErrorDominio
 from creatorhub.interfaces import CTX_UI, OpcionesHub
+from creatorhub.tiktok.carga_video import PARTE_MAX
 from creatorhub.tiktok_dev.servicio import pagina_html
 from cloud.native_auth import BEARER_RE, NativeAuth, NativeAuthError
 from cloud.firebase_service import FirebaseAccessError
@@ -223,6 +224,10 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
     @app.before_request
     def protect() -> Any:
         request.max_content_length = 20 * 1024 * 1024 if request.path == '/api/cloud/import' else 256 * 1024
+        carga_binaria = request.endpoint in ('archivo_video', 'parte_video')
+        if carga_binaria:
+            request.max_content_length = PARTE_MAX + (64 * 1024 if request.endpoint == 'archivo_video' else 0)
+            request.max_form_parts = 1
         if request.path == '/api/native/auth/google':
             request.max_content_length = 18 * 1024
         elif request.path.startswith('/api/native/'):
@@ -232,16 +237,16 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
         if request.path == '/api/health' and request.method in ('GET', 'HEAD'):
             return None
         if request.host.lower() != public.netloc.lower():
-            return error('origen_invalido', 'Esta dirección no corresponde a Corte.', 421)
+            return error('origen_invalido', 'Esta dirección no corresponde a CUTGC.', 421)
         if not settings.allow_http and not request.is_secure:
-            return error('https_requerido', 'Abre Corte con su dirección HTTPS.', 400)
+            return error('https_requerido', 'Abre CUTGC con su dirección HTTPS.', 400)
         g.native_actor = None
         authorization = request.headers.get('Authorization')
         if authorization:
             match = BEARER_RE.fullmatch(authorization)
             actor = native.authenticate(match[1]) if match and native else None
             if actor is None:
-                return error('sesion_nativa_invalida', 'Vuelve a conectar esta app con tu cuenta de Corte.', 401)
+                return error('sesion_nativa_invalida', 'Vuelve a conectar esta app con tu cuenta de CUTGC.', 401)
             if (request.path in ('/api/cloud/login', '/api/cloud/logout', '/api/cloud/session', '/api/cloud/config')
                     or request.path.startswith('/api/native/') and request.path not in
                     ('/api/native/session', '/api/native/devices/self/revoke')):
@@ -249,8 +254,8 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
             g.native_actor, g.firebase_claims = actor, actor['claims']
         if request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
             if request.headers.get('Origin') != settings.public_url or request.headers.get('X-CH-Hub') != '1':
-                return error('origen_invalido', 'La solicitud debe venir de Corte.', 403)
-            if request.data and request.mimetype != 'application/json':
+                return error('origen_invalido', 'La solicitud debe venir de CUTGC.', 403)
+            if not carga_binaria and request.data and request.mimetype != 'application/json':
                 return error('formato_invalido', 'Envía los datos en formato JSON.', 415)
         public_paths = ('/api/cloud/session', '/api/cloud/config', '/api/cloud/login', '/api/health',
                         '/api/native/auth/start', '/api/native/auth/poll', '/api/native/auth/google')
@@ -273,7 +278,7 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
 
     def require_native_service() -> NativeAuth:
         if native is None:
-            raise NativeAuthError('no_disponible', 'El acceso de dispositivos requiere Google en Corte Cloud.', 409)
+            raise NativeAuthError('no_disponible', 'El acceso de dispositivos requiere Google en CUTGC.', 409)
         return native
 
     @app.post('/api/native/auth/start')
@@ -296,7 +301,7 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
         try:
             grant = service.exchange_google(request.get_json(silent=True), firebase.verify_recent_google)
         except FirebaseAccessError:
-            return error('cuenta_no_autorizada', 'Esta cuenta de Google no tiene acceso a Corte.', 401)
+            return error('cuenta_no_autorizada', 'Esta cuenta de Google no tiene acceso a CUTGC.', 401)
         return jsonify(grant)
 
     @app.get('/api/native/auth/request')
@@ -316,7 +321,7 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
     def native_session() -> Any:
         actor = g.native_actor
         if actor is None:
-            return error('sesion_nativa_requerida', 'Abre este acceso desde la app de Corte.', 401)
+            return error('sesion_nativa_requerida', 'Abre este acceso desde la app de CUTGC.', 401)
         # Native broker uses the provider's stable identity to guard optional
         # legacy-data migration. It must never forward this identity to JS.
         stored = hub.boveda.leer()
@@ -338,7 +343,7 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
         service = require_native_service()
         if device_id == 'self':
             if not g.native_actor:
-                return error('sesion_nativa_requerida', 'Abre este acceso desde la app de Corte.', 401)
+                return error('sesion_nativa_requerida', 'Abre este acceso desde la app de CUTGC.', 401)
             device_id = g.native_actor['device_id']
         with hub._candado_mutacion:
             if not service.revoke(g.firebase_claims['uid'], device_id):
@@ -441,7 +446,7 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
             try:
                 cookie = firebase.create_session(token)
             except Exception:
-                return error('cuenta_no_autorizada', 'Esta cuenta de Google no tiene acceso a Corte.', 401)
+                return error('cuenta_no_autorizada', 'Esta cuenta de Google no tiene acceso a CUTGC.', 401)
             response = jsonify(authenticated=True)
             response.set_cookie('__session', cookie, max_age=12 * 3600, httponly=True,
                                 secure=not settings.allow_http, samesite='Lax', path='/')
@@ -474,7 +479,7 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
     @app.get('/api/events')
     def events() -> Any:
         if not streams.acquire(blocking=False):
-            return error('demasiadas_conexiones', 'Cierra otra pestaña de Corte e inténtalo de nuevo.', 429)
+            return error('demasiadas_conexiones', 'Cierra otra pestaña de CUTGC e inténtalo de nuevo.', 429)
         @stream_with_context
         def generate() -> Any:
             sub = hub.bus.suscribir(100)
@@ -504,7 +509,7 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
     def shop_callback() -> Any:
         # The state is checked and consumed by the existing auth service.
         if not request.args.get('state') or len(request.args) > 16:
-            return Response(pagina_html('Este intento de conexión no es válido. Vuelve a Corte.', False),
+            return Response(pagina_html('Este intento de conexión no es válido. Vuelve a CUTGC.', False),
                             status=400, mimetype='text/html')
         try:
             hub.auth.canjear({'url_o_codigo': settings.public_url + request.full_path})
@@ -628,7 +633,7 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
             result = firebase.backup(g.firebase_claims, hub.local.exportar())
             return jsonify(result), 201
         except Exception:
-            return error('almacenamiento_no_disponible', 'No pudimos guardar la copia. Tus datos siguen en Corte.', 503)
+            return error('almacenamiento_no_disponible', 'No pudimos guardar la copia. Tus datos siguen en CUTGC.', 503)
 
     @app.post('/api/cloud/storage/restore')
     def storage_restore() -> Any:
@@ -654,7 +659,7 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
         body = request.get_json(silent=True)
         tipo, ref = (body.get('tipo'), body.get('ref_id')) if isinstance(body, dict) else (None, None)
         if not ref_valido(tipo, ref):
-            return error('imagen_invalida', 'Selecciona una imagen válida de Corte.', 422)
+            return error('imagen_invalida', 'Selecciona una imagen válida de CUTGC.', 422)
         path = hub.imagenes.ruta_original(tipo, ref)
         if not path:
             return error('no_encontrado', 'La imagen todavía no está descargada.', 404)
@@ -664,6 +669,46 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
             return jsonify(stored=True)
         except Exception:
             return error('almacenamiento_no_disponible', 'No pudimos guardar la imagen en Firebase.', 503)
+
+    def cargar_video(operacion) -> Any:
+        servicio = getattr(hub, 'carga_videos_shop', None)
+        if servicio is None:
+            return error('no_encontrado', 'La carga de videos está disponible en CUTGC Nube.', 404)
+        if request.args:
+            return error('parametros_invalidos', 'Envía la solicitud sin parámetros en la dirección.', 400)
+        expected = request.headers.get('X-Corte-Cache-Scope', '')
+        with hub._candado_mutacion:
+            creator = hub.boveda.leer().get('open_id')
+            scope = opaque_client_scopes(getattr(g, 'firebase_claims', None), creator).get('cache_scope')
+            if not scope or not re.fullmatch(r'[a-f0-9]{64}', expected) or not hmac.compare_digest(expected, scope):
+                return error('cuenta_cambio_sin_aplicar', 'Actualiza la cuenta conectada antes de cargar el video.', 409)
+            try:
+                return jsonify(operacion(servicio))
+            except ErrorDominio as exc:
+                return error(exc.codigo, exc.mensaje, exc.http)
+
+    @app.post('/api/publicaciones/shop/archivo')
+    def archivo_video() -> Any:
+        if request.mimetype != 'multipart/form-data':
+            return error('formato_invalido', 'Envía el archivo como formulario de video.', 415)
+
+        def subir(servicio):
+            if request.form or list(request.files) != ['archivo'] or len(request.files.getlist('archivo')) != 1:
+                raise ErrorDominio('archivo_invalido', 'Selecciona un solo archivo de video.', http=422)
+            archivo = request.files['archivo']
+            return servicio.directa(archivo.filename, archivo.stream.read(PARTE_MAX + 1))
+
+        return cargar_video(subir)
+
+    @app.post('/api/publicaciones/shop/archivo/iniciar')
+    def iniciar_video() -> Any:
+        return cargar_video(lambda servicio: servicio.iniciar(request.get_json(silent=True)))
+
+    @app.put('/api/publicaciones/shop/archivo/<ident>/partes/<int:numero>')
+    def parte_video(ident: str, numero: int) -> Any:
+        if request.mimetype != 'application/octet-stream':
+            return error('formato_invalido', 'Envía esta parte como datos binarios.', 415)
+        return cargar_video(lambda servicio: servicio.parte(ident, numero, request.get_data(cache=False)))
 
     @app.post('/api/catalogo/videos/<content_id>/actualizar')
     def refresh_display_video(content_id: str) -> Any:
@@ -705,8 +750,15 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
             return error('no_disponible_en_nube', 'Esta función pertenece a la aplicación de escritorio.', 410)
         dispatcher = display if es_ruta_display(route) else hub.despachador
         business_headers = {key: value for key, value in request.headers.items() if key.lower() != 'authorization'}
+        # WSGI decoded the path. Preserve literal percent signs when the hub decodes its segments.
+        business_route = route.replace('%', '%25')
+        shop_prefix = '/api/tiendas/'
+        if request.method == 'GET' and route.startswith(shop_prefix):
+            # WSGI already decoded the URL. The hub expects the shop key as one encoded segment.
+            business_route = shop_prefix + quote(route[len(shop_prefix):], safe='')
+
         def dispatch_business() -> Any:
-            return dispatcher.despachar(request.method, route, request.query_string.decode('utf-8', errors='replace'),
+            return dispatcher.despachar(request.method, business_route, request.query_string.decode('utf-8', errors='replace'),
                                          business_headers, request.get_data(), CTX_UI)
 
         expected_scope = request.headers.get('X-Corte-Cache-Scope')
@@ -718,22 +770,30 @@ def create_app(settings: Settings | None = None, hub: Any = None, firebase: Any 
             '/api/catalogo/vitrina/agregar', '/api/catalogo/vitrina/quitar', '/api/catalogo/vitrina/fijar',
             '/api/catalogo/enlaces-afiliado',
         )
-        if (evidence_write or creator_write) and expected_scope is None:
+        publication_operation = ((request.method == 'POST' and route == '/api/publicaciones/shop/publicar')
+                                 or (request.method in ('GET', 'POST') and route == '/api/publicaciones/shop/agenda')
+                                 or (request.method == 'POST'
+                                     and re.fullmatch(r'/api/publicaciones/shop/agenda/[^/]+/cancelar', route) is not None)
+                                 or (request.method == 'GET'
+                                     and re.fullmatch(r'/api/publicaciones/shop/[^/]+/estado', route) is not None))
+        requires_scope = evidence_write or creator_write or publication_operation
+        if requires_scope and expected_scope is None:
             message = ('Actualiza la ficha antes de importar información del producto.' if evidence_write
                        else 'Actualiza la cuenta conectada antes de realizar la acción.')
             return error('cuenta_cambio_sin_aplicar', message, 409)
-        if evidence_write or creator_write or (
+        if requires_scope or (
             route == '/api/local/ops' and request.method == 'POST' and expected_scope is not None
         ):
-            # New clients bind pending operations to the exact owner + creator.
-            # Keep the comparison and mutation atomic with account changes.
+            # Keep the comparison and the operation atomic with account changes.
             with hub._candado_mutacion:
                 stored = hub.boveda.leer()
                 creator = stored.get('open_id') if isinstance(stored, dict) else None
                 current_scope = opaque_client_scopes(getattr(g, 'firebase_claims', None), creator).get('cache_scope')
                 if (len(expected_scope) != 64 or any(c not in '0123456789abcdef' for c in expected_scope)
                         or current_scope is None or not hmac.compare_digest(expected_scope, current_scope)):
-                    return error('cuenta_cambio_sin_aplicar', 'La cuenta cambió. Tus cambios anteriores se conservan sin aplicar.', 409)
+                    message = ('Actualiza la cuenta conectada para continuar con este video.' if publication_operation
+                               else 'La cuenta cambió. Tus cambios anteriores se conservan sin aplicar.')
+                    return error('cuenta_cambio_sin_aplicar', message, 409)
                 result = dispatch_business()
         else:
             result = dispatch_business()

@@ -1,5 +1,5 @@
 -- =====================================================================================
--- Corte (creator-hub) · esquema SQLite rev. 7 (18/11/2026) · user_version = 7 (BUILD_SPEC §4.3; 03 §3.3)
+-- Corte (creator-hub) · esquema SQLite rev. 9 · user_version = 9 (BUILD_SPEC §4.3; 03 §3.3)
 -- rev. 5 (005.sql): tablas de la Display API · rev. 6 (006.sql): evidencia de producto · rev. 7 (007.sql): la tabla
 -- orden_lineas_traza (trace_info de orders/search 202410). Lo que sigue describe la base de la rev. 4.
 -- Es spec/verificacion/schema.sql (v1, transcrito en 03 §3.1) con los cambios de la rev. 3.1 y de la rev. 4, y nada más:
@@ -860,4 +860,32 @@ CREATE TABLE IF NOT EXISTS orden_lineas_traza (
   FOREIGN KEY (order_id, linea_n) REFERENCES orden_lineas(order_id, linea_n) ON DELETE CASCADE
 ) STRICT;
 
-PRAGMA user_version = 7;
+-- Una reserva por archivo del creador. NULL conserva un envío con resultado aún desconocido.
+CREATE TABLE IF NOT EXISTS publicaciones_shop (
+  cuenta_sha256 TEXT NOT NULL,
+  archivo_sha256 TEXT NOT NULL,
+  solicitud_sha256 TEXT NOT NULL,
+  iniciado_at INTEGER NOT NULL,
+  resultado_json TEXT CHECK (resultado_json IS NULL OR json_valid(resultado_json)),
+  PRIMARY KEY (cuenta_sha256, archivo_sha256)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS agenda_publicaciones_shop (
+  id TEXT PRIMARY KEY,
+  cuenta_sha256 TEXT NOT NULL,
+  archivo_sha256 TEXT NOT NULL,
+  file_id TEXT,
+  datos_json TEXT NOT NULL CHECK (json_valid(datos_json)),
+  programada_at INTEGER NOT NULL,
+  consentida_at INTEGER NOT NULL,
+  estado TEXT NOT NULL CHECK (estado IN ('programada','enviando','aceptada','cancelada','fallida','por_verificar')),
+  intento TEXT,
+  intento_at INTEGER,
+  video_id TEXT,
+  mensaje TEXT
+) STRICT;
+CREATE UNIQUE INDEX IF NOT EXISTS agenda_shop_archivo_activo ON agenda_publicaciones_shop(cuenta_sha256, archivo_sha256)
+  WHERE estado NOT IN ('cancelada','fallida');
+CREATE INDEX IF NOT EXISTS agenda_shop_turno ON agenda_publicaciones_shop(cuenta_sha256, estado, programada_at);
+
+PRAGMA user_version = 9;
