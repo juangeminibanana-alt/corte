@@ -978,6 +978,45 @@ class PublishedVideoActions extends StatelessWidget {
             icon: const Icon(Icons.open_in_new_rounded),
             label: const Text('Eliminar desde TikTok'),
           ),
+        TextButton.icon(
+          icon: const Icon(Icons.visibility_outlined),
+          label: const Text('Privacidad del video'),
+          onPressed: () => showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Quién puede ver tu video'),
+              content: const SingleChildScrollView(
+                child: Text(
+                  'Si promocionas productos de vendedores en TikTok Shop México, '
+                  'el video debe estar disponible para todos.\n\n'
+                  'Para otros videos, puedes elegir la audiencia en los ajustes '
+                  'de privacidad de la publicación en TikTok.',
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => openPublicLink(
+                    ctx,
+                    'https://seller-mx.tiktok.com/university/essay?knowledge_id=7219665592977153&lang=es-419',
+                  ),
+                  child: const Text('Términos de TikTok Shop'),
+                ),
+                if (available)
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      openPublicLink(context, link);
+                    },
+                    child: const Text('Abrir video en TikTok'),
+                  ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cerrar'),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }

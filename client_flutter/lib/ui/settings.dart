@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../app.dart';
 import '../data/corte_repository.dart';
+import '../platform/corte_runtime.dart' show corteCloudOrigin;
+import '../platform/external_links.dart';
 import '../platform/native_bridge.dart';
 import 'corte_icons.dart';
 import 'editors.dart';
@@ -22,6 +24,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final _tikTokHeading = GlobalKey();
+  int _displayRefresh = 0;
   late final _lastAndroidExit = const CorteNativeBridge().lastAndroidExit();
 
   @override
@@ -199,12 +202,74 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 14),
               ApiData(
+                key: ValueKey(_displayRefresh),
                 path: '/api/display/estado',
                 padding: EdgeInsets.zero,
-                builder: (context, data) => _SettingLine(
-                  label: 'Videos de TikTok',
-                  value: _displayLabel(data['estado']),
-                ),
+                builder: (context, data) {
+                  final connected =
+                      data['estado'] == 'conectada' &&
+                      data['conectada'] == true;
+                  final granted =
+                      connected && data['video_manage_concedido'] == true;
+                  final name = textOf(
+                    mapOf(data['usuario'])['username'],
+                  ).replaceFirst(RegExp(r'^@'), '').trim();
+                  final permission = switch ((
+                    connected,
+                    data['video_manage_concedido'],
+                  )) {
+                    (false, _) => 'Conecta las métricas de tu cuenta',
+                    (true, true) =>
+                      name.isEmpty ? 'Concedido' : 'Concedido a @$name',
+                    (true, false) => 'Sin conceder',
+                    _ => 'Sin verificar',
+                  };
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SettingLine(
+                        label: 'Videos de TikTok',
+                        value: _displayLabel(data['estado']),
+                      ),
+                      _SettingLine(
+                        label: 'Permiso de gestión de videos',
+                        value: permission,
+                      ),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          if (!granted)
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                try {
+                                  final opened = await const CorteSystemLinks()
+                                      .open(
+                                        Uri.parse(
+                                          '$corteCloudOrigin/#/ajustes/metricas',
+                                        ),
+                                      );
+                                  if (opened || !context.mounted) return;
+                                } catch (_) {
+                                  if (!context.mounted) return;
+                                }
+                                toast(
+                                  context,
+                                  'No pudimos abrir los ajustes de CUTGC en tu navegador.',
+                                );
+                              },
+                              icon: const Icon(Icons.open_in_new_rounded),
+                              label: const Text('Abrir permisos en CUTGC web'),
+                            ),
+                          TextButton.icon(
+                            onPressed: () => setState(() => _displayRefresh++),
+                            icon: const Icon(Icons.refresh_rounded),
+                            label: const Text('Comprobar permiso'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
               ),
               const SectionHeading('Tu organización'),
               const _NotificationSettings(),
